@@ -41,17 +41,18 @@ async function bodyJSON(req, maxBytes = req.url?.startsWith('/api/memory') ? 128
 
 export function createHQServer({
   dataDir = path.join(HERE, '.hq'), workspace = path.join(HERE, 'workspace'),
-  port = 4310, providers = defaultProviders, privateSessionToken = null, terminalManager, modelDiscovery, onSettingsChange,
+  port = 4310, providers = defaultProviders, privateSessionToken = null, terminalManager, modelDiscovery, onSettingsChange, projectParent,
 } = {}) {
   const store = createStore({ dataDir, workspace: path.resolve(workspace), onStorageChange: () => notify() });
   const { state } = store;
   state.server.csrfToken = randomBytes(32).toString('hex');
+  state.server.projectParent = projectParent || null;
   const active = new Map();
   const clients = new Set();
   const demoTimers = new Set();
   let actualPort, closing = false, scheduled = false, dirty = false;
   let lastDetection = 0;
-  const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTask, validateTask, getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery });
+  const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTask, validateTask, getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery, projectParent });
 
   function notify() { dirty = true; }
   function record(type, text, extra = {}) { store.event(type, text, { workspace: state.settings.workspace, ...extra }); notify(); }
@@ -494,8 +495,17 @@ export function createHQServer({
     for (const run of active.values()) { run.revoke?.(); run.cancelRequested = true; run.cancel?.(); }
     active.clear();
     for (const client of clients) client.end();
-    clients.clear(); store.save();
-    if (server.listening) await new Promise(resolve => { server.close(resolve); server.closeIdleConnections(); });
+    clients.clear();
+    try { store.save(); }
+    finally {
+      if (server.listening) await new Promise(resolve => {
+        // A stalled file-system request or unfinished upload must not prevent exit.
+        const deadline = setTimeout(() => server.closeAllConnections(), 1500);
+        deadline.unref();
+        server.close(() => { clearTimeout(deadline); resolve(); });
+        server.closeIdleConnections();
+      });
+    }
   }
   return { server, store, start, close };
 }

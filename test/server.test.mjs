@@ -374,3 +374,19 @@ test('export contains persisted results and department routing', async (t) => {
   assert.equal(exportedTask.output, '내보낼 보고서');
   assert.equal(exportedTask.provider, 'codex');
 });
+
+test('shutdown closes an unfinished request and releases its listening socket even when saving fails', async t => {
+  const f = await fixture(t);
+  const pending = http.request(`${f.url}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hq-token': f.token, 'content-length': 1000 } });
+  pending.on('error', () => {});
+  t.after(() => pending.destroy());
+  pending.write('{');
+  await delay(30);
+  const save = f.app.store.save;
+  f.app.store.save = () => { throw Object.assign(new Error('Controlled disk failure'), { code: 'EACCES' }); };
+  const started = Date.now();
+  try { await assert.rejects(f.close(), /Controlled disk failure/); }
+  finally { f.app.store.save = save; }
+  assert.equal(f.app.server.listening, false);
+  assert.ok(Date.now() - started < 4000, 'shutdown must not wait for the 15-second upload timeout');
+});

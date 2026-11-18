@@ -195,7 +195,8 @@ async function startApplication() {
   const { createHQServer } = await import(entryURL);
   terminalServer = createHQServer({
     dataDir: path.join(app.getPath('userData'), 'hq-data'),
-    workspace: path.join(app.getPath('documents'), 'Imperium Workspace'),
+    workspace: path.join(app.getPath('home'), 'Imperium Projects', 'Workspace'),
+    projectParent: path.join(app.getPath('home'), 'Imperium Projects'),
     port: 0,
     privateSessionToken,
     onSettingsChange: settings => updater?.setOffline(settings.localOnly === true),

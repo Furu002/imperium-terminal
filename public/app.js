@@ -281,15 +281,27 @@ async function api(path, options = {}) {
     headers['content-type'] = 'application/json';
     headers['x-hq-token'] = state.server.csrfToken || '';
   }
-  const response = await fetch(path, { ...options, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) });
-  let result;
-  try { result = await response.json(); } catch { result = {}; }
-  if (!response.ok) {
-    const error = new Error(result.error || t('요청을 처리하지 못했습니다.'));
-    error.status = response.status;
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(path, { ...options, signal: controller.signal, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body) });
+    let result;
+    try { result = await response.json(); } catch (error) { if (controller.signal.aborted) throw error; result = {}; }
+    if (!response.ok) {
+      const error = new Error(result.error || t('요청을 처리하지 못했습니다.'));
+      error.status = response.status;
+      throw error;
+    }
+    return result;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const messages = { ko: '요청이 지연됩니다. 폴더 접근 상태와 처리 결과를 확인한 뒤 다시 시도하세요.', en: 'The request is taking too long. Check folder access and the result before retrying.', ja: 'リクエストが遅延しています。フォルダーへのアクセスと処理結果を確認してから再試行してください。' };
+      throw new Error(messages[language] || messages.en);
+    }
     throw error;
+  } finally {
+    clearTimeout(deadline);
   }
-  return result;
 }
 
 function toast(message, error = false) {

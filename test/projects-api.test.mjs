@@ -6,6 +6,23 @@ import test from 'node:test';
 import { createHQServer } from '../server.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const resourcesByTest = new WeakMap();
+function resourcesFor(t) {
+  let resources = resourcesByTest.get(t);
+  if (resources) return resources;
+  resources = { closers: [], directories: new Set() };
+  resourcesByTest.set(t, resources);
+  t.after(async () => {
+    // A failed restart assertion must not delete shared data before the second
+    // server closes: its final save would fail and leave its listener alive.
+    const closed = await Promise.allSettled(resources.closers.map(close => close()));
+    const removed = await Promise.allSettled([...resources.directories].map(directory => rm(directory, { recursive: true, force: true })));
+    const errors = [...closed, ...removed].filter(result => result.status === 'rejected').map(result => result.reason);
+    if (errors.length) throw new AggregateError(errors, 'Project HTTP fixture cleanup failed');
+  });
+  return resources;
+}
+
 async function eventually(check) {
   const deadline = Date.now() + 3500;
   do { const result = await check(); if (result) return result; await delay(15); } while (Date.now() < deadline);
@@ -13,10 +30,18 @@ async function eventually(check) {
 }
 
 async function fixture(t, options = {}) {
-  const directory = options.directory ?? await mkdtemp(path.join(tmpdir(), 'imperium-projects-http-'));
-  const workspace = path.join(directory, 'initial-project');
-  const parentDir = path.join(directory, 'created-projects');
-  await Promise.all([mkdir(workspace, { recursive: true }), mkdir(parentDir, { recursive: true })]);
+  // Hosted Windows TEMP can contain an 8.3 user-name alias. Use one canonical
+  // spelling for both the server and expectations, including after restart.
+  const directory = await realpath(options.directory ?? await mkdtemp(path.join(tmpdir(), 'imperium-projects-http-')));
+  const resources = resourcesFor(t);
+  if (!options.keepData) {
+    const relative = path.relative(await realpath(tmpdir()), directory);
+    assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative) && path.basename(directory).startsWith('imperium-projects-http-'), 'cleanup must stay within the owned temporary fixture');
+    resources.directories.add(directory);
+  }
+  await Promise.all([mkdir(path.join(directory, 'initial-project'), { recursive: true }), mkdir(path.join(directory, 'created-projects'), { recursive: true })]);
+  const workspace = await realpath(path.join(directory, 'initial-project'));
+  const parentDir = await realpath(path.join(directory, 'created-projects'));
   const calls = [];
   const app = createHQServer({
     dataDir: path.join(directory, 'data'), workspace, port: 0,
@@ -37,6 +62,20 @@ async function fixture(t, options = {}) {
     terminalManager: { closeAll() {}, list: () => [] },
     modelDiscovery: async () => ({ models: [], detail: 'No external discovery in project tests' }),
   });
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    app.server.closeAllConnections();
+    try { await app.close(); }
+    finally {
+      // app.close() can throw while persisting on a temporarily locked Windows
+      // file. That failure must still close this fixture's listening socket.
+      app.server.closeAllConnections();
+      if (app.server.listening) await new Promise((resolve, reject) => app.server.close(error => error ? reject(error) : resolve()));
+    }
+  };
+  resources.closers.push(close);
   const { url } = await app.start();
   const get = async route => {
     const response = await fetch(`${url}${route}`);
@@ -60,10 +99,7 @@ async function fixture(t, options = {}) {
   const department = async (name, extra = {}) => (await successful('/api/departments', { name, provider: 'codex', role: `${name}의 사용자가 정의한 역할`, ...extra })).department;
   const note = async title => (await successful('/api/memory', { title, content: `${title}에만 속하는 자료`, kind: 'note' })).node;
   const task = async (departmentId, extra = {}) => (await successful('/api/tasks', { departmentId, prompt: '실제 모델을 실행하지 않는 프로젝트 통합 검증', permission: 'read-only', ...extra })).task;
-  let closed = false;
-  const close = async () => { if (!closed) { closed = true; await app.close(); } };
-  t.after(async () => { await close(); if (!options.keepData) await rm(directory, { recursive: true, force: true }); });
-  return { app, directory, workspace: await realpath(workspace), parentDir: await realpath(parentDir), calls, initial, get, state: () => get('/api/state'), request, successful, createProject, select, department, note, task, close };
+  return { app, directory, workspace, parentDir, calls, initial, get, state: () => get('/api/state'), request, successful, createProject, select, department, note, task, close };
 }
 
 const departmentNode = id => ({ id: `department:${id}`, type: 'department', referenceId: id, x: 200, y: 200 });

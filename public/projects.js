@@ -4,7 +4,7 @@
     en: {
       '프로젝트': 'Projects', '프로젝트마다 별도의 작업 폴더, 지식, 캔버스를 사용합니다.': 'Each project uses its own work folder, knowledge, and canvas.',
       '로컬 전용': 'Local only', '새로고침': 'Refresh', '현재 프로젝트': 'Current', '선택': 'Select', '캔버스 열기': 'Open canvas', '편집': 'Edit', '저장': 'Save', '취소': 'Cancel',
-      '이름': 'Name', '색상': 'Color', '상위 폴더 (선택)': 'Parent folder (optional)', '비워두면 현재 작업 폴더 옆의 "Imperium Projects"에 만듭니다.': 'Leave empty to create it in "Imperium Projects" next to the current work folder.',
+      '이름': 'Name', '색상': 'Color', '상위 폴더 (선택)': 'Parent folder (optional)', '비워두면 기본 프로젝트 폴더에 만듭니다.': 'Leave empty to use the default project folder.',
       '새 프로젝트 폴더 만들기': 'Create a project folder', '폴더 만들기': 'Create folder', '새 폴더를 실제로 만듭니다. 기존 폴더는 덮어쓰거나 옮기지 않습니다.': 'A new folder is actually created. Existing folders are never overwritten or moved.',
       '프로젝트 지식': 'Project knowledge', '각 폴더는 별도의 영구 지식(메모리)과 캔버스를 가집니다. 이는 로컬에 저장되는 메모와 그래프이며 모델 가중치를 학습시키지 않습니다.': 'Each folder keeps its own persistent knowledge (memory) and canvas. These are notes and graphs stored locally; no model weights are trained.',
       '역할과 명패': 'Roles and nameplates', '직함, 역할, 에이전트 명패는 캔버스에서 자유롭게 정합니다. 군대식·회사식 직급은 필수가 아닙니다.': 'Titles, roles, and agent nameplates are free labels you set on the canvas. Military or corporate ranks are never required.',
@@ -17,7 +17,7 @@
     ja: {
       '프로젝트': 'プロジェクト', '프로젝트마다 별도의 작업 폴더, 지식, 캔버스를 사용합니다.': 'プロジェクトごとに作業フォルダー、ナレッジ、キャンバスを分けて使います。',
       '로컬 전용': 'ローカル専用', '새로고침': '更新', '현재 프로젝트': '現在', '선택': '選択', '캔버스 열기': 'キャンバスを開く', '편집': '編集', '저장': '保存', '취소': 'キャンセル',
-      '이름': '名前', '색상': '色', '상위 폴더 (선택)': '親フォルダー（任意）', '비워두면 현재 작업 폴더 옆의 "Imperium Projects"에 만듭니다.': '空欄の場合、現在の作業フォルダーの隣の「Imperium Projects」に作成します。',
+      '이름': '名前', '색상': '色', '상위 폴더 (선택)': '親フォルダー（任意）', '비워두면 기본 프로젝트 폴더에 만듭니다.': '空欄の場合、既定のプロジェクトフォルダーに作成します。',
       '새 프로젝트 폴더 만들기': 'プロジェクトフォルダーを作成', '폴더 만들기': 'フォルダーを作成', '새 폴더를 실제로 만듭니다. 기존 폴더는 덮어쓰거나 옮기지 않습니다.': '新しいフォルダーを実際に作成します。既存のフォルダーを上書き・移動することはありません。',
       '프로젝트 지식': 'プロジェクトのナレッジ', '각 폴더는 별도의 영구 지식(메모리)과 캔버스를 가집니다. 이는 로컬에 저장되는 메모와 그래프이며 모델 가중치를 학습시키지 않습니다.': '各フォルダーは独立した永続ナレッジ（メモリー）とキャンバスを持ちます。ローカルに保存されるメモとグラフであり、モデルの重みを学習させるものではありません。',
       '역할과 명패': '役割とネームプレート', '직함, 역할, 에이전트 명패는 캔버스에서 자유롭게 정합니다. 군대식·회사식 직급은 필수가 아닙니다.': '肩書き・役割・エージェントのネームプレートはキャンバスで自由に設定できます。軍隊式・会社式の階級は必須ではありません。',
@@ -103,13 +103,13 @@
     grid = h('div', { class: 'ip-grid', role: 'list', 'aria-label': tr('프로젝트') });
     nameInput = h('input', { maxlength: '80', required: '', value: previous.name, autocomplete: 'off', 'aria-label': tr('이름') });
     colorInput = h('input', { type: 'color', value: safeColor(previous.color), 'aria-label': tr('색상') });
-    parentInput = h('input', { value: previous.parent, placeholder: 'C:\\Users\\…\\Projects', spellcheck: 'false', autocomplete: 'off', 'aria-label': tr('상위 폴더 (선택)') });
+    parentInput = h('input', { value: previous.parent, placeholder: state.server?.projectParent || 'C:\\Users\\…\\Projects', spellcheck: 'false', autocomplete: 'off', 'aria-label': tr('상위 폴더 (선택)') });
     createButton = h('button', { type: 'submit', class: 'ip-primary' }, '+ ', tr('폴더 만들기'));
     form = h('form', { class: 'ip-create', 'aria-label': tr('새 프로젝트 폴더 만들기') },
       h('h3', {}, tr('새 프로젝트 폴더 만들기')),
       h('div', { class: 'ip-create-row' }, field('이름', nameInput, 'ip-grow'), field('색상', colorInput)),
       field('상위 폴더 (선택)', parentInput),
-      h('p', { class: 'ip-help' }, tr('비워두면 현재 작업 폴더 옆의 "Imperium Projects"에 만듭니다.')),
+      h('p', { class: 'ip-help' }, tr('비워두면 기본 프로젝트 폴더에 만듭니다.')),
       h('p', { class: 'ip-help' }, tr('새 폴더를 실제로 만듭니다. 기존 폴더는 덮어쓰거나 옮기지 않습니다.')),
       createButton);
     form.addEventListener('submit', createProject);
