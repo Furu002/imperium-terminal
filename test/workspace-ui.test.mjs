@@ -16,11 +16,12 @@ function initialState() {
     departments: [{ id: 'strategy', code: 'STR', name: 'Strategy', provider: 'codex', role: 'Plan the implementation.' }, { id: 'quality', code: 'QAT', name: 'Quality', provider: 'claude', role: 'Review the implementation.' }], tasks: [],
   };
 }
-async function setup(t, { graphDelay, startOnboarded = true, initialGraph } = {}) {
+async function setup(t, { graphDelay, startOnboarded = true, initialGraph, initialConnections, deleteResponse, deleteDelay } = {}) {
   const virtualConsole = new VirtualConsole(), errors = [];
   virtualConsole.on('jsdomError', error => errors.push(error.message));
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div class="app-shell" data-view="overview"><div id="node-workspace"></div><div id="accounts"></div></div></body></html>', { url: 'http://127.0.0.1:4310', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
   const { window } = dom; const state = initialState(); state.settings.onboarded = startOnboarded;
+  if (initialConnections) state.connections = copy(initialConnections);
   const calls = [], graphByProject = new Map(), memories = [{ id: 'memory-1', title: '<img src=x onerror="window.bad=1">', content: '<script>window.bad=2</script>Verified source facts.', kind: 'note', revision: 2, pinned: true }];
   if (initialGraph) graphByProject.set(state.settings.workspace, copy(initialGraph));
   let sequence = 0;
@@ -32,6 +33,8 @@ async function setup(t, { graphDelay, startOnboarded = true, initialGraph } = {}
     const parsed = new URL(url, 'http://127.0.0.1:4310'), path = parsed.pathname, method = options.method || 'GET', body = options.body === undefined ? undefined : JSON.parse(options.body);
     calls.push({ url, path, method, body, headers: options.headers, workspace: parsed.searchParams.get('workspace') });
     let value;
+    if (method === 'DELETE' && deleteDelay) await deleteDelay(path, body);
+    if (method === 'DELETE' && deleteResponse) { const result = await deleteResponse(path, body); if (result) return result; }
     if (path === '/api/graph' && method === 'GET') { if (graphDelay) await graphDelay(parsed.searchParams.get('workspace')); value = { graph: graphByProject.get(parsed.searchParams.get('workspace')) || { nodes: [], edges: [] } }; }
     else if (path === '/api/graph' && method === 'PUT') { graphByProject.set(body.workspace, { nodes: body.nodes, edges: body.edges }); value = { graph: { nodes: body.nodes, edges: body.edges } }; }
     else if (path === '/api/memory' && method === 'GET') value = { nodes: memories, edges: [] };
@@ -39,7 +42,10 @@ async function setup(t, { graphDelay, startOnboarded = true, initialGraph } = {}
     else if (path.startsWith('/api/memory/') && method === 'PATCH') { const index = memories.findIndex(memory => memory.id === path.split('/').at(-1)); memories[index] = { ...memories[index], ...body, revision: memories[index].revision + 1 }; value = { node: memories[index] }; }
     else if (path === '/api/workflows/run') value = { workflow: { id: 'workflow-1' } };
     else if (path === '/api/departments' && method === 'POST') value = { department: { ...body, id: `custom-agent-${++sequence}`, code: 'NEW' } };
-    else if (path === '/api/providers/catalog') value = { catalog: [{ id: 'codex', name: 'Codex', requiresNode: true, installCommand: 'npm install -g @openai/codex', loginCommand: 'codex login' }, { id: 'claude', name: 'Claude', installCommand: 'npm install -g @anthropic-ai/claude-code', loginCommand: 'claude auth login' }], connections: [] };
+    else if (path.startsWith('/api/departments/') && method === 'DELETE') { if (state.settings.workspace === body.workspace) state.departments = state.departments.filter(agent => agent.id !== path.split('/').at(-1)); const current = graphByProject.get(body.workspace); if (current) { current.nodes = current.nodes.filter(node => node.referenceId !== path.split('/').at(-1)); const ids = new Set(current.nodes.map(node => node.id)); current.edges = current.edges.filter(edge => ids.has(edge.source) && ids.has(edge.target)); } value = { ok: true, departments: state.departments }; }
+    else if (path.startsWith('/api/providers/connections/') && method === 'DELETE') { state.connections = (state.connections || []).filter(connection => connection.id !== path.split('/').at(-1)); value = { ok: true }; }
+    else if (path === '/api/state') value = state;
+    else if (path === '/api/providers/catalog') value = { catalog: [{ id: 'codex', name: 'Codex', requiresNode: true, installCommand: 'npm install -g @openai/codex', loginCommand: 'codex login' }, { id: 'claude', name: 'Claude', installCommand: 'npm install -g @anthropic-ai/claude-code', loginCommand: 'claude auth login' }], connections: state.connections || [] };
     else if (path === '/api/providers/codex/models') value = { models: [{ id: 'actual-account-model', name: 'Account Model', source: 'account' }], detail: 'Reported by the account.' };
     else if (path === '/api/providers/claude/models') value = { models: [], detail: 'No account catalog is available.' };
     else if (path === '/api/providers/register') value = { connection: { id: 'connection-1', ...body } };
@@ -81,6 +87,53 @@ test('node workspace starts empty and shows actual status only after the user ad
   window.ImperiumWorkspace.render(state, { ...options, connected: false });
   assert.ok([...document.querySelectorAll('.iw-node')].every(node => node.dataset.status === 'offline'));
   assert.deepEqual(errors, []);
+});
+
+test('agent registration removal requires explicit confirmation and refreshes authoritative state while retaining history', async t => {
+  const { window, document, state, calls, options } = await setup(t);
+  state.tasks = [{ id: 'retained', departmentId: 'strategy', status: 'completed', output: 'RETAINED_RESULT' }];
+  await addFromLibrary(document, 'department', 'strategy'); select(window, document, 'department:strategy');
+  document.querySelector('[data-iw-action="remove-agent"]').click();
+  const dialog = document.querySelector('[data-iw-remove-dialog="strategy"]'); assert.match(dialog.textContent, /Strategy/); assert.match(dialog.textContent, /Conversations, tasks and memories are retained/); assert.equal(calls.filter(call => call.method === 'DELETE').length, 0);
+  dialog.querySelector('button').click(); assert.equal(calls.filter(call => call.method === 'DELETE').length, 0);
+  document.querySelector('[data-iw-action="remove-agent"]').click(); document.querySelector('[data-iw-confirm-remove="strategy"]').click(); await settle(30);
+  const removed = calls.find(call => call.method === 'DELETE'); assert.equal(removed.path, '/api/departments/strategy'); assert.equal(removed.body.workspace, state.settings.workspace); assert.equal(removed.headers['x-hq-token'], 'test-node-csrf');
+  assert.equal(state.departments.some(agent => agent.id === 'strategy'), false); assert.equal(state.tasks[0].output, 'RETAINED_RESULT'); assert.equal(document.querySelector('[data-node-id="department:strategy"]'), null);
+});
+
+test('busy agents cannot be removed and server rejection leaves the registration and canvas intact', async t => {
+  const { window, document, state, options, calls } = await setup(t, { deleteResponse: () => ({ ok: false, status: 409, json: async () => ({ error: 'Agent is still assigned to queued work' }) }) });
+  await addFromLibrary(document, 'department', 'strategy'); state.tasks = [{ id: 'busy', departmentId: 'strategy', status: 'queued' }]; window.ImperiumWorkspace.render(state, options); select(window, document, 'department:strategy');
+  assert.equal(document.querySelector('[data-iw-action="remove-agent"]').disabled, true); assert.match(document.querySelector('[data-iw-removal-blocked]').textContent, /running and queued/);
+  state.tasks = []; window.ImperiumWorkspace.render(state, options); select(window, document, 'department:strategy'); document.querySelector('[data-iw-action="remove-agent"]').click(); document.querySelector('[data-iw-confirm-remove="strategy"]').click(); await settle();
+  assert.match(document.querySelector('[data-iw-remove-dialog] [role="alert"]').textContent, /queued work/); assert.ok(document.querySelector('[data-node-id="department:strategy"]')); assert.ok(state.departments.some(agent => agent.id === 'strategy')); assert.equal(calls.filter(call => call.method === 'DELETE').length, 1);
+});
+
+test('model connection removal shows assignment reasons and confirms without logging out or executing commands', async t => {
+  const { window, document, state, calls } = await setup(t, { initialConnections: [{ id: 'assigned', label: 'Assigned <img src=x>', providerId: 'codex' }, { id: 'unused', label: 'Personal model', providerId: 'codex' }] });
+  state.departments[0].connectionId = 'assigned'; window.ImperiumAccounts.mount('#accounts', { getState: () => state }); await settle();
+  assert.equal(document.querySelector('[data-remove-connection="assigned"]').disabled, true); assert.match(document.querySelector('[data-connection-blocked="assigned"]').textContent, /Strategy/); assert.equal(document.querySelector('img[src="x"]'), null);
+  document.querySelector('[data-remove-connection="unused"]').click(); const dialog = document.querySelector('[data-connection-remove-dialog="unused"]'); assert.match(dialog.textContent, /CLI sign-in and installation stay in place/); assert.equal(calls.filter(call => call.method === 'DELETE').length, 0);
+  dialog.querySelector('[data-confirm-connection-remove]').click(); await settle(); assert.equal(document.querySelector('[data-connection-id="unused"]'), null); assert.ok(document.querySelector('[data-connection-id="assigned"]'));
+  assert.equal(calls.filter(call => call.method === 'DELETE').length, 1); assert.ok(!calls.some(call => /logout|uninstall|terminal/.test(call.path)));
+});
+
+test('late agent removal does not change a different project', async t => {
+  let release; const pending = new Promise(resolve => { release = resolve; });
+  const { window, document, state, options, graphByProject, calls } = await setup(t, { deleteDelay: () => pending });
+  await addFromLibrary(document, 'department', 'strategy'); select(window, document, 'department:strategy'); document.querySelector('[data-iw-action="remove-agent"]').click(); document.querySelector('[data-iw-confirm-remove="strategy"]').click(); await settle();
+  state.settings.workspace = 'C:\\Project B'; state.departments = [{ id: 'strategy', name: 'B agent', provider: 'codex' }]; graphByProject.set(state.settings.workspace, { nodes: [{ id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 10, y: 10 }], edges: [] }); window.ImperiumWorkspace.render(state, options); await settle(); release(); await settle();
+  assert.ok(document.querySelector('[data-node-id="department:strategy"]')); assert.equal(state.departments[0].name, 'B agent'); assert.equal(document.querySelector('[data-iw-remove-dialog]'), null); assert.equal(calls.filter(call => call.path === '/api/state').length, 0);
+});
+
+test('connection rejection is visible without deleting its row and removal labels translate to Korean and Japanese', async t => {
+  const { window, document, state, options } = await setup(t, { initialConnections: [{ id: 'unused', label: 'Model <script>literal</script>', providerId: 'codex' }], deleteResponse: () => ({ ok: false, status: 409, json: async () => ({ error: 'Assigned in another project. Unassign that agent first.' }) }) });
+  window.ImperiumAccounts.mount('#accounts', { getState: () => state }); await settle();
+  document.querySelector('[data-remove-connection="unused"]').click(); document.querySelector('[data-confirm-connection-remove="unused"]').click(); await settle();
+  assert.match(document.querySelector('[data-connection-remove-dialog] [role="alert"]').textContent, /another project/); assert.ok(document.querySelector('[data-connection-id="unused"]')); assert.equal(document.querySelector('script'), null);
+  document.documentElement.lang = 'ja'; window.ImperiumAccounts.render(state); assert.equal(document.querySelector('[data-remove-connection="unused"]').textContent, 'モデル接続を削除');
+  document.documentElement.lang = 'ko'; window.ImperiumAccounts.render(state); assert.equal(document.querySelector('[data-remove-connection="unused"]').textContent, '모델 연결 제거');
+  await addFromLibrary(document, 'department', 'strategy'); select(window, document, 'department:strategy'); window.ImperiumWorkspace.render(state, { ...options, language: 'ja' }); assert.equal(document.querySelector('[data-iw-action="remove-agent"]').textContent, 'エージェントを削除');
 });
 
 test('memory context is persisted, editable, safe as text and used only by an explicit workflow action', async t => {

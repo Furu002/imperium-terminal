@@ -4,10 +4,12 @@ import test from 'node:test';
 import { createProgressReader, estimateHistoricalETA } from '../lib/progress.mjs';
 
 const marker = data => `[[IMPERIUM_PROGRESS ${JSON.stringify(data)}]]`;
+const statusMarker = data => `[[IMPERIUM_STATUS ${JSON.stringify(data)}]]`;
+const skillMarker = data => `[[IMPERIUM_SKILL ${JSON.stringify(data)}]]`;
 function collect() {
-  const texts = [], events = [];
-  const reader = createProgressReader({ onText: text => texts.push(text), onProgress: event => events.push(event) });
-  return { ...reader, texts, events, output: () => texts.join('') };
+  const texts = [], events = [], statuses = [], skills = [];
+  const reader = createProgressReader({ onText: text => texts.push(text), onProgress: event => events.push(event), onStatus: event => statuses.push(event), onSkill: event => skills.push(event) });
+  return { ...reader, texts, events, statuses, skills, output: () => texts.join('') };
 }
 
 test('public Korean progress markers survive every possible chunk boundary and disappear from visible text', () => {
@@ -98,6 +100,63 @@ test('bracket pairs and escaped quotes inside JSON stage text do not end the mar
   assert.equal(reader.output(), '');
   assert.equal(reader.events.length, 1);
   assert.equal(reader.events[0].stage, stage);
+});
+
+test('public status summaries need no estimate and survive every split alongside progress markers', () => {
+  const summary = '파일 목록 검토 · 日本語と한국어 🙂 ]] "경로" \\';
+  const input = `시작${statusMarker({ summary })}중간${marker({ percent: 25, stage: '구현' })}끝`;
+  for (let split = 0; split <= input.length; split++) {
+    const reader = collect(); reader.write(input.slice(0, split)); reader.write(input.slice(split)); reader.end();
+    assert.equal(reader.output(), '시작중간끝', `split ${split}`);
+    assert.deepEqual(reader.statuses, [{ type: 'status', summary, source: 'model-summary' }]);
+    assert.equal(reader.events[0].percent, 25);
+  }
+  const legacy = createProgressReader(); assert.doesNotThrow(() => { legacy.write(statusMarker({ summary })); legacy.end(); });
+  assert.throws(() => createProgressReader({ onStatus: 'wrong type' }), TypeError);
+});
+
+test('status summaries strip controls, bound Unicode to 240 code points and ignore forged provenance or hidden fields', () => {
+  const reader = collect(), html = '<img src=x onerror="globalThis.statusAttack=1">';
+  reader.write(statusMarker({ summary: `  요약\n\u0000\u001b\u200b\u202e${html}${'🙂'.repeat(300)}`, source: 'process', type: 'reasoning', percent: 100, thinking: 'PRIVATE_DATA', reasoning: 'PRIVATE_DATA' })); reader.end();
+  assert.equal(reader.output(), ''); assert.equal(reader.statuses.length, 1);
+  const event = reader.statuses[0]; assert.deepEqual(Object.keys(event), ['type', 'summary', 'source']);
+  assert.equal(event.source, 'model-summary'); assert.equal(event.type, 'status'); assert.equal([...event.summary].length, 240);
+  assert.ok(event.summary.includes(html)); assert.ok(!/[\p{Cc}\u200b\u202e]/u.test(event.summary)); assert.ok(!event.summary.includes('PRIVATE_DATA')); assert.equal(globalThis.statusAttack, undefined);
+});
+
+test('duplicate sanitized public status reports are removed while changed stages remain ordered', () => {
+  const reader = collect();
+  for (const char of `${statusMarker({ summary: '검토' })}${statusMarker({ summary: ' 검토 ' })}${marker({ percent: 30 })}${statusMarker({ summary: '검토' })}${statusMarker({ summary: '검증' })}${statusMarker({ summary: '검토' })}`) reader.write(char);
+  reader.end(); assert.equal(reader.output(), ''); assert.deepEqual(reader.statuses.map(event => event.summary), ['검토', '검증', '검토']); assert.equal(reader.events.length, 1);
+});
+
+test('broken, oversized or invalid status reports stay literal and never manufacture progress', () => {
+  const invalid = ['[[IMPERIUM_STATUS {bad}]]', statusMarker([]), statusMarker(null), statusMarker({ summary: {} }), statusMarker({ summary: 12 }), statusMarker({ summary: '\u0000\n\u202e' }), statusMarker({ percent: 50 }), '[[IMPERIUM_STATUS {"summary":"unfinished', '[[IMPERIUM_STA'];
+  for (const input of invalid) { const reader = collect(); reader.write(input); reader.end(); assert.equal(reader.output(), input); assert.deepEqual(reader.statuses, []); assert.deepEqual(reader.events, []); }
+  const reader = collect(), huge = `[[IMPERIUM_STATUS ${'x'.repeat(128 * 1024)}]]`;
+  reader.write(huge.slice(0, 4096)); assert.ok(reader.output().length > 0); reader.write(huge.slice(4096)); reader.write(statusMarker({ summary: '정상 재개' })); reader.end();
+  assert.equal(reader.output(), huge); assert.deepEqual(reader.statuses.map(event => event.summary), ['정상 재개']); assert.deepEqual(reader.events, []);
+});
+
+test('public skill reports survive every boundary, stay self-reported and do not invent an estimate', () => {
+  const name = '문서 검토 🙂 日本語 ]] "인용"';
+  const input = `앞${skillMarker({ name, source: 'cli-skill-call', phase: 'completed', reasoning: 'PRIVATE' })}중간${statusMarker({ summary: '문서 확인' })}${marker({ percent: 12 })}뒤`;
+  for (let split = 0; split <= input.length; split++) {
+    const reader = collect(); reader.write(input.slice(0, split)); reader.write(input.slice(split)); reader.end();
+    assert.equal(reader.output(), '앞중간뒤'); assert.deepEqual(reader.skills, [{ type: 'skill', name, source: 'model-reported' }]); assert.equal(reader.statuses.length, 1); assert.equal(reader.events.length, 1);
+  }
+  const legacy = createProgressReader(); assert.doesNotThrow(() => { legacy.write(skillMarker({ name })); legacy.end(); });
+  assert.throws(() => createProgressReader({ onSkill: null }), TypeError);
+});
+
+test('skill reports sanitize and cap Unicode names, remove duplicates and preserve malformed literals', () => {
+  const reader = collect(), longName = ` \u0000\u001b\u202e${'🙂'.repeat(180)}`;
+  for (const char of `${skillMarker({ name: longName })}${skillMarker({ name: longName })}${skillMarker({ name: '다음 스킬' })}${skillMarker({ name: longName })}`) reader.write(char);
+  reader.end(); assert.equal(reader.output(), ''); assert.equal(reader.skills.length, 3); assert.equal([...reader.skills[0].name].length, 160); assert.equal(reader.skills[0].name, '🙂'.repeat(160)); assert.deepEqual(reader.events, []);
+  const invalid = [skillMarker(null), skillMarker([]), skillMarker({ name: {} }), skillMarker({ name: 12 }), skillMarker({ name: '\u0000\n\u202e' }), skillMarker({ skill: 'not-name' }), '[[IMPERIUM_SKILL {bad}]]', '[[IMPERIUM_SKILL {"name":"partial', '[[IMPERIUM_SKI'];
+  for (const input of invalid) { const literal = collect(); literal.write(input); literal.end(); assert.equal(literal.output(), input); assert.deepEqual(literal.skills, []); }
+  const oversized = collect(), huge = `[[IMPERIUM_SKILL ${'x'.repeat(128 * 1024)}]]`;
+  oversized.write(huge.slice(0, 4096)); assert.ok(oversized.output().length > 0); oversized.write(huge.slice(4096)); oversized.write(skillMarker({ name: 'recovered' })); oversized.end(); assert.equal(oversized.output(), huge); assert.equal(oversized.skills[0].name, 'recovered');
 });
 
 const now = Date.parse('2026-11-18T00:10:00Z');

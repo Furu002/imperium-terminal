@@ -18,7 +18,9 @@
   };
   const h = (tag, attrs = {}, ...children) => { const element = document.createElement(tag); for (const [key, value] of Object.entries(attrs)) { if (key === 'class') element.className = value; else if (key.startsWith('on')) element.addEventListener(key.slice(2).toLowerCase(), value); else if (value !== undefined && value !== null && value !== false) element.setAttribute(key, String(value)); } children.flat().forEach(child => { if (child !== undefined && child !== null) element.append(child instanceof Node ? child : document.createTextNode(String(child))); }); return element; };
   let container, callbacks = {}, state = {}, catalog = [], connections = [], loaded = false, loading = false, renderedLanguage = '', renderedSignature = '', modelRequest = 0, wizardShown = false, wizardStep = 0, wizardProvider = '', wizard;
-  let providersList, connectionList, registerForm, providerSelect, modelSelect, manualInput, labelInput, modelDetail, message, registerButton;
+  let providersList, connectionList, registerForm, providerSelect, modelSelect, manualInput, labelInput, modelDetail, message, registerButton, removalDialog, removalEpoch = 0, removalWorkspace;
+  Object.assign(TEXT.en, { '모델 연결 제거': 'Remove model connection', '제거 확인': 'Confirm removal', '취소': 'Cancel', '먼저 에이전트의 연결을 해제하세요.': 'Unassign this connection from these agents first.', '연결 등록만 제거합니다. 대화·작업·기억은 보존되며 CLI 로그인·설치는 유지됩니다.': 'Removes only the saved connection. Conversations, tasks and memories are retained. CLI sign-in and installation stay in place.' });
+  Object.assign(TEXT.ja, { '모델 연결 제거': 'モデル接続を削除', '제거 확인': '削除を確認', '취소': 'キャンセル', '먼저 에이전트의 연결을 해제하세요.': '先に次のエージェントから接続を解除してください。', '연결 등록만 제거합니다. 대화·작업·기억은 보존되며 CLI 로그인·설치는 유지됩니다.': '接続の登録のみを削除します。会話・タスク・記憶、CLIへのログインとインストールは保持します。' });
   const language = () => document.documentElement.lang || state.settings?.language || 'ko';
   const tr = key => TEXT[language()]?.[key] ?? key;
   const sourceLabel = source => tr({ account: '계정에서 확인', alias: 'CLI 별칭', local: '로컬 모델', manual: '직접 입력' }[source] || '직접 입력');
@@ -84,8 +86,26 @@
     if (!connections.length) { connectionList.replaceChildren(h('p', { class: 'ia-empty' }, tr('아직 등록한 연결이 없습니다.'))); return; }
     connectionList.replaceChildren(...connections.map(connection => {
       const provider = catalog.find(item => item.id === connection.providerId), actual = providerState(connection.providerId);
-      return h('article', { class: 'ia-connection', 'data-connection-id': connection.id }, h('div', {}, h('strong', {}, connection.label), h('p', {}, `${provider?.name || connection.providerId} · ${connection.modelId || tr('CLI 기본 모델')}`), h('span', { class: 'ia-provider-status', 'data-status': actual?.status || 'unknown' }, statusText(actual))), h('button', { type: 'button', title: tr('연결 목록에서만 제거되며 CLI에서 로그아웃하지 않습니다.'), onclick: async event => { const button = event.currentTarget; button.disabled = true; try { await request(`/api/providers/connections/${encodeURIComponent(connection.id)}`, 'DELETE'); connections = connections.filter(item => item.id !== connection.id); renderConnections(); announce(tr('연결을 제거했습니다.')); callbacks.onChanged?.(); } catch (error) { announce(error.message, true); button.disabled = false; } } }, tr('삭제')));
+      const assignments = assignedAgents(connection.id);
+      return h('article', { class: 'ia-connection', 'data-connection-id': connection.id }, h('div', {}, h('strong', {}, connection.label), h('p', {}, `${provider?.name || connection.providerId} · ${connection.modelId || tr('CLI 기본 모델')}`), h('span', { class: 'ia-provider-status', 'data-status': actual?.status || 'unknown' }, statusText(actual)), ...(assignments.length ? [h('p', { class: 'ia-error', 'data-connection-blocked': connection.id }, tr('먼저 에이전트의 연결을 해제하세요.'), ' ', assignments.map(agent => agent.name || agent.id).join(', '))] : [])), h('button', { type: 'button', disabled: assignments.length > 0, 'data-remove-connection': connection.id, title: tr('연결 목록에서만 제거되며 CLI에서 로그아웃하지 않습니다.'), onclick: () => confirmConnectionRemoval(connection) }, tr('모델 연결 제거')));
     }));
+  }
+  function assignedAgents(id) { return [...(state.departments || []), ...(state.projects || []).flatMap(value => value.departments || [])].filter(agent => agent.connectionId === id); }
+  function confirmConnectionRemoval(connection) {
+    if (assignedAgents(connection.id).length) return;
+    removalDialog?.close(); removalDialog?.remove();
+    const key = state.settings?.workspace, epoch = removalEpoch, dialog = h('dialog', { class: 'ia-removal-dialog', 'data-connection-remove-dialog': connection.id }); removalDialog = dialog;
+    const current = () => epoch === removalEpoch && key === state.settings?.workspace && key === (callbacks.getState?.() || state).settings?.workspace;
+    const error = h('p', { role: 'alert' }), cancel = h('button', { type: 'button', onclick: () => { dialog.close(); dialog.remove(); } }, tr('취소'));
+    const confirm = h('button', { type: 'button', 'data-confirm-connection-remove': connection.id, onclick: async () => {
+      if (!current() || assignedAgents(connection.id).length) return; confirm.disabled = true; cancel.disabled = true;
+      try {
+        await request(`/api/providers/connections/${encodeURIComponent(connection.id)}`, 'DELETE');
+        if (!current()) return;
+        connections = connections.filter(item => item.id !== connection.id); dialog.close(); dialog.remove(); renderConnections(); announce(tr('연결을 제거했습니다.')); await callbacks.onChanged?.();
+      } catch (failure) { if (current()) { error.textContent = failure.message; announce(failure.message, true); confirm.disabled = false; cancel.disabled = false; } }
+    } }, tr('제거 확인'));
+    dialog.append(h('div', { class: 'dialog-body' }, h('h2', {}, tr('모델 연결 제거')), h('strong', {}, connection.label), h('p', {}, tr('연결 등록만 제거합니다. 대화·작업·기억은 보존되며 CLI 로그인·설치는 유지됩니다.')), error, cancel, confirm)); document.body.append(dialog); dialog.showModal();
   }
   async function loadModels() {
     const providerId = providerSelect.value; if (!providerId) { announce(tr('제공자를 먼저 선택하세요.'), true); return; }
@@ -150,7 +170,7 @@
     wizard.replaceChildren(h('div', { class: 'ia-wizard-heading' }, h('div', {}, h('span', {}, 'IMPERIUM / PERSONAL SETUP'), h('h2', {}, tr('IMPERIUM 시작하기'))), h('button', { type: 'button', 'aria-label': tr('닫기'), onclick: () => wizard.close() }, '×')), h('ol', { class: 'ia-wizard-steps' }, ...steps.map((step, index) => h('li', { class: index === wizardStep ? 'active' : index < wizardStep ? 'complete' : '' }, h('span', {}, String(index + 1).padStart(2, '0')), tr(step)))), body, navigation);
   }
   async function finishWizard() { try { await request('/api/settings', 'POST', { onboarded: true }); state = { ...state, settings: { ...state.settings, onboarded: true } }; wizard.close(); announce(tr('설정을 저장했습니다.')); callbacks.onChanged?.(); } catch (error) { announce(error.message, true); } }
-  function mount(target, configuration = {}) { container = typeof target === 'string' ? document.querySelector(target) : target; callbacks = configuration; if (!container) return; state = callbacks.getState?.() || state; build(); reload(); }
-  function render(incoming) { state = incoming || callbacks.getState?.() || state; if (!container) return; if (renderedLanguage !== language()) { build(); if (wizard?.open) renderWizard(); renderedSignature = ''; } const signature = JSON.stringify([state.providers, connections, language()]); if (signature !== renderedSignature) { renderedSignature = signature; renderProviders(); renderConnections(); } if (loaded && state.server?.csrfToken && !state.settings?.onboarded && !wizardShown && catalog.length) openWizard(); }
+  function mount(target, configuration = {}) { removalEpoch++; removalDialog?.close(); removalDialog?.remove(); container = typeof target === 'string' ? document.querySelector(target) : target; callbacks = configuration; if (!container) return; state = callbacks.getState?.() || state; build(); reload(); }
+  function render(incoming) { state = incoming || callbacks.getState?.() || state; if (!container) return; if (renderedLanguage !== language()) { build(); if (wizard?.open) renderWizard(); renderedSignature = ''; } if (removalWorkspace !== state.settings?.workspace) { removalWorkspace = state.settings?.workspace; removalEpoch++; removalDialog?.close(); removalDialog?.remove(); } if (Array.isArray(state.connections)) connections = state.connections; const signature = JSON.stringify([state.providers, connections, state.departments, state.projects, language()]); if (signature !== renderedSignature) { renderedSignature = signature; renderProviders(); renderConnections(); } if (loaded && state.server?.csrfToken && !state.settings?.onboarded && !wizardShown && catalog.length) openWizard(); }
   window.ImperiumAccounts = { mount, render, reload, showOnboarding: openWizard };
 })();

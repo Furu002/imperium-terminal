@@ -37,6 +37,13 @@ test('help and bounded input history remain keyboard accessible', t => {
   f.document.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })); assert.equal(f.document.activeElement, f.input);
 });
 
+test('CHAT opens the ongoing conversation workspace without dispatching an operation', t => {
+  const f = fixture(t); f.command('CHAT');
+  assert.deepEqual(f.navigated, ['chat']); assert.deepEqual(f.prepared, []);
+  f.window.ImperiumTerminalShell.render(f.state, { ...f.callbacks, view: 'chat' });
+  assert.equal(f.document.querySelector('.terminal-tabs [aria-current=page]').textContent, 'CHAT');
+});
+
 test('a blocked task replacement retains the new command and does not claim that an existing draft was replaced', t => {
   const f = fixture(t);
   f.window.ImperiumTerminalShell.render(f.state, { ...f.callbacks, onPrepareTask: () => false });

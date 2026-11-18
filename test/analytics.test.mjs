@@ -115,7 +115,7 @@ test('insufficient and zero-baseline cohorts never produce invented percentages 
   assert.equal(zero.comparison.groups[0].changePercent, null);
 });
 
-test('the analytics view renders measured SVG data as text and translates empty states without synthetic charts', async () => {
+test('the analytics view retains measured text tables when charts are unavailable and translates empty states', async () => {
   const dom = new JSDOM('<div id="analytics"></div>', { runScripts: 'outside-only', url: 'http://127.0.0.1:4310' });
   const current = state([task('unsafe-title', { title: '<img src=x onerror=alert(1)>', usage: { inputTokens: 10, outputTokens: 5 } })]);
   let result = summarizeAnalytics(current);
@@ -124,10 +124,12 @@ test('the analytics view renders measured SVG data as text and translates empty 
   const controller = dom.window.ImperiumAnalytics.mount(root, { getState: () => current, api: async () => ({ analytics: result }) });
   try {
     await controller.refresh();
-    assert.equal(root.querySelectorAll('svg[role="img"]').length, 3);
+    assert.equal(root.querySelectorAll('svg').length, 0);
+    assert.equal(root.querySelectorAll('details.ia-chart-table[open]').length, 4);
+    assert.equal(root.querySelectorAll('.ia-chart-unavailable').length, 4);
     assert.equal(root.querySelector('img,script'), null);
     assert.ok(root.textContent.includes('<img src=x onerror=alert(1)>'));
-    assert.ok([...root.querySelectorAll('svg')].every(image => image.getAttribute('aria-label')));
+    assert.ok([...root.querySelectorAll('canvas')].every(image => image.getAttribute('aria-label')));
     current.tasks = [];
     current.settings.language = 'en';
     result = summarizeAnalytics(current);

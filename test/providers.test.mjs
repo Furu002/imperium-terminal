@@ -14,7 +14,7 @@ import { PassThrough } from 'node:stream';
 import path from 'node:path';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { createEventParser, createJsonLineReader, createProviderRunner, providerArguments, subscriptionEnvironment, locateProvider } from '../lib/providers.mjs';
+import { createEventParser, createJsonLineReader, createProviderRunner, providerArguments, subscriptionEnvironment, locateProvider, isNativeSessionId } from '../lib/providers.mjs';
 
 test('current Claude npm packages resolve both native binaries and the modern wrapper', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'imperium-provider-'));
@@ -74,6 +74,58 @@ test('Claude stream deltas and full assistant/result messages do not duplicate o
   assert.equal(events.filter((event) => event.type === 'text').map((event) => event.text).join(''), '개발 완료');
   assert.equal(parser.state().output, '개발 완료');
   assert.deepEqual(parser.state().usage, { inputTokens: 10, outputTokens: 2 });
+});
+
+test('Claude records named Skill invocations once across stream/final messages, without claiming success', () => {
+  const events = [], parser = createEventParser('claude', event => events.push(event));
+  const block = { type: 'tool_use', id: 'skill-call-1', name: 'Skill', input: { skill: '문서 검토', args: 'PRIVATE_ARGS' } };
+  parser.consume({ type: 'stream_event', event: { type: 'content_block_start', content_block: { ...block, input: {} } } });
+  assert.equal(events.filter(event => event.type === 'skill').length, 0);
+  parser.consume({ type: 'assistant', message: { id: 'message-1', content: [block] } });
+  parser.consume({ type: 'assistant', message: { id: 'message-1', content: [block] } });
+  const other = { ...block, id: 'skill-call-2' };
+  parser.consume({ type: 'stream_event', event: { type: 'content_block_start', content_block: other } });
+  parser.consume({ type: 'assistant', message: { id: 'message-2', content: [other] } });
+  assert.deepEqual(events.filter(event => event.type === 'skill'), [1, 2].map(() => ({ type: 'skill', name: '문서 검토', text: '문서 검토', source: 'cli-skill-call', phase: 'invoked' })));
+  assert.ok(!JSON.stringify(events).includes('PRIVATE_ARGS')); assert.equal(parser.state().output, '');
+});
+
+test('Claude skill document observations use only structured Read basenames on Windows and POSIX', () => {
+  const events = [], parser = createEventParser('claude', event => events.push(event));
+  for (const [index, file_path] of ['/workspace/.claude/skills/review/SKILL.md', 'C:\\Users\\user\\skills\\문서 검토\\SKILL.md'].entries()) {
+    const block = { type: 'tool_use', id: `read-${index}`, name: 'Read', input: { file_path } };
+    parser.consume({ type: 'stream_event', event: { type: 'content_block_start', content_block: { ...block, input: {} } } });
+    parser.consume({ type: 'assistant', message: { id: `read-message-${index}`, content: [block] } });
+    parser.consume({ type: 'assistant', message: { id: `read-message-${index}`, content: [block] } });
+  }
+  assert.deepEqual(events.filter(event => event.type === 'skill').map(event => [event.name, event.source, event.phase]), [['review', 'cli-skill-read', 'invoked'], ['문서 검토', 'cli-skill-read', 'invoked']]);
+  assert.ok(!JSON.stringify(events).includes('/workspace/')); assert.ok(!JSON.stringify(events).includes('C:\\Users'));
+  for (const file_path of ['/SKILL.md', 'C:\\SKILL.md', '/skills/review/OTHER.md', '/skills/review/SKILL.md.bak', '/skills/review/SKILL.md/', '/skills/review/skill.md', '/skills/../SKILL.md']) parser.consume({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path } }] } });
+  assert.equal(events.filter(event => event.type === 'skill').length, 2);
+});
+
+test('skill observers bound names and replay state while ignoring prose, other tools, hidden thoughts and Codex commands', () => {
+  const events = [], parser = createEventParser('claude', event => events.push(event));
+  assert.doesNotThrow(() => { parser.consume({ type: 'assistant', message: { content: 'Skill: pretend' } }); parser.consume({ type: 'assistant', message: { content: [null, 1] } }); });
+  for (const block of [
+    { type: 'thinking', name: 'Skill', input: { skill: 'PRIVATE' }, thinking: 'PRIVATE' },
+    { type: 'tool_use', name: 'Bash', input: { command: 'cat /skills/pretend/SKILL.md', skill: 'pretend' } },
+    { type: 'tool_use', name: 'Skill', input: { skill: {} } },
+    { type: 'tool_use', name: 'Skill', input: { skill: '\u0000\u202e' } },
+    { type: 'tool_result', name: 'Skill', input: { skill: 'pretend' } },
+  ]) parser.consume({ type: 'assistant', message: { content: [block] } });
+  parser.consume({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'PRIVATE Skill: pretend' } } });
+  assert.equal(events.filter(event => event.type === 'skill').length, 0); assert.ok(!JSON.stringify(events).includes('PRIVATE'));
+  parser.consume({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'bounded', name: 'Skill', input: { skill: `\u0000\u001b\u202e${'🙂'.repeat(180)}`, source: 'model-reported', phase: 'completed' } }] } });
+  assert.equal(events.find(event => event.type === 'skill').name, '🙂'.repeat(160));
+  for (let index = 0; index < 600; index++) parser.consume({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `call-${index}`, name: 'Skill', input: { skill: 'repeated-real-call' } }] } });
+  const count = events.filter(event => event.type === 'skill').length;
+  parser.consume({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'call-599', name: 'Skill', input: { skill: 'repeated-real-call' } }] } });
+  assert.equal(events.filter(event => event.type === 'skill').length, count);
+  const codexEvents = [], codex = createEventParser('codex', event => codexEvents.push(event));
+  codex.consume({ type: 'item.completed', item: { type: 'command_execution', command: 'cat /skills/not-evidence/SKILL.md', input: { skill: 'not-evidence' } } });
+  codex.consume({ type: 'item.completed', item: { type: 'reasoning', text: 'PRIVATE Skill call' } });
+  assert.equal(codexEvents.filter(event => event.type === 'skill').length, 0); assert.ok(!JSON.stringify(codexEvents).includes('PRIVATE'));
 });
 
 test('Claude result-only response is displayed and failures remain failures', () => {
@@ -143,6 +195,48 @@ test('permissions restrict available Claude tools and never bypass Codex sandbox
   assert.throws(() => providerArguments('codex', 'danger-full-access'));
 });
 
+const SESSION_ID = '019a1234-5678-7abc-8def-123456789abc';
+test('native resumes use only a strict session UUID and retain explicit sandbox and Claude tool limits', () => {
+  const codex = providerArguments('codex', 'read-only', { resumeSessionId: SESSION_ID.toUpperCase(), modelId: 'confirmed-model', reasoningEffort: 'high', speed: 'fast', memory: {} });
+  assert.deepEqual(codex.slice(0, 4), ['-a', 'never', '--sandbox', 'read-only']);
+  assert.ok(codex.indexOf('--sandbox') < codex.indexOf('exec')); assert.deepEqual(codex.slice(-6), ['exec', 'resume', '--json', '--skip-git-repo-check', SESSION_ID, '-']);
+  assert.ok(codex.includes('confirmed-model')); assert.ok(codex.includes('model_reasoning_effort="high"')); assert.ok(codex.some(arg => arg.includes('mcp_servers.imperium_memory.required=true')));
+  const claude = providerArguments('claude', 'read-only', { resumeSessionId: SESSION_ID });
+  assert.deepEqual(claude.slice(0, 3), ['-p', '--resume', SESSION_ID]); assert.equal(claude[claude.indexOf('--tools') + 1], 'Read,Glob,Grep'); assert.equal(claude[claude.indexOf('--allowedTools') + 1], 'Read,Glob,Grep');
+  const writable = providerArguments('claude', 'workspace-write', { resumeSessionId: SESSION_ID }); assert.equal(writable[writable.indexOf('--tools') + 1], 'Read,Glob,Grep,Edit,Write');
+  for (const args of [codex, claude, writable]) for (const forbidden of ['--last', '--all', '--dangerously-bypass-approvals-and-sandbox', '--dangerously-skip-permissions', 'Bash']) assert.ok(!args.includes(forbidden));
+  for (const invalid of [null, 123, '--last', `${SESSION_ID}\n`, `${SESSION_ID} --all`, '00000000-0000-0000-0000-000000000000', 'other-session']) { assert.equal(isNativeSessionId(invalid), false); assert.throws(() => providerArguments('codex', 'read-only', { resumeSessionId: invalid })); assert.throws(() => providerArguments('claude', 'read-only', { resumeSessionId: invalid })); }
+});
+
+test('native session and actual model metadata are explicit, deduplicated and never inferred from output or usage', () => {
+  for (const provider of ['codex', 'claude']) {
+    const events = [], parser = createEventParser(provider, event => events.push(event));
+    assert.equal(Object.hasOwn(parser.state(), 'sessionId'), false); assert.equal(Object.hasOwn(parser.state(), 'reportedModel'), false);
+    if (provider === 'codex') {
+      parser.consume({ type: 'thread.started', thread_id: SESSION_ID.toUpperCase(), model: 'actual-model' });
+      parser.consume({ type: 'thread.started', thread_id: SESSION_ID, model: 'actual-model' });
+      parser.consume({ type: 'item.completed', item: { type: 'reasoning', text: 'PRIVATE', session_id: 'different-session', model: 'PRIVATE_MODEL' } });
+      parser.consume({ type: 'turn.completed', usage: { model: 'NOT_ACTUAL', input_tokens: 1 } });
+    } else {
+      parser.consume({ type: 'system', subtype: 'init', session_id: SESSION_ID.toUpperCase(), model: 'actual-model' });
+      parser.consume({ type: 'result', subtype: 'success', session_id: SESSION_ID, model: 'actual-model', usage: { model: 'NOT_ACTUAL', input_tokens: 1 } });
+      parser.consume({ type: 'assistant', session_id: 'different-session', message: { model: 'PRIVATE_MODEL', content: [{ type: 'thinking', thinking: 'PRIVATE' }] } });
+    }
+    assert.deepEqual(events.filter(event => event.type === 'session'), [{ type: 'session', sessionId: SESSION_ID, source: 'cli-session' }]);
+    assert.deepEqual(events.filter(event => event.type === 'execution-model'), [{ type: 'execution-model', model: 'actual-model', source: 'cli' }]);
+    assert.equal(parser.state().sessionId, SESSION_ID); assert.equal(parser.state().reportedModel, 'actual-model'); assert.ok(!JSON.stringify(events).includes('PRIVATE'));
+  }
+});
+
+test('invalid native session IDs are ignored and reported models are bounded control-free public labels', () => {
+  const events = [], parser = createEventParser('claude', event => events.push(event));
+  parser.consume({ type: 'system', subtype: 'init', session_id: '--last', model: {} });
+  parser.consume({ type: 'result', session_id: `${SESSION_ID}\n`, model: '\u0000\u001b\u202e' });
+  assert.equal(events.filter(event => ['session', 'execution-model'].includes(event.type)).length, 0);
+  parser.consume({ type: 'system', subtype: 'init', model: `\u0000\u001b\u202e${'🙂'.repeat(230)}` });
+  assert.equal(events.find(event => event.type === 'execution-model').model, '🙂'.repeat(200)); assert.equal(Object.hasOwn(parser.state(), 'sessionId'), false);
+});
+
 function fakeChild() {
   const child = new EventEmitter();
   child.stdout = new PassThrough();
@@ -154,6 +248,24 @@ function fakeChild() {
   child.kill = () => { child.killCalls += 1; child.emit('close', null); return true; };
   return child;
 }
+
+test('resumed runner sends follow-up through stdin and returns only session/model metadata actually reported by its CLI', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const child = fakeChild(), calls = [], events = [], exits = []; let input = '';
+    child.stdin.setEncoding('utf8'); child.stdin.on('data', value => { input += value; });
+    const runner = createProviderRunner({ locate: async () => ({ command: '/mock/native-cli', prefix: [] }), spawnProcess: (...args) => { calls.push(args); return child; }, platform: 'linux' });
+    const prompt = '기존 대화 이어서 확인; $(unsafe) "한글"';
+    await runner({ provider, prompt, cwd: '/owned-workspace', modelId: 'requested-model', resumeSessionId: SESSION_ID, onEvent: event => events.push(event), onExit: value => exits.push(value) });
+    assert.equal(input, prompt); assert.equal(calls[0][2].shell, false); assert.ok(calls[0][1].includes(SESSION_ID)); assert.ok(!calls[0][1].includes(prompt));
+    const metadata = provider === 'codex' ? { type: 'thread.started', thread_id: SESSION_ID, model: 'actual-model' } : { type: 'system', subtype: 'init', session_id: SESSION_ID, model: 'actual-model' };
+    child.stdout.write(JSON.stringify(metadata) + '\n'); child.emit('close', 0);
+    assert.equal(exits.length, 1); assert.equal(exits[0].sessionId, SESSION_ID); assert.equal(exits[0].reportedModel, 'actual-model'); assert.notEqual(exits[0].reportedModel, 'requested-model');
+    assert.equal(events.filter(event => event.type === 'session').length, 1);
+  }
+  const child = fakeChild(), exits = [], runner = createProviderRunner({ locate: async () => ({ command: '/mock/codex', prefix: [] }), spawnProcess: () => child, platform: 'linux' });
+  await runner({ provider: 'codex', prompt: 'No metadata', modelId: 'requested-only', onExit: value => exits.push(value) }); child.emit('close', 0);
+  assert.equal(Object.hasOwn(exits[0], 'sessionId'), false); assert.equal(Object.hasOwn(exits[0], 'reportedModel'), false);
+});
 
 test('Claude cancellation and crashes retain deduplicated latest usage when no final result arrives', async () => {
   for (const cancel of [true, false]) {

@@ -39,7 +39,9 @@
   let state = {}, options = {}, host, stage, world, edgesLayer, inspector, label, toolbar, footer, memoryDialog, emptyOverlay, libraryPanel;
   let graph = { nodes: [], edges: [] }, memories = [], memoryLoaded = false, project = null, loaded = false, loading = false, dirty = false, saving = false, errorMessage = '';
   let selected = null, pendingSource = null, drag = null, zoom = 1, pan = { x: 0, y: 0 }, saveTimer, progressTimer, requestGeneration = 0, inspectorSignature = '', loadedGraphHash = '', savingPromise = Promise.resolve(true);
-  let agentExecutionControls;
+  let agentExecutionControls, removalDialog;
+  Object.assign(WORDS.en, { '에이전트 제거': 'Remove agent', '에이전트 등록과 캔버스 노드가 제거됩니다. 대화·작업·기억은 보존되며 계정에서 로그아웃하지 않습니다.': 'Removes the registered agent and its canvas nodes. Conversations, tasks and memories are retained. The account stays signed in.', '실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.': 'Wait for this agent’s running and queued tasks to finish before removing it.', '취소': 'Cancel', '제거 확인': 'Confirm removal', '에이전트를 제거했습니다.': 'Agent removed.', '모델 연결 등록을 제거하려면 AI 계정 화면을 여세요.': 'Open AI accounts to remove a registered model connection.' });
+  Object.assign(WORDS.ja, { '에이전트 제거': 'エージェントを削除', '에이전트 등록과 캔버스 노드가 제거됩니다. 대화·작업·기억은 보존되며 계정에서 로그아웃하지 않습니다.': 'エージェント登録とキャンバスのノードを削除します。会話・タスク・記憶は保持し、アカウントからログアウトしません。', '실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.': '実行中・待機中のタスクが終了してから削除できます。', '취소': 'キャンセル', '제거 확인': '削除を確認', '에이전트를 제거했습니다.': 'エージェントを削除しました。', '모델 연결 등록을 제거하려면 AI 계정 화면을 여세요.': 'モデル接続の登録を削除するにはAIアカウント画面を開いてください。' });
   const tr = key => WORDS[options.language]?.[key] ?? key;
   const common = key => options.t?.(key) ?? tr(key);
   const online = () => options.connected !== false;
@@ -336,6 +338,29 @@
     if (pendingSource === id) pendingSource = null;
     selected = null; inspectorSignature = ''; renderScene(); scheduleSave();
   }
+  function confirmAgentRemoval(dept) {
+    if (currentTask(dept.id)) return;
+    removalDialog?.close(); removalDialog?.remove();
+    const key = project, generation = requestGeneration, dialog = h('dialog', { class: 'iw-removal-dialog', 'data-iw-remove-dialog': dept.id }); removalDialog = dialog;
+    const error = h('p', { role: 'alert' }), cancel = h('button', { type: 'button', onclick: () => { dialog.close(); dialog.remove(); } }, tr('취소'));
+    const confirm = h('button', { type: 'button', class: 'iw-danger-button', 'data-iw-confirm-remove': dept.id, onclick: async () => {
+      if (project !== key || requestGeneration !== generation || currentTask(dept.id)) { error.textContent = tr('실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.'); return; }
+      confirm.disabled = true; cancel.disabled = true;
+      try {
+        if (!await persist()) throw new Error(errorMessage || tr('저장 실패'));
+        if (project !== key || requestGeneration !== generation) return;
+        await request(`/api/departments/${encodeURIComponent(dept.id)}`, 'DELETE', { workspace: key });
+        if (project !== key || requestGeneration !== generation) return;
+        dialog.close(); dialog.remove(); await options.onChanged?.();
+        const latest = await request('/api/state');
+        if (project !== key || requestGeneration !== generation || latest.settings?.workspace !== key) return;
+        state = latest; dirty = false; clearTimeout(saveTimer); loading = false; await load();
+        if (project === key) announce(tr('에이전트를 제거했습니다.'));
+      } catch (failure) { if (project === key && requestGeneration === generation) { error.textContent = failure.message; announce(failure.message, true); confirm.disabled = Boolean(currentTask(dept.id)); cancel.disabled = false; } }
+    } }, tr('제거 확인'));
+    dialog.append(h('div', { class: 'dialog-body' }, h('h2', {}, tr('에이전트 제거')), h('strong', {}, deptName(dept)), h('p', {}, tr('에이전트 등록과 캔버스 노드가 제거됩니다. 대화·작업·기억은 보존되며 계정에서 로그아웃하지 않습니다.')), error, cancel, confirm));
+    document.body.append(dialog); dialog.showModal();
+  }
   function arrangeCurrent(save = true) {
     const providers = graph.nodes.filter(item => item.type === 'provider');
     providers.forEach((item, index) => { item.x = index * 560 + 150; item.y = 210; });
@@ -457,12 +482,15 @@
       const dept = deptFor(item); if (!dept) return;
       body.append(h('span', { class: 'iw-inspector-kind' }, `AGENT / ${dept.code || dept.id}`), h('h3', {}, deptName(dept)), ...(dept.title ? [h('span', { class: 'iw-role-badge' }, dept.title)] : []), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, common(dept.role)), h('p', { class: 'iw-inspector-note' }, tr('제공자 변경은 에이전트 편집에서 설정합니다.')), h('div', { class: 'iw-inspector-buttons' }, h('button', { class: 'iw-accent-button', type: 'button', disabled: isDisabled(item), onclick: () => options.onAssignDepartment?.(dept.id) }, tr('업무 지시'), ' ↗'), h('button', { type: 'button', onclick: () => options.onEditDepartment?.(dept) }, tr('부서 편집'))));
       const task = progressTask(item.referenceId); if (task) body.append(renderTaskProgress(task, false));
+      const busy = Boolean(currentTask(dept.id));
+      body.append(h('button', { type: 'button', class: 'iw-danger-button', 'data-iw-action': 'remove-agent', disabled: busy, onclick: () => confirmAgentRemoval(dept) }, tr('에이전트 제거')));
+      if (busy) body.append(h('p', { class: 'iw-inspector-note', 'data-iw-removal-blocked': dept.id }, tr('실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.')));
       const formWorkspace = project;
       const form = h('form', { class: 'iw-workflow-form' }), prompt = h('textarea', { rows: '4', maxlength: '12000', placeholder: tr('연결된 부서에 순서대로 전달할 목표를 작성하세요.'), required: '', 'aria-label': tr('워크플로 지시') }), permission = h('input', { type: 'checkbox' }), submit = h('button', { type: 'submit', class: 'iw-workflow-run', disabled: isDisabled(item) }, tr('연결된 흐름 실행'));
       form.append(field(tr('워크플로 지시'), prompt), h('label', { class: 'iw-checkbox' }, permission, tr('파일 수정 허용')), h('p', { class: 'iw-inspector-note' }, tr('연결만으로 작업이 실행되지는 않습니다.')), submit);
       form.addEventListener('submit', async event => { event.preventDefault(); if (!prompt.value.trim() || isDisabled(item)) return; submit.disabled = true; try { if (!await persist()) throw new Error(errorMessage || tr('저장 실패')); if (formWorkspace !== project) return; await request('/api/workflows/run', 'POST', { departmentId: dept.id, prompt: prompt.value.trim(), permission: permission.checked ? 'workspace-write' : 'read-only', priority: 'normal' }, formWorkspace); if (formWorkspace !== project) return; prompt.value = ''; announce(tr('워크플로를 시작했습니다.')); } catch (error) { announce(error.message, true); } finally { submit.disabled = isDisabled(item); } });
       body.append(form);
-    } else if (item.type === 'provider') body.append(h('span', { class: 'iw-inspector-kind' }, 'PROVIDER / OFFICIAL CLI'), h('h3', {}, providerLabel(item.referenceId)), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, tr('모델은 각 운영체제 사용자 계정의 공식 CLI 로그인을 사용합니다.')), h('button', { type: 'button', class: 'iw-accent-button', onclick: () => options.onOpenSettings?.() }, tr('연결 관리')));
+    } else if (item.type === 'provider') body.append(h('span', { class: 'iw-inspector-kind' }, 'PROVIDER / OFFICIAL CLI'), h('h3', {}, providerLabel(item.referenceId)), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, tr('모델은 각 운영체제 사용자 계정의 공식 CLI 로그인을 사용합니다.')), h('button', { type: 'button', class: 'iw-accent-button', onclick: () => options.onOpenSettings?.() }, tr('연결 관리')), h('p', { class: 'iw-inspector-note' }, tr('모델 연결 등록을 제거하려면 AI 계정 화면을 여세요.')));
     else if (item.type === 'commander') {
       const current = identity(), name = h('input', { value: current.name, maxlength: '60', required: '', 'aria-label': tr('이름') }), title = h('input', { value: current.title, maxlength: '80', required: '', 'aria-label': tr('직함') }), submit = h('button', { type: 'submit', class: 'iw-accent-button' }, tr('이름표 저장'));
       const form = h('form', { class: 'iw-identity-form' }, field(tr('이름'), name), field(tr('직함'), title), submit);
@@ -508,7 +536,7 @@
     if (!host && !mount()) return;
     const key = state.settings?.workspace;
     if (!key) { renderScene(); announce(tr('불러오는 중…')); return; }
-    if (project !== key) { project = key; memoryDialog?.close(); libraryPanel?.remove(); libraryPanel = null; graph = { nodes: [], edges: [] }; loaded = false; loading = false; dirty = false; selected = null; inspectorSignature = ''; requestGeneration++; clearTimeout(saveTimer); memories = []; memoryLoaded = false; ensureOrganization(); renderScene(); load(); return; }
+    if (project !== key) { project = key; removalDialog?.close(); removalDialog?.remove(); memoryDialog?.close(); libraryPanel?.remove(); libraryPanel = null; graph = { nodes: [], edges: [] }; loaded = false; loading = false; dirty = false; selected = null; inspectorSignature = ''; requestGeneration++; clearTimeout(saveTimer); memories = []; memoryLoaded = false; ensureOrganization(); renderScene(); load(); return; }
     ensureOrganization();
     if (state.graph && loaded && !dirty && !saving && !drag) { const hash = JSON.stringify(sanitize(state.graph)); if (hash !== loadedGraphHash) { graph = sanitize(state.graph); loadedGraphHash = hash; ensureOrganization(); } }
     renderScene();

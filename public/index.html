@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0a0c0e">
+  <meta name="theme-color" content="#000000">
   <meta name="description" content="구독 계정으로 연결하는 개인 AI 조직 지휘 터미널">
   <title>IMPERIUM — AI Command Terminal</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -21,6 +21,11 @@
   <link rel="stylesheet" href="/execution-options.css">
   <link rel="stylesheet" href="/terminal-theme.css">
   <link rel="stylesheet" href="/terminal-shell.css">
+  <link rel="stylesheet" href="/output-view.css">
+  <link rel="stylesheet" href="/provider-mascots.css">
+  <link rel="stylesheet" href="/live-progress.css">
+  <link rel="stylesheet" href="/access-review.css">
+  <link rel="stylesheet" href="/conversations.css">
   <script src="/vendor/xterm.js" defer></script>
   <script src="/vendor/xterm-addon-fit.js" defer></script>
   <script src="/workspace.js" defer></script>
@@ -28,11 +33,20 @@
   <script src="/terminal-pane.js" defer></script>
   <script src="/updates.js" defer></script>
   <script src="/projects.js" defer></script>
+  <script src="/vendor/chart.umd.js" defer></script>
+  <script src="/analytics-charts.js" defer></script>
   <script src="/analytics.js" defer></script>
+  <script src="/vendor/cytoscape.min.js" defer></script>
+  <script src="/knowledge-graph.js" defer></script>
   <script src="/knowledge.js" defer></script>
   <script src="/quotas.js" defer></script>
   <script src="/execution-options.js" defer></script>
   <script src="/terminal-shell.js" defer></script>
+  <script src="/output-view.js" defer></script>
+  <script src="/provider-mascots.js" defer></script>
+  <script src="/live-progress.js" defer></script>
+  <script src="/access-review.js" defer></script>
+  <script src="/conversations.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -50,6 +64,7 @@
       <div class="sidebar-top"><span class="sidebar-label">WORKSPACE</span>
         <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>NODES</span><kbd>F1</kbd></button>
         <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>OPERATIONS</span><kbd>F2</kbd></button>
+        <button class="nav-button" data-view="chat" aria-label="대화 이어가기"><span class="nav-icon">▣</span><span>CHAT</span></button>
         <button class="nav-button" data-view="departments" aria-label="F3 부서 관리"><span class="nav-icon">⌘</span><span>DEPARTMENTS</span><kbd>F3</kbd></button>
         <button class="nav-button" data-view="logs" aria-label="F4 활동 로그"><span class="nav-icon">›_</span><span>ACTIVITY</span><kbd>F4</kbd></button>
         <button class="nav-button" data-view="accounts" aria-label="F5 AI 계정"><span class="nav-icon">⌁</span><span>AI ACCOUNTS</span><kbd>F5</kbd></button>
@@ -82,6 +97,7 @@
       <section id="projects-section" class="extension-section"></section>
       <section id="analytics-section" class="extension-section"></section>
       <section id="knowledge-section" class="extension-section"></section>
+      <section id="conversations-section" class="extension-section"></section>
       <section class="organization-panel" id="organization-section" aria-labelledby="organization-title">
         <div class="org-toolbar"><div class="org-heading-copy"><h2 class="org-title" id="organization-title">조직 연결 현황</h2><p class="org-subtitle">본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.</p></div><div class="org-summary" id="org-summary" aria-label="조직 현황 요약"></div></div>
         <div class="org-chart-root" id="org-chart-root"></div>
@@ -107,7 +123,7 @@
         <div class="secondary-column">
           <section class="panel activity-panel" id="activity-section" aria-labelledby="activity-title"><div class="panel-heading"><h2 id="activity-title"><span class="terminal-heading-icon" aria-hidden="true">›_</span> 실시간 활동 <span class="english-label">LIVE FEED</span></h2><span class="stream-status"><span class="live-dot"></span> STREAMING</span></div><div class="activity-toolbar"><span><span class="muted-text">CHANNEL</span> ALL DEPARTMENTS</span><button class="icon-button" id="feed-pause" aria-label="활동 피드 일시정지" title="활동 피드 일시정지">Ⅱ</button></div><div class="activity-feed" id="activity-feed" role="log" aria-label="실시간 활동 로그" aria-live="off"></div><div class="panel-footer"><span id="event-count">0 EVENTS</span><span id="feed-mode">LIVE · AUTO SCROLL</span></div></section>
 
-          <section class="panel inspector-panel" id="inspector-section" aria-labelledby="inspector-title"><div class="panel-heading"><h2 id="inspector-title"><span class="terminal-heading-icon" aria-hidden="true">⌁</span> 작업 인스펙터 <span class="english-label">OUTPUT</span></h2><button class="icon-button" id="copy-output" aria-label="선택한 작업 결과 복사" title="결과 복사" disabled>⧉</button></div><div id="inspector-content" class="inspector-content"></div></section>
+          <section class="panel inspector-panel" id="inspector-section" aria-labelledby="inspector-title"><div class="panel-heading"><h2 id="inspector-title"><span class="terminal-heading-icon" aria-hidden="true">⌁</span> 대화·결과 <span class="english-label">OUTPUT</span></h2><button class="icon-button" id="copy-output" aria-label="선택한 작업 결과 복사" title="결과 복사" disabled>⧉</button></div><div id="inspector-content" class="inspector-content"></div></section>
 
           <section class="connection-summary" aria-label="구독 연결 안내"><span class="connection-summary-icon" aria-hidden="true">⌘</span><div><strong>이미 구독한 모델, 하나의 본부에서.</strong><p>Codex와 Claude Code의 로그인 계정을 사용합니다.<br>작업은 각 서비스의 구독 한도에 반영됩니다.</p><button class="text-button" id="subscription-info">연결 상태 확인 <span>↗</span></button></div></section>
         </div>

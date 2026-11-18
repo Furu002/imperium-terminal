@@ -1,0 +1,38 @@
+/* A single compact row. Avatars are original activity drawings, not brand logos. */
+.app-shell.im-has-model-activity{grid-template-rows:42px 78px 40px minmax(0,1fr) 24px}
+.app-shell.im-has-model-activity>.sidebar,.app-shell.im-has-model-activity>main{grid-row:4}
+.app-shell.im-has-model-activity>.statusbar{grid-row:5}
+.app-shell.im-has-model-activity>.sidebar{min-height:calc(100dvh - 184px)}
+.im-model-activity{grid-column:1/-1;grid-row:3;display:flex;align-items:center;gap:12px;min-width:0;height:40px;padding:2px 8px;background:#000;border-bottom:1px solid #555;color:#F2F2F2;font:10px/1.25 var(--font,monospace)}
+.im-model-activity[hidden]{display:none}
+.im-model-heading{flex:none;color:#FF9F00;font-size:9px;letter-spacing:.3px}
+.im-model-list{display:flex;align-items:center;gap:0;list-style:none;margin:0;padding:0;min-width:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#555 #000;height:100%}
+.im-model-avatar{display:flex;align-items:center;gap:6px;flex:none;min-width:124px;height:34px;padding:0 12px 0 5px;border-right:1px solid #333;color:#777}
+.im-model-avatar:last-child{border-right:0}
+.im-model-copy{display:flex;flex-direction:column;gap:2px;min-width:0;max-width:220px}
+.im-model-name{font-size:10px;font-weight:600;color:#F2F2F2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.im-model-status{font-size:9px;color:#B0B0B0;white-space:nowrap}
+.im-avatar{display:block;flex:none;width:32px;height:32px;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:square;stroke-linejoin:miter}
+.im-avatar-shell{fill:#111}
+.im-avatar-visor{fill:#000}
+.im-avatar-eye-dot{fill:currentColor;stroke:none}
+.im-avatar-eyes{stroke:#F2F2F2;stroke-width:2}
+.im-avatar-star{stroke-width:1.3}
+.im-avatar-desk{stroke:#777}
+.im-avatar-signal{opacity:0;fill:#00D77A;stroke:none}
+.im-model-avatar[data-status=idle]{color:#00B7EB}
+.im-model-avatar[data-status=running],.im-model-avatar[data-status=running] .im-model-status{color:#00D77A}
+.im-model-avatar[data-status=queued],.im-model-avatar[data-status=queued] .im-model-status,
+.im-model-avatar[data-status=auth],.im-model-avatar[data-status=auth] .im-model-status{color:#FF9F00}
+.im-model-avatar[data-status=error],.im-model-avatar[data-status=error] .im-model-status,
+.im-model-avatar[data-status=offline],.im-model-avatar[data-status=offline] .im-model-status{color:#FF4D4F}
+.im-model-avatar[data-status=disabled] .im-model-name,.im-model-avatar[data-status=disabled] .im-model-status{color:#777}
+.im-model-avatar[data-status=running] .im-avatar-motion{transform-origin:20px 28px;animation:im-model-working 1.2s steps(2,end) infinite}
+.im-model-avatar[data-status=running] .im-avatar-tool{transform-origin:20px 24px;animation:im-model-tools .6s steps(2,end) infinite}
+.im-model-avatar[data-status=running] .im-avatar-signal{animation:im-model-signal 1.2s steps(2,end) infinite}
+.im-model-activity[data-paused=true] .im-avatar *{animation-play-state:paused!important}
+@keyframes im-model-working{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
+@keyframes im-model-tools{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes im-model-signal{0%,100%{opacity:.25}50%{opacity:1}}
+@media(max-width:700px){.im-model-activity{gap:5px;padding:2px 5px}.im-model-heading{font-size:8px;max-width:52px;white-space:normal}.im-model-avatar{min-width:114px;padding-right:9px;gap:4px}.im-model-copy{max-width:170px}}
+@media(prefers-reduced-motion:reduce){.im-model-activity .im-avatar *{animation:none!important;transform:none!important}.im-model-avatar[data-status=running] .im-avatar-signal{opacity:1}}

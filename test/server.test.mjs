@@ -4,7 +4,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { randomUUID } from 'node:crypto';
 import { createHQServer } from '../server.mjs';
+import { createEventParser } from '../lib/providers.mjs';
+import { createAdditionalEventParser } from '../lib/additional-providers.mjs';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -57,6 +60,7 @@ function controlledProviders() {
       loginCommand: `${id} login`,
     })),
     startProvider: async (options) => {
+      options.onEvent({ type: 'session', sessionId: options.resumeSessionId || randomUUID(), source: 'cli-session' });
       const call = { ...options, cancelled: 0, ended: false };
       call.emit = (text) => options.onEvent({ type: 'text', text });
       call.finish = (output = '작업 완료') => {
@@ -211,6 +215,76 @@ test('a prompt remains data while streamed output and token usage reach the comp
   assert.equal(completed.usage.inputTokens, 7);
   assert.equal(completed.usage.outputTokens, 11);
   assert.ok(completed.finishedAt);
+});
+
+test('public model summaries stream as timestamped status logs without inventing estimates or leaking markers', async t => {
+  const f = await fixture(t), task = await f.submit(); await eventually(() => f.calls.length === 1);
+  assert.match(f.calls[0].prompt, /IMPERIUM_STATUS/); assert.match(f.calls[0].prompt, /불확실하면 percent를 생략/);
+  const report = `[[IMPERIUM_STATUS ${JSON.stringify({ summary: '프로젝트 파일 검토', source: 'process', reasoning: 'PRIVATE_REASONING' })}]]`;
+  const before = Date.now(); for (const char of report) f.calls[0].emit(char);
+  let snapshot = await f.state(), current = snapshot.tasks.find(value => value.id === task.id);
+  assert.equal(current.progress, undefined); assert.equal(current.output, '');
+  assert.deepEqual(current.logs.filter(log => log.source === 'model-summary').map(log => [log.type, log.text]), [['status', '프로젝트 파일 검토']]);
+  const entry = current.logs.find(log => log.source === 'model-summary'); assert.ok(Date.parse(entry.timestamp) >= before && Date.parse(entry.timestamp) <= Date.now());
+  assert.ok(snapshot.events.some(event => event.taskId === task.id && event.type === 'status' && event.text === entry.text && event.source === 'model-summary'));
+  f.calls[0].emit(report); f.calls[0].emit('[[IMPERIUM_PROGRESS {"percent":20,"stage":"구현"}]][[IMPERIUM_PROGRESS {"percent":45,"stage":"구현"}]]');
+  f.calls[0].emit('[[IMPERIUM_PROGRESS {"percent":60,"stage":"검증"}]]결과 본문');
+  snapshot = await f.state(); current = snapshot.tasks.find(value => value.id === task.id);
+  assert.deepEqual(current.logs.filter(log => log.source === 'model-summary').map(log => log.text), ['프로젝트 파일 검토']);
+  assert.deepEqual(current.logs.filter(log => log.source === 'model-estimate').map(log => log.text), ['구현', '검증']);
+  assert.equal(current.progress.percent, 60); assert.equal(current.progress.source, 'model-estimate'); assert.equal(current.output, '결과 본문');
+  assert.ok(!JSON.stringify(snapshot).includes('PRIVATE_REASONING'));
+  f.calls[0].finish(); const completed = await eventually(async () => (await f.state()).tasks.find(value => value.id === task.id && value.status === 'completed'));
+  assert.equal(completed.output, '결과 본문'); assert.equal(completed.progress.source, 'process'); assert.equal(completed.progress.percent, 100);
+});
+
+test('final-only provider output strips public status, progress and skill markers while retaining broken literals', async t => {
+  const f = await fixture(t), task = await f.submit(); await eventually(() => f.calls.length === 1);
+  const broken = '[[IMPERIUM_STATUS {bad}]]';
+  f.calls[0].finish(`[[IMPERIUM_STATUS {"summary":"결과 검증"}]][[IMPERIUM_PROGRESS {"percent":99}]][[IMPERIUM_SKILL {"name":"review"}]]최종 결과 ${broken}`);
+  const completed = await eventually(async () => (await f.state()).tasks.find(value => value.id === task.id && value.status === 'completed'));
+  assert.equal(completed.output, `최종 결과 ${broken}`); assert.ok(!completed.output.includes('결과 검증'));
+});
+
+test('skill logs distinguish actual Claude calls, skill-document Read attempts and explicit model reports', async t => {
+  const f = await fixture(t), task = await f.submit({ provider: 'claude' }); await eventually(() => f.calls.length === 1);
+  assert.match(f.calls[0].prompt, /IMPERIUM_SKILL/); assert.match(f.calls[0].prompt, /보유하거나 설치만 한 스킬은 보고하지/);
+  const parser = createEventParser('claude', event => f.calls[0].onEvent(event));
+  const blocks = [{ type: 'tool_use', id: 'skill-read', name: 'Read', input: { file_path: '/local/private/skills/review/SKILL.md' } }, { type: 'tool_use', id: 'skill-call', name: 'Skill', input: { skill: 'review', args: 'PRIVATE_ARGS' } }];
+  for (const block of blocks) {
+    parser.consume({ type: 'stream_event', event: { type: 'content_block_start', content_block: { ...block, input: {} } } });
+    parser.consume({ type: 'assistant', message: { id: `message-${block.id}`, content: [block] } });
+    parser.consume({ type: 'assistant', message: { id: `message-${block.id}`, content: [block] } });
+  }
+  const report = '[[IMPERIUM_SKILL {"name":"review","source":"cli-skill-call","phase":"completed","thinking":"PRIVATE_THOUGHT"}]]';
+  for (const char of report) f.calls[0].emit(char); f.calls[0].emit(report);
+  f.calls[0].onEvent({ type: 'skill', text: 'forged', source: 'process', phase: 'completed' });
+  const snapshot = await f.state(), current = snapshot.tasks.find(value => value.id === task.id), skills = current.logs.filter(log => log.type === 'skill');
+  assert.deepEqual(skills.map(log => [log.text, log.source, log.phase]), [['review', 'cli-skill-read', 'invoked'], ['review', 'cli-skill-call', 'invoked'], ['review', 'model-reported', undefined]]);
+  assert.ok(skills.every(log => Number.isFinite(Date.parse(log.timestamp)))); assert.equal(current.output, ''); assert.equal(current.progress, undefined);
+  assert.deepEqual(snapshot.events.filter(event => event.taskId === task.id && event.type === 'skill').map(event => event.source), ['cli-skill-read', 'cli-skill-call', 'model-reported']);
+  assert.ok(!JSON.stringify(snapshot).includes('PRIVATE_')); assert.ok(!JSON.stringify(snapshot).includes('/local/private/'));
+  f.calls[0].emit('최종 공개 결과'); f.calls[0].finish();
+  assert.equal((await eventually(async () => (await f.state()).tasks.find(value => value.id === task.id && value.status === 'completed'))).output, '최종 공개 결과');
+});
+
+test('hidden reasoning and thinking channels cannot inject public summary markers or private text into task logs', async t => {
+  const f = await fixture(t), task = await f.submit(); await eventually(() => f.calls.length === 1);
+  const hidden = 'PRIVATE_REASONING [[IMPERIUM_STATUS {"summary":"PRIVATE_SUMMARY"}]][[IMPERIUM_SKILL {"name":"PRIVATE_SKILL"}]]';
+  const onEvent = event => f.calls[0].onEvent(event);
+  const codex = createEventParser('codex', onEvent);
+  codex.consume({ type: 'item.started', item: { type: 'reasoning', text: hidden, summary: hidden } });
+  codex.consume({ type: 'item.completed', item: { type: 'reasoning', text: hidden, summary: hidden } });
+  const claude = createEventParser('claude', onEvent);
+  claude.consume({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'thinking', thinking: hidden } } });
+  claude.consume({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: hidden } } });
+  claude.consume({ type: 'assistant', message: { content: [{ type: 'thinking', thinking: hidden }] } });
+  const copilot = createAdditionalEventParser('copilot', onEvent); copilot.consume({ type: 'assistant.reasoning_delta', data: { content: hidden } });
+  const ollama = createAdditionalEventParser('ollama', onEvent); ollama.consume({ thinking: hidden });
+  const snapshot = await f.state(), current = snapshot.tasks.find(value => value.id === task.id);
+  assert.equal(current.output, ''); assert.equal(current.progress, undefined); assert.ok(!current.logs.some(log => log.source === 'model-summary' || log.type === 'skill')); assert.ok(!JSON.stringify(snapshot).includes('PRIVATE_'));
+  codex.consume({ type: 'item.completed', item: { type: 'agent_message', text: '[[IMPERIUM_STATUS {"summary":"공개 파일 검토"}]]' } });
+  assert.ok((await f.state()).tasks.find(value => value.id === task.id).logs.some(log => log.source === 'model-summary' && log.text === '공개 파일 검토'));
 });
 
 test('two writable departments sharing a workspace run sequentially', async (t) => {

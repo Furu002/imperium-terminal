@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const [html, script] = await Promise.all([
+const [html, script, outputScript] = await Promise.all([
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/app.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/output-view.js', import.meta.url), 'utf8'),
 ]);
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -86,7 +87,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails =
     } else throw new Error(`Unexpected mocked request: ${method} ${url}`);
     return { ok: true, status: 200, json: async () => clone(data) };
   };
-  window.eval(script);
+  window.eval(outputScript); window.eval(script);
   await settle();
   assert.deepEqual(runtimeErrors.map(error => error.message), [], 'the app should initialize without runtime errors');
   t.after(() => { dom.window.close(); });
@@ -102,6 +103,13 @@ function completedTask(id, title, output, extra = {}) {
   return { id, title, prompt: `Instruction for ${title}`, departmentId: 'strategy', provider: 'codex', status: 'completed', priority: 'normal', permission: 'read-only', createdAt: '2026-11-18T03:00:00.000Z', startedAt: '2026-11-18T03:00:01.000Z', finishedAt: '2026-11-18T03:00:30.000Z', output, error: null, logs: [], usage: { inputTokens: 12, outputTokens: 34 }, demo: false, ...extra };
 }
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+function rawOutput(document) {
+  const result = document.querySelector('.inspector-result');
+  result.querySelectorAll('.io-mode')[1].click();
+  const raw = result.querySelector('.io-raw-view');
+  while (raw.querySelector('.io-load-more')) raw.querySelector('.io-load-more').click();
+  return raw.querySelector('pre').textContent;
+}
 
 test('a selected truncated task loads its complete output once and copies the full result across repeated metadata snapshots', async t => {
   const full = 'Complete task result 한글🙂\n'.repeat(10000).slice(0, 200000), preview = full.slice(0, 2000), detail = deferred();
@@ -112,15 +120,15 @@ test('a selected truncated task loads its complete output once and copies the fu
   assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 0, 'unselected summaries should not fetch large details');
   document.querySelector('#mission-rows tr[aria-label^="Long operation"]').click();
   await settle();
-  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1); assert.equal(document.querySelector('.inspector-result pre').textContent, preview); assert.equal(document.querySelector('#copy-output').disabled, true);
+  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1); assert.equal(rawOutput(document), preview); assert.equal(document.querySelector('#copy-output').disabled, true);
   document.querySelector('#copy-output').click(); assert.deepEqual(clipboardWrites, []);
   streams[0].state(clone(initial)); streams[0].state(clone(initial)); await settle();
   assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1, 'metadata rerenders should share the pending detail request');
   detail.resolve({ ...long, output: full, logs: [{ id: 'full-log', type: 'text', text: full }], detailsTruncated: false }); await settle();
-  assert.equal(document.querySelector('.inspector-result pre').textContent, full); assert.equal(document.querySelector('#copy-output').disabled, false);
+  assert.equal(rawOutput(document), full); assert.equal(document.querySelector('#copy-output').disabled, false);
   document.querySelector('#copy-output').click(); await settle(); assert.deepEqual(clipboardWrites, [full]);
   streams[0].state(clone(initial)); streams[0].state(clone(initial)); await settle();
-  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1); assert.equal(document.querySelector('.inspector-result pre').textContent, full);
+  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1); assert.equal(rawOutput(document), full);
 });
 
 test('a delayed full-output response from the old project cannot replace the current inspector or copied output', async t => {
@@ -131,7 +139,7 @@ test('a delayed full-output response from the old project cannot replace the cur
   const projectB = sampleState({ settings: { ...initial.settings, workspace: 'C:\\Project B' }, tasks: [completedTask('project-b-task', 'Project B result', 'Only the current project B result.')] });
   streams[0].state(projectB); await settle();
   oldDetail.resolve({ ...oldTask, output: 'OLD PROJECT A FULL OUTPUT'.repeat(2000), detailsTruncated: false }); await settle();
-  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Project B result'); assert.equal(document.querySelector('.inspector-result pre').textContent, 'Only the current project B result.');
+  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Project B result'); assert.equal(rawOutput(document), 'Only the current project B result.');
   document.querySelector('#copy-output').click(); await settle(); assert.deepEqual(clipboardWrites, ['Only the current project B result.']);
 });
 
@@ -145,7 +153,7 @@ test('returning to a project retries a full detail response that was discarded w
   streams[0].state(projectB); firstDetail.resolve(full); await settle();
   streams[0].state(clone(initial)); await settle();
   assert.equal(calls.filter(call => call.url === '/api/tasks/return-to-a-task').length, 2, 'a finished but discarded request must not remain marked in flight');
-  assert.equal(document.querySelector('.inspector-result pre').textContent, full.output); assert.equal(document.querySelector('#copy-output').disabled, false);
+  assert.equal(rawOutput(document), full.output); assert.equal(document.querySelector('#copy-output').disabled, false);
 });
 
 test('project switching isolates composer drafts and restores each project draft on return', async t => {
@@ -174,7 +182,7 @@ test('settings workspace changes clear the previous project draft and select the
   document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
   assert.deepEqual(calls.find(call => call.url === '/api/settings' && call.method === 'POST').body, { workspace: projectB });
   assert.equal(document.querySelector('#dispatch-prompt').value, ''); assert.equal(document.querySelector('#dispatch-provider').value, '');
-  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Settings project B result'); assert.equal(document.querySelector('.inspector-result pre').textContent, 'Project B output.');
+  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Settings project B result'); assert.equal(rawOutput(document), 'Project B output.');
   assert.equal(document.querySelector('#settings-dialog').open, false); assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
 });
 
@@ -327,7 +335,7 @@ test('model output, task titles, department names and streamed events are render
   initial.tasks.push(task);
   initial.events.push({ id: 'untrusted-event', timestamp: new Date().toISOString(), taskId: task.id, departmentId: 'strategy', provider: 'codex', type: 'tool', text: payload });
   const { window, document, streams, calls, runtimeErrors } = await loadUI(t, initial);
-  assert.equal(document.querySelector('.inspector-result pre').textContent, payload);
+  assert.equal(rawOutput(document), payload);
   assert.equal(document.querySelector('.task-name').textContent, payload);
   assert.equal(document.querySelector('.department-name').textContent, payload);
   assert.equal(document.querySelector('.feed-entry-text').textContent, payload);
@@ -338,11 +346,38 @@ test('model output, task titles, department names and streamed events are render
   updated.tasks[0].output = `${payload}\nA streamed update`;
   streams[0].state(updated);
   await settle();
-  assert.equal(document.querySelector('.inspector-result pre').textContent, `${payload}\nA streamed update`);
+  assert.equal(rawOutput(document), `${payload}\nA streamed update`);
   assert.equal(document.querySelector('img[src="x"]'), null);
   assert.equal(window.HQ_XSS, undefined);
   assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
   assert.deepEqual(runtimeErrors.map(error => error.message), []);
+});
+
+test('the inspector integrates readable conversation, exact code copying and a project-scoped expanded view', async t => {
+  const output = '# Delivered\n\nA **readable** response.\n\n```js\nconsole.log("ready");\n```';
+  const selected = completedTask('readable-task', 'Readable operation', output, { logs: [{ id: 'real-log', type: 'tool', text: 'Read existing source' }] });
+  const initial = sampleState({ tasks: [selected] });
+  const { document, streams, clipboardWrites } = await loadUI(t, initial);
+  assert.equal(document.querySelector('.io-markdown h2').textContent, 'Delivered');
+  assert.equal(document.querySelector('.io-request-text').textContent, selected.prompt);
+  assert.equal(document.querySelector('.io-task-details').open, false);
+  assert.equal(document.querySelector('.io-execution-logs').open, false);
+  document.querySelector('.io-code-copy').click(); await settle();
+  assert.deepEqual(clipboardWrites, ['console.log("ready");\n']);
+  document.querySelector('.io-answer-copy').click(); await settle();
+  assert.equal(clipboardWrites.at(-1), output);
+  const reading = document.querySelector('.io-markdown');
+  document.querySelector('.io-task-details').open = true;
+  document.querySelector('#inspector-content').scrollTop = 123;
+  streams[0].state(clone(initial)); await settle();
+  assert.equal(document.querySelector('.io-markdown'), reading);
+  assert.equal(document.querySelector('.io-task-details').open, true);
+  assert.equal(document.querySelector('#inspector-content').scrollTop, 123);
+  document.querySelector('.io-expand').click();
+  assert.equal(document.querySelector('.io-dialog').open, true);
+  streams[0].state(sampleState({ settings: { ...initial.settings, workspace: 'C:\\Different Project' }, tasks: [completedTask('other-task', 'Other result', 'Other project output')] })); await settle();
+  assert.equal(document.querySelector('.io-dialog'), null);
+  assert.equal(document.querySelector('.io-markdown').textContent, 'Other project output');
 });
 
 function organizationTask(overrides = {}) {

@@ -4,6 +4,8 @@ import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
 const script = await readFile(new URL('../public/knowledge.js', import.meta.url), 'utf8');
+const graphScript = await readFile(new URL('../public/knowledge-graph.js', import.meta.url), 'utf8');
+const cytoscapeScript = await readFile(new URL('../node_modules/cytoscape/dist/cytoscape.min.js', import.meta.url), 'utf8');
 const copy = value => JSON.parse(JSON.stringify(value));
 const settle = async (delay = 0) => { if (delay) await new Promise(resolve => setTimeout(resolve, delay)); for (let turn = 0; turn < 4; turn++) await new Promise(resolve => setImmediate(resolve)); };
 function knowledge() {
@@ -18,10 +20,15 @@ function knowledge() {
     history: [{ id: 'fact-1', title: 'Older architecture', content: 'Earlier source text.', revision: 1, source: 'user', confidence: 'user', updatedAt, recordedAt: updatedAt }], stats: { method: 'local-keyword' },
   };
 }
-async function setup(t, { initial = knowledge(), delayed, delayedWrite, writeResponse } = {}) {
+async function setup(t, { initial = knowledge(), delayed, delayedWrite, writeResponse, graphEngine = true, graphWidth = 920 } = {}) {
   const errors = [], virtualConsole = new VirtualConsole(); virtualConsole.on('jsdomError', error => errors.push(error.message));
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div id="knowledge"></div></body></html>', { url: 'http://127.0.0.1:4310', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
   const { window } = dom, state = { settings: { workspace: 'C:\\Project A', language: 'en' }, server: { csrfToken: 'knowledge-test-csrf' } }, calls = [], byProject = new Map([[state.settings.workspace, copy(initial)]]);
+  window.__graphWidth = graphWidth; window.__graphHeight = 560;
+  Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', { get() { return this.classList.contains('ik-cytoscape') ? window.__graphWidth : 0; } });
+  Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { get() { return this.classList.contains('ik-cytoscape') ? window.__graphHeight : 0; } });
+  const resizeObservers = [];
+  window.ResizeObserver = class { constructor(callback) { this.callback = callback; resizeObservers.push(this); } observe(host) { this.host = host; } disconnect() { this.disconnected = true; } };
   window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   window.fetch = async (url, options = {}) => {
     const parsed = new URL(url, 'http://127.0.0.1:4310'), method = options.method || 'GET', body = options.body ? JSON.parse(options.body) : undefined, workspace = method === 'GET' ? parsed.searchParams.get('workspace') : body.workspace;
@@ -39,8 +46,10 @@ async function setup(t, { initial = knowledge(), delayed, delayedWrite, writeRes
     else throw new Error(`Unexpected ${method} ${url}`);
     return { ok: true, status: 200, json: async () => copy(result) };
   };
-  window.eval(script); window.ImperiumKnowledge.mount(window.document.querySelector('#knowledge'), { getState: () => state }); await settle(); t.after(() => window.close());
-  return { window, document: window.document, state, calls, byProject, errors };
+  if (graphEngine) window.eval(cytoscapeScript + '\nwindow.__graphEngines = []; window.__headlessGraph = options => { const cy = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true }); window.__graphEngines.push(cy); return cy; };');
+  const engines = window.__graphEngines || [], cytoscapeFactory = window.__headlessGraph;
+  window.eval(graphScript); window.eval(script); window.ImperiumKnowledge.mount(window.document.querySelector('#knowledge'), { getState: () => state, cytoscapeFactory }); await settle(); t.after(() => { window.ImperiumKnowledge.unmount(); window.close(); });
+  return { window, document: window.document, state, calls, byProject, errors, engines, resizeObservers };
 }
 
 test('an empty knowledge graph has no invented nodes, edges, or automatic writes', async t => {
@@ -78,7 +87,7 @@ test('wiki links use project-scoped normalized titles, navigate aliases, expose 
 
 test('local graph depth, hover connections, pan, zoom and keyboard selection never write to the project', async t => {
   const initial = knowledge(); initial.nodes.push({ id: 'isolated', title: 'Isolated note', content: 'No relationships', kind: 'note', revision: 1 });
-  const { window, document, calls, errors } = await setup(t, { initial });
+  const { window, document, calls, errors, engines } = await setup(t, { initial });
   document.querySelector('[data-memory-row="fact-1"]').click();
   document.querySelector('[data-ik-graph-mode="local"]').click();
   assert.equal(document.querySelectorAll('[data-memory-node]').length, 2); assert.equal(document.querySelector('[data-memory-node="decision-1"]'), null);
@@ -88,12 +97,13 @@ test('local graph depth, hover connections, pan, zoom and keyboard selection nev
   const first = document.querySelector('[data-memory-node="fact-1"]'); first.dispatchEvent(new window.MouseEvent('mouseenter'));
   assert.ok(document.querySelector('[data-memory-node="isolated"]').classList.contains('ik-muted')); assert.ok(document.querySelector('.ik-edge-highlight'));
   first.dispatchEvent(new window.MouseEvent('mouseleave')); assert.equal(document.querySelectorAll('.ik-muted').length, 0);
-  const picture = document.querySelector('.ik-graph'), layer = document.querySelector('.ik-graph-camera');
-  picture.dispatchEvent(new window.MouseEvent('pointerdown', { button: 0, clientX: 10, clientY: 20 }));
-  picture.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 50, clientY: 70 })); picture.dispatchEvent(new window.MouseEvent('pointerup'));
-  assert.match(layer.getAttribute('transform'), /translate\(40 50\)/);
-  picture.dispatchEvent(new window.WheelEvent('wheel', { deltaY: -1, cancelable: true })); assert.match(layer.getAttribute('transform'), /scale\(1\.1\)/);
-  picture.dispatchEvent(new window.KeyboardEvent('keydown', { key: '0', cancelable: true })); assert.equal(layer.getAttribute('transform'), 'translate(0 0) scale(1)');
+  const picture = document.querySelector('.ik-cytoscape'), cy = engines.at(-1), originalPan = { ...cy.pan() };
+  picture.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true }));
+  assert.equal(cy.pan().x, originalPan.x + 35);
+  picture.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true })); assert.equal(cy.pan().y, originalPan.y - 35);
+  const originalZoom = cy.zoom(); document.querySelector('[data-ik-zoom="in"]').click(); assert.equal(cy.zoom(), originalZoom * 1.25);
+  picture.dispatchEvent(new window.KeyboardEvent('keydown', { key: '0', cancelable: true })); assert.notEqual(cy.pan().x, originalPan.x + 35);
+  cy.getElementById('node:fact-1').emit('mouseover'); assert.ok(cy.getElementById('node:isolated').hasClass('muted')); cy.getElementById('node:fact-1').emit('mouseout');
   document.querySelector('[data-memory-node="task-1"]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
   assert.equal(document.querySelector('.ik-review-form input:not([type=checkbox])').value, 'Agent proposal');
   assert.ok(calls.every(call => call.method === 'GET')); assert.deepEqual(errors, []);
@@ -285,12 +295,85 @@ test('the graph shows only recorded relationships and distinguishes review, pin,
 test('graph rendering is bounded while search covers records outside the recent 150', async t => {
   const nodes = Array.from({ length: 171 }, (_, index) => ({ id: `memory-${index}`, title: `Memory ${index}`, content: index === 0 ? 'A uniquely searchable older record' : 'Another source fact.', kind: 'fact', source: 'user', confidence: 'user', revision: 1, updatedAt: new Date(Date.UTC(2026, 10, 18, 0, index)).toISOString() }));
   const edges = []; for (let source = 0; source < 61; source++) for (let target = 0; target < 61; target++) if (source !== target) edges.push({ id: `edge-${source}-${target}`, source: `memory-${source}`, target: `memory-${target}`, type: 'related', provenance: 'wikilink' });
-  const { window, document } = await setup(t, { initial: { nodes, edges, history: [], stats: {} } });
+  const { window, document, engines } = await setup(t, { initial: { nodes, edges, history: [], stats: {} } });
   assert.equal(document.querySelectorAll('[data-memory-node]').length, 150); assert.match(document.querySelector('[data-ik-count="nodes"]').textContent, /150.*171.*171/); assert.equal(document.querySelectorAll('[data-memory-row]').length, 50);
   assert.equal(document.querySelectorAll('[data-memory-edge]').length, 1200); assert.match(document.querySelector('[data-ik-count="edges"]').textContent, /1200.*1560/);
+  assert.equal(engines.at(-1).nodes().length, 150); assert.equal(engines.at(-1).edges().length, 1200);
   document.querySelector('.ik-list-footer button:last-child').click(); assert.match(document.querySelector('.ik-list-footer').textContent, /51–100.*171/);
   const search = document.querySelector('.ik-searchbar input'); search.value = 'uniquely searchable'; search.dispatchEvent(new window.Event('input', { bubbles: true }));
   assert.equal(document.querySelectorAll('[data-memory-node]').length, 1); assert.ok(document.querySelector('[data-memory-node="memory-0"]'));
+});
+
+test('refresh retains the real Cytoscape instance, dragged positions and viewport without model calls', async t => {
+  const { window, document, engines, state, byProject, calls } = await setup(t);
+  const cy = engines.at(-1), node = cy.getElementById('node:fact-1');
+  window.eval('__graphEngines.at(-1).viewport({ zoom: 1.35, pan: { x: 134, y: -52 } }); __graphEngines.at(-1).getElementById("node:fact-1").position({ x: 410, y: 220 });');
+  const current = byProject.get(state.settings.workspace); current.nodes[0].title = '<script>literal title</script>'; current.nodes[0].revision++;
+  await window.ImperiumKnowledge.reload();
+  assert.equal(engines.length, 1); assert.equal(engines.at(-1), cy); assert.equal(cy.zoom(), 1.35); assert.equal(cy.pan().x, 134); assert.equal(cy.pan().y, -52);
+  assert.equal(node.position().x, 410); assert.equal(node.position().y, 220); assert.equal(node.data('label'), '<script>literal title</script>'); assert.equal(document.querySelector('script'), null);
+  current.nodes.push({ id: 'new-real-note', title: 'New saved note', kind: 'note', confidence: 'user', revision: 1 }); await window.ImperiumKnowledge.reload();
+  assert.equal(cy.nodes().length, 4); assert.equal(cy.zoom(), 1.35); assert.equal(cy.pan().x, 134); assert.equal(cy.pan().y, -52);
+  assert.ok(calls.every(call => call.method === 'GET' && call.path === '/api/memory'));
+});
+
+test('selecting a different local neighborhood fits its new nodes and seeds CoSE without coincident positions', async t => {
+  const nodes = ['a', 'b'].flatMap(group => Array.from({ length: 7 }, (_, index) => ({ id: `${group}-${index}`, title: `${group.toUpperCase()} note ${index}`, content: `Saved ${group} source ${index}`, kind: 'note', confidence: 'user', revision: 1 })));
+  const edges = ['a', 'b'].flatMap(group => Array.from({ length: 6 }, (_, index) => ({ id: `${group}-edge-${index}`, source: `${group}-0`, target: `${group}-${index + 1}`, provenance: 'wikilink', type: 'related' })));
+  const { window, document, engines, calls } = await setup(t, { initial: { nodes, edges, history: [], stats: {} } });
+  const cy = engines.at(-1), layouts = [], originalLayout = cy.layout.bind(cy);
+  cy.layout = options => { layouts.push({ name: options.name, randomize: options.randomize }); return originalLayout(options); };
+  document.querySelector('[data-memory-row="a-0"]').click(); document.querySelector('[data-ik-graph-mode="local"]').click();
+  assert.equal(cy.nodes().length, 7); assert.equal(cy.getElementById('node:b-0').empty(), true);
+  window.eval('__graphEngines.at(-1).viewport({ zoom: 3, pan: { x: 100000, y: -100000 } });');
+  document.querySelector('[data-memory-row="b-0"]').click();
+  assert.equal(cy.getElementById('node:a-0').empty(), true); assert.equal(cy.nodes().length, 7); assert.equal(cy.edges().length, 6);
+  assert.equal(layouts.at(-1).name, 'cose'); assert.equal(layouts.at(-1).randomize, true);
+  assert.notEqual(cy.zoom(), 3); assert.notEqual(cy.pan().x, 100000); assert.notEqual(cy.pan().y, -100000);
+  const positions = cy.nodes().map(node => ({ x: node.position().x, y: node.position().y }));
+  assert.ok(positions.every(position => Number.isFinite(position.x) && Number.isFinite(position.y)));
+  assert.equal(new Set(positions.map(position => `${position.x.toFixed(3)},${position.y.toFixed(3)}`)).size, 7);
+  assert.ok(calls.every(call => call.method === 'GET' && call.path === '/api/memory'));
+});
+
+test('project switches destroy the old engine and ignore retained node events even with reused IDs', async t => {
+  const { window, document, engines, state, byProject, calls, resizeObservers } = await setup(t);
+  const oldEngine = engines.at(-1), oldButton = document.querySelector('[data-memory-node="fact-1"]');
+  byProject.set('C:\\Project B', { nodes: [{ id: 'fact-1', title: 'Project B original', content: 'Only B content', confidence: 'user', revision: 1 }], edges: [], history: [] });
+  state.settings.workspace = 'C:\\Project B'; window.ImperiumKnowledge.render(state); await settle();
+  const newEngine = engines.at(-1); assert.notEqual(newEngine, oldEngine); assert.equal(oldEngine.destroyed(), true);
+  assert.equal(resizeObservers[0].disconnected, true);
+  oldButton.click(); oldEngine.getElementById('node:fact-1').emit('tap'); assert.equal(document.querySelector('.ik-review-form'), null);
+  newEngine.getElementById('node:fact-1').emit('tap'); assert.equal(document.querySelector('.ik-review-form textarea').value, 'Only B content');
+  assert.ok(calls.every(call => call.method === 'GET'));
+});
+
+test('unmount destroys the engine and a pending read cannot recreate it or change the detached view', async t => {
+  let block = false, release; const pending = new Promise(resolve => { release = resolve; });
+  const { window, document, engines, byProject, state, calls, resizeObservers } = await setup(t, { delayed: () => block ? pending : undefined });
+  const engine = engines.at(-1), oldButton = document.querySelector('[data-memory-node="fact-1"]');
+  block = true; const reload = window.ImperiumKnowledge.reload(); window.ImperiumKnowledge.unmount();
+  byProject.get(state.settings.workspace).nodes.push({ id: 'late-note', title: 'Late source', revision: 1 }); release(); assert.equal(await reload, false);
+  assert.equal(engine.destroyed(), true); assert.equal(engines.length, 1); assert.equal(document.querySelector('[data-memory-node="late-note"]'), null);
+  assert.equal(resizeObservers[0].disconnected, true);
+  oldButton.click(); assert.equal(document.querySelector('.ik-review-form'), null); assert.doesNotThrow(() => window.ImperiumKnowledge.unmount()); assert.ok(calls.every(call => call.method === 'GET'));
+});
+
+test('first fit waits for a visible canvas and later resize events retain the established viewport', async t => {
+  const { window, engines, resizeObservers, calls } = await setup(t, { graphWidth: 0 });
+  const cy = engines.at(-1); assert.equal(cy.zoom(), 1);
+  window.__graphWidth = 920; resizeObservers.at(-1).callback(); assert.notEqual(cy.zoom(), 1);
+  window.eval('__graphEngines.at(-1).viewport({ zoom: 1.4, pan: { x: 66, y: -32 } });');
+  window.__graphWidth = 0; resizeObservers.at(-1).callback(); window.__graphWidth = 700; resizeObservers.at(-1).callback();
+  assert.equal(cy.zoom(), 1.4); assert.equal(cy.pan().x, 66); assert.equal(cy.pan().y, -32); assert.ok(calls.every(call => call.method === 'GET'));
+});
+
+test('a missing local engine is disclosed and the semantic graph remains selectable without a fake renderer', async t => {
+  const { window, document, calls, errors } = await setup(t, { graphEngine: false });
+  const unavailable = document.querySelector('.ik-graph-unavailable'); assert.equal(unavailable.hidden, false); assert.match(unavailable.textContent, /graph engine could not be loaded/);
+  assert.equal(document.querySelector('svg,canvas'), null); assert.equal(document.querySelectorAll('.ik-graph-node-list button').length, 3); assert.equal(document.querySelectorAll('.ik-graph-relation-list li').length, 2);
+  document.querySelector('[data-memory-node="task-1"]').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  assert.equal(document.querySelector('.ik-review-form textarea').value, 'An unverified implementation proposal.'); assert.ok(calls.every(call => call.method === 'GET')); assert.deepEqual(errors, []);
 });
 
 test('review edits use literal content, a pinned choice, expected revision, CSRF and the captured project', async t => {

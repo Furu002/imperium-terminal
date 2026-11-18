@@ -27,6 +27,7 @@
     if (command === 'HELP' || command === '?') { toggleHelp(true); return; }
     if (command === 'SETTINGS' || command === 'F8') { toggleHelp(false); callbacks.onSettings?.(); return; }
     if (command === 'FIND' && argument) { toggleHelp(false); navigate('knowledge'); window.dispatchEvent(new CustomEvent('imperium:knowledge-search', { detail: { query: argument.slice(0, 2000) } })); return; }
+    if (command === 'CHAT') { toggleHelp(false); navigate('chat'); return; }
     if (command === 'TASK' && argument) { toggleHelp(false); navigate('operations'); if (callbacks.onPrepareTask?.(argument.slice(0, 12000)) === false) { input.value = text; announce(tr('existing')); } else announce(tr('prepared')); return; }
     const row = VIEWS.find(item => [item[0].toUpperCase(), item[1], item[2]].includes(command));
     if (row) { toggleHelp(false); navigate(row[0]); return; }
@@ -56,7 +57,7 @@
     if (lastLanguage !== language) {
       lastLanguage = language; input.setAttribute('aria-label', tr('command')); input.placeholder = tr('placeholder'); form.querySelector('.terminal-go').textContent = `${tr('go')} ↵`; form.querySelector('.terminal-help-button').title = tr('help');
       keys.replaceChildren(...VIEWS.map(row => h('button', { type: 'button', 'data-function-view': row[0], onclick: () => navigate(row[0]) }, h('kbd', {}, row[2]), label(row))), h('button', { type: 'button', onclick: () => callbacks.onSettings?.() }, h('kbd', {}, 'F8'), tr('settings')));
-      tabs.replaceChildren(...VIEWS.filter(row => ['overview', 'operations', 'knowledge', 'terminal', 'analytics', 'projects'].includes(row[0])).map(row => h('button', { type: 'button', 'data-terminal-view': row[0], onclick: () => navigate(row[0]) }, row[1])));
+      tabs.replaceChildren(h('button', { type: 'button', 'data-terminal-view': 'chat', onclick: () => navigate('chat') }, 'CHAT'), ...VIEWS.filter(row => ['overview', 'operations', 'knowledge', 'terminal', 'analytics', 'projects'].includes(row[0])).map(row => h('button', { type: 'button', 'data-terminal-view': row[0], onclick: () => navigate(row[0]) }, row[1])));
       help.setAttribute('aria-label', tr('help')); help.replaceChildren(h('div', { class: 'terminal-help-heading' }, h('strong', {}, tr('help')), h('button', { type: 'button', onclick: () => toggleHelp(false), 'aria-label': tr('close') }, '×')), ...VIEWS.map(row => h('button', { type: 'button', onclick: () => { toggleHelp(false); navigate(row[0]); } }, h('code', {}, row[1]), `${row[2]} · ${label(row)}`)), h('p', {}, tr('find')), h('p', {}, tr('task')), h('p', { class: 'terminal-help-note' }, tr('notice')));
     }
     host.querySelectorAll('[data-terminal-view],[data-function-view]').forEach(el => { const active = (el.dataset.terminalView || el.dataset.functionView) === view; el.classList.toggle('active', active); if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current'); });

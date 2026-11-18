@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import test from 'node:test';
+import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import { createHQServer } from '../server.mjs';
 
@@ -21,6 +22,7 @@ function fakeProviders({ deferCancel = false } = {}) {
     providers: {
       detectProviders: async () => ['codex', 'claude', 'gemini', 'copilot', 'ollama'].map(id => ({ id, name: id, status: 'ready', installed: true, authenticated: true, version: 'offline-test' })),
       startProvider: async options => {
+        if (['codex', 'claude'].includes(options.provider)) options.onEvent({ type: 'session', sessionId: options.resumeSessionId || randomUUID(), source: 'cli-session' });
         let ended = false;
         const call = {
           ...options,

@@ -12,12 +12,13 @@
   Object.assign(WORDS.ja, { '최신 저장본 보기': '最新の保存内容と比較', '복구 가능한 초안': '復元できる下書き', '원본 노트가 삭제되거나 보관되었습니다. 초안은 유지했습니다.': '元のノートが削除または保管されました。下書きは保持しています。', '초안 내용을 선택해 복사하거나 새 노트로 작성할 수 있습니다.': '下書きを選択してコピーするか、新しいノートを作成できます。', '이 초안으로 새 노트 작성': 'この下書きから新規ノートを作成', '고정 안 함': '固定なし', '요청이 충돌했습니다. 초안을 유지했습니다. 잠시 후 다시 저장하세요.': 'リクエストが競合しました。下書きは保持しています。少し待ってから再度保存してください。' });
   Object.assign(WORDS.en, { '최신 저장본을 확인하지 못했습니다. 새로고침 후 비교하세요.': 'The latest saved note could not be checked. Refresh before comparing.' });
   Object.assign(WORDS.ja, { '최신 저장본을 확인하지 못했습니다. 새로고침 후 비교하세요.': '最新の保存内容を確認できませんでした。更新してから比較してください。' });
+  Object.assign(WORDS.en, { '노드와 관계 목록': 'Nodes and relationships', '그래프 엔진을 불러오지 못했습니다. 아래 노드와 관계 목록을 이용하세요.': 'The graph engine could not be loaded. Use the nodes and relationships list below.' });
+  Object.assign(WORDS.ja, { '노드와 관계 목록': 'ノードと関係の一覧', '그래프 엔진을 불러오지 못했습니다. 아래 노드와 관계 목록을 이용하세요.': 'グラフエンジンを読み込めませんでした。下のノードと関係の一覧を利用してください。' });
   const KINDS = { decision: '결정', fact: '사실', task: '작업', constraint: '제약', note: '노트' }, PAGE_SIZE = 50, GRAPH_LIMIT = 150, EDGE_LIMIT = 1200;
   const h = (tag, attrs = {}, ...children) => { const node = document.createElement(tag); for (const [key, value] of Object.entries(attrs)) { if (key === 'class') node.className = value; else if (key.startsWith('on')) node.addEventListener(key.slice(2).toLowerCase(), value); else if (value !== null && value !== false && value !== undefined) node.setAttribute(key, String(value)); } children.flat().forEach(child => { if (child !== undefined && child !== null) node.append(child instanceof Node ? child : document.createTextNode(String(child))); }); return node; };
-  const sv = (tag, attrs = {}, text) => { const node = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value)); if (text !== undefined) node.textContent = text; return node; };
   let container, callbacks = {}, state = {}, project = null, generation = 0, data = { nodes: [], edges: [], history: [], stats: {} }, selectedId = null, filter = 'all', query = '', page = 0, language = '', refreshTimer, lastMemoryUpdate;
   let metrics, search, filters, graphArea, graphControls, resultsList, orphanList, listFooter, inspector, message, dialog, editorFields;
-  let graphMode = 'all', depth = 1, editorMode = 'source', camera = { x: 0, y: 0, scale: 1 }, graphLayer, lastLayout, lastLayoutKey = '';
+  let graphMode = 'all', depth = 1, editorMode = 'source', graphRenderer, graphView, graphEpoch = 0;
   const drafts = new Map();
   let indexedNodes, titleIndex;
   const lang = () => document.documentElement.lang || state.settings?.language || 'ko';
@@ -60,7 +61,7 @@
   const button = (label, action, attrs = {}) => h('button', { type: 'button', ...attrs, onclick: action }, tr(label));
   function build() {
     if (!container) return;
-    captureDraft(); editorFields = null; language = lang();
+    captureDraft(); destroyGraph(); editorFields = null; language = lang();
     const heading = h('header', { class: 'ik-heading' }, h('div', {}, h('span', { class: 'ik-eyebrow' }, 'PROJECT / KNOWLEDGE VAULT'), h('h2', {}, tr('프로젝트 지식 그래프'))), h('div', { class: 'ik-heading-actions' }, button('새로고침', refresh, { 'data-ik-action': 'refresh' }), button('새 기억', openCreate, { class: 'ik-primary', 'data-ik-action': 'create' })));
     search = h('input', { type: 'search', placeholder: tr('기억 검색'), 'aria-label': tr('기억 검색'), value: query }); search.addEventListener('input', () => { captureDraft(); query = search.value; page = 0; renderData(); });
     filters = h('div', { class: 'ik-filters', role: 'group', 'aria-label': tr('분류') }); resultsList = h('div', { class: 'ik-results-list' }); orphanList = h('section', { class: 'ik-orphan-drafts', style: 'max-height:180px;overflow:auto;flex-shrink:0', 'aria-label': tr('복구 가능한 초안') }); listFooter = h('div', { class: 'ik-list-footer' });
@@ -79,7 +80,7 @@
     renderGraphControls(); drawGraph(); renderList(); renderInspector();
   }
   function renderGraphControls() {
-    graphControls.replaceChildren(h('div', { class: 'ik-view-tabs' }, ...[['all', '전체 그래프'], ['local', '로컬 그래프']].map(([mode, label]) => button(label, () => { graphMode = mode; camera = { x: 0, y: 0, scale: 1 }; renderGraphControls(); drawGraph(); }, { class: graphMode === mode ? 'active' : '', 'data-ik-graph-mode': mode, 'aria-pressed': String(graphMode === mode) }))), h('div', { class: 'ik-graph-tools' }, h('span', {}, tr('연결 깊이')), ...[1, 2].map(value => button(String(value), () => { depth = value; renderGraphControls(); drawGraph(); }, { class: depth === value ? 'active' : '', disabled: graphMode !== 'local', 'data-ik-depth': value, 'aria-label': `${tr('연결 깊이')} ${value}` })), button('축소', () => zoom(.8), { 'data-ik-zoom': 'out', title: tr('축소') }), button('확대', () => zoom(1.25), { 'data-ik-zoom': 'in', title: tr('확대') }), button('화면 맞춤', () => { camera = { x: 0, y: 0, scale: 1 }; applyCamera(); }, { 'data-ik-zoom': 'fit' })));
+    graphControls.replaceChildren(h('div', { class: 'ik-view-tabs' }, ...[['all', '전체 그래프'], ['local', '로컬 그래프']].map(([mode, label]) => button(label, () => { graphMode = mode; renderGraphControls(); drawGraph(true); }, { class: graphMode === mode ? 'active' : '', 'data-ik-graph-mode': mode, 'aria-pressed': String(graphMode === mode) }))), h('div', { class: 'ik-graph-tools' }, h('span', {}, tr('연결 깊이')), ...[1, 2].map(value => button(String(value), () => { depth = value; renderGraphControls(); drawGraph(true); }, { class: depth === value ? 'active' : '', disabled: graphMode !== 'local', 'data-ik-depth': value, 'aria-label': `${tr('연결 깊이')} ${value}` })), button('축소', () => graphRenderer?.zoomBy(.8), { 'data-ik-zoom': 'out', title: tr('축소') }), button('확대', () => graphRenderer?.zoomBy(1.25), { 'data-ik-zoom': 'in', title: tr('확대') }), button('화면 맞춤', () => graphRenderer?.fit(), { 'data-ik-zoom': 'fit' })));
   }
   function graphNodes() {
     if (graphMode !== 'local') return matches();
@@ -89,45 +90,53 @@
     for (let level = 0; level < depth; level++) { const next = []; for (const id of frontier) for (const other of adjacency.get(id) || []) if (!included.has(other)) { included.add(other); next.push(other); } frontier = next; }
     return [nodes.find(node => node.id === selectedId), ...nodes.filter(node => node.id !== selectedId && included.has(node.id))];
   }
-  function layout(nodes, edges) {
-    const key = JSON.stringify([nodes.map(node => node.id), edges.map(edge => [edge.source, edge.target])]); if (key === lastLayoutKey) { nodes.forEach(node => { lastLayout.get(node.id).node = node; }); return lastLayout; }
-    const points = new Map(), width = 920, height = 560;
-    nodes.forEach((node, index) => { const small = nodes.length <= 5, angle = small ? index * 2 * Math.PI / nodes.length - Math.PI / 2 : index * 2.399963, radius = small ? nodes.length === 1 ? 0 : 225 : 32 + Math.sqrt(index + 1) * 25; points.set(node.id, { x: width / 2 + Math.cos(angle) * radius, y: height / 2 + Math.sin(angle) * radius * .8, node }); });
-    const values = [...points.values()], indices = new Map(values.map((point, index) => [point.node.id, index]));
-    for (let pass = 0; values.length > 5 && pass < 45; pass++) {
-      const forces = values.map(point => ({ x: (width / 2 - point.x) * .004, y: (height / 2 - point.y) * .004 }));
-      for (let i = 0; i < values.length; i++) for (let j = i + 1; j < values.length; j++) { const dx = values[i].x - values[j].x || .1, dy = values[i].y - values[j].y || .1, distance = Math.max(35, dx * dx + dy * dy), push = Math.min(8, 1300 / distance), length = Math.sqrt(distance); forces[i].x += dx / length * push; forces[i].y += dy / length * push; forces[j].x -= dx / length * push; forces[j].y -= dy / length * push; }
-      for (const edge of edges) { const a = points.get(edge.source), b = points.get(edge.target); if (!a || !b) continue; const i = indices.get(edge.source), j = indices.get(edge.target), dx = b.x - a.x, dy = b.y - a.y, distance = Math.max(1, Math.hypot(dx, dy)), pull = (distance - 110) * .012; forces[i].x += dx / distance * pull; forces[i].y += dy / distance * pull; forces[j].x -= dx / distance * pull; forces[j].y -= dy / distance * pull; }
-      values.forEach((point, index) => { point.x = Math.max(65, Math.min(width - 65, point.x + forces[index].x)); point.y = Math.max(55, Math.min(height - 55, point.y + forces[index].y)); });
-    }
-    lastLayoutKey = key; lastLayout = points; return points;
-  }
-  function applyCamera() { graphLayer?.setAttribute('transform', `translate(${camera.x} ${camera.y}) scale(${camera.scale})`); }
-  function zoom(factor) { const scale = Math.max(.35, Math.min(3, camera.scale * factor)), ratio = scale / camera.scale; camera = { scale, x: 460 - (460 - camera.x) * ratio, y: 280 - (280 - camera.y) * ratio }; applyCamera(); }
-  function drawGraph() {
+  function destroyGraph() { graphRenderer?.destroy(); graphRenderer = null; graphView = null; graphEpoch++; }
+  function drawGraph(fit = false) {
     const filtered = graphNodes(), shown = filtered.slice(0, GRAPH_LIMIT), ids = new Set(shown.map(node => node.id)), matchingEdges = actualEdges().filter(edge => ids.has(edge.source) && ids.has(edge.target)), edges = matchingEdges.slice(0, EDGE_LIMIT);
-    const counts = h('div', { class: 'ik-graph-counts' }, h('span', { 'data-ik-count': 'nodes' }, tr('표시 {visible} / 검색 결과 {matches} / 전체 {total}', { visible: shown.length, matches: filtered.length, total: active().length })), h('span', { 'data-ik-count': 'edges' }, tr('관계 표시 {visible} / 해당 관계 {total}', { visible: edges.length, total: matchingEdges.length })));
-    graphLayer = null;
-    if (!shown.length) { graphArea.replaceChildren(counts, h('div', { class: 'ik-empty' }, h('span', { 'aria-hidden': 'true' }, '◇'), h('h3', {}, tr(graphMode === 'local' ? '노트를 선택하면 주변 연결을 표시합니다.' : active().length ? '검색 조건에 맞는 기억이 없습니다.' : '첫 결과나 기억이 저장되면 그래프가 만들어집니다.')), h('p', {}, tr('표시할 관계나 노드를 임의로 만들지 않습니다.')))); return; }
-    const positions = layout(shown, edges), picture = sv('svg', { class: `ik-graph${shown.length > 45 ? ' ik-graph-dense' : ''}`, viewBox: '0 0 920 560', tabindex: '0', role: 'group', 'aria-label': tr('프로젝트 지식 그래프') });
-    picture.append(sv('title', {}, tr('프로젝트 지식 그래프')), sv('desc', {}, tr('드래그로 이동 · 휠로 확대 · 방향키로 이동 · 0으로 화면 맞춤'))); graphLayer = sv('g', { class: 'ik-graph-camera' }); picture.append(graphLayer);
-    const nodeElements = new Map(), edgeElements = [];
-    for (const edge of edges) { const a = positions.get(edge.source), b = positions.get(edge.target), provenance = edge.provenance === 'keyword' ? 'keyword' : edge.provenance === 'wikilink' ? 'wiki' : 'manual', path = sv('path', { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, class: `ik-edge ik-edge-${provenance}`, 'data-memory-edge': edge.id || `${edge.source}:${edge.target}`, 'data-edge-provenance': edge.provenance || 'user' }); path.append(sv('title', {}, `${a.node.title} → ${b.node.title} · ${edge.type} · ${edge.provenance || 'user'}`)); graphLayer.append(path); edgeElements.push({ edge, path }); }
-    const highlight = id => { const neighbors = new Set([id]); for (const { edge } of edgeElements) if (edge.source === id || edge.target === id) { neighbors.add(edge.source); neighbors.add(edge.target); } for (const [nodeId, element] of nodeElements) element.classList.toggle('ik-muted', Boolean(id) && !neighbors.has(nodeId)); for (const { edge, path } of edgeElements) { path.classList.toggle('ik-muted', Boolean(id) && edge.source !== id && edge.target !== id); path.classList.toggle('ik-edge-highlight', Boolean(id) && (edge.source === id || edge.target === id)); } };
-    for (const node of shown) {
-      const point = positions.get(node.id), item = sv('g', { class: `ik-node ik-node-${source(node)}${node.pinned ? ' ik-node-pinned' : ''}${selectedId === node.id ? ' ik-node-selected' : ''}`, transform: `translate(${point.x} ${point.y})`, tabindex: '0', role: 'button', 'data-memory-node': node.id, 'aria-label': `${node.title} · ${sourceLabel(node)} · r${node.revision || 1}${node.pinned ? ` · ${tr('고정')}` : ''}` });
-      item.append(sv('title', {}, `${node.title}\n${sourceLabel(node)}\nr${node.revision || 1}`)); if (node.pinned) item.append(sv('circle', { r: '13', class: 'ik-pin-ring' })); item.append(sv('circle', { r: selectedId === node.id ? '8' : '5.5', class: 'ik-node-dot' }), sv('text', { x: '0', y: '25', 'text-anchor': 'middle' }, [...String(node.title || '')].slice(0, 22).join('') + ([...String(node.title || '')].length > 22 ? '…' : '')));
-      item.addEventListener('click', () => select(node.id)); item.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); select(node.id); } }); item.addEventListener('mouseenter', () => highlight(node.id)); item.addEventListener('mouseleave', () => highlight(null)); item.addEventListener('focus', () => highlight(node.id)); item.addEventListener('blur', () => highlight(null)); nodeElements.set(node.id, item); graphLayer.append(item);
+    if (!graphView) {
+      const counts = h('div', { class: 'ik-graph-counts' }), host = h('div', { class: 'ik-cytoscape', tabindex: '0', role: 'group', 'aria-label': tr('프로젝트 지식 그래프') });
+      const surface = h('div', { class: 'ik-graph-surface' }, host), status = h('p', { class: 'ik-graph-unavailable', role: 'status', hidden: true });
+      const list = h('ul', { class: 'ik-graph-node-list' }), relations = h('ul', { class: 'ik-graph-relation-list' });
+      const accessible = h('details', { class: 'ik-graph-accessibility' }, h('summary', {}, tr('노드와 관계 목록')), list, relations);
+      const empty = h('div', { class: 'ik-empty' }), hint = h('span', { class: 'ik-graph-hint' }, tr('드래그로 이동 · 휠로 확대 · 방향키로 이동 · 0으로 화면 맞춤'));
+      graphView = { counts, host, surface, status, list, relations, accessible, empty };
+      graphArea.replaceChildren(counts, surface, status, accessible, empty, hint);
     }
-    picture.addEventListener('wheel', event => { event.preventDefault(); zoom(event.deltaY > 0 ? .9 : 1.1); }, { passive: false });
-    let drag;
-    picture.addEventListener('pointerdown', event => { if (event.button !== 0 || event.target.closest?.('[data-memory-node]')) return; drag = { x: event.clientX, y: event.clientY, left: camera.x, top: camera.y }; picture.setPointerCapture?.(event.pointerId); });
-    picture.addEventListener('pointermove', event => { if (!drag) return; const rect = picture.getBoundingClientRect(); camera.x = drag.left + (event.clientX - drag.x) * 920 / (rect.width || 920); camera.y = drag.top + (event.clientY - drag.y) * 560 / (rect.height || 560); applyCamera(); });
-    const endDrag = () => { drag = null; }; picture.addEventListener('pointerup', endDrag); picture.addEventListener('pointercancel', endDrag);
-    picture.addEventListener('keydown', event => { if (event.target !== picture) return; const moves = { ArrowLeft: [35, 0], ArrowRight: [-35, 0], ArrowUp: [0, 35], ArrowDown: [0, -35] }; if (moves[event.key]) { event.preventDefault(); camera.x += moves[event.key][0]; camera.y += moves[event.key][1]; applyCamera(); } else if (['+', '='].includes(event.key)) { event.preventDefault(); zoom(1.2); } else if (event.key === '-') { event.preventDefault(); zoom(.8); } else if (event.key === '0') { event.preventDefault(); camera = { x: 0, y: 0, scale: 1 }; applyCamera(); } });
-    graphArea.replaceChildren(counts, picture, h('span', { class: 'ik-graph-hint' }, tr('드래그로 이동 · 휠로 확대 · 방향키로 이동 · 0으로 화면 맞춤'))); applyCamera();
+    const view = graphView;
+    view.counts.replaceChildren(h('span', { 'data-ik-count': 'nodes' }, tr('표시 {visible} / 검색 결과 {matches} / 전체 {total}', { visible: shown.length, matches: filtered.length, total: active().length })), h('span', { 'data-ik-count': 'edges' }, tr('관계 표시 {visible} / 해당 관계 {total}', { visible: edges.length, total: matchingEdges.length })));
+    view.empty.hidden = Boolean(shown.length); view.surface.hidden = !shown.length; view.accessible.hidden = !shown.length;
+    if (!shown.length) {
+      graphRenderer?.update({ nodes: [], edges: [] }); view.list.replaceChildren(); view.relations.replaceChildren(); view.status.hidden = true;
+      view.empty.replaceChildren(h('span', { 'aria-hidden': 'true' }, '◇'), h('h3', {}, tr(graphMode === 'local' ? '노트를 선택하면 주변 연결을 표시합니다.' : active().length ? '검색 조건에 맞는 기억이 없습니다.' : '첫 결과나 기억이 저장되면 그래프가 만들어집니다.')), h('p', {}, tr('표시할 관계나 노드를 임의로 만들지 않습니다.'))); return;
+    }
+    if (!graphRenderer) {
+      const key = project, epoch = graphEpoch;
+      try {
+        if (!window.ImperiumKnowledgeGraph) throw new Error('Cytoscape.js is unavailable');
+        graphRenderer = window.ImperiumKnowledgeGraph.create(view.host, { cytoscapeFactory: callbacks.cytoscapeFactory, onSelect: id => { if (container?.isConnected && project === key && graphEpoch === epoch) select(id); } });
+        view.status.hidden = true;
+      } catch { view.status.hidden = false; view.status.textContent = tr('그래프 엔진을 불러오지 못했습니다. 아래 노드와 관계 목록을 이용하세요.'); }
+    }
+    graphRenderer?.update({ nodes: shown, edges, selectedId, fit });
+    const key = project, epoch = graphEpoch, nodeElements = new Map(), edgeElements = [], titles = new Map(shown.map(node => [node.id, node.title]));
+    const highlight = id => {
+      if (project !== key || graphEpoch !== epoch) return;
+      graphRenderer?.highlight(id);
+      const neighbors = new Set([id]); for (const { edge } of edgeElements) if (edge.source === id || edge.target === id) { neighbors.add(edge.source); neighbors.add(edge.target); }
+      for (const [nodeId, element] of nodeElements) element.classList.toggle('ik-muted', Boolean(id) && !neighbors.has(nodeId));
+      for (const { edge, item } of edgeElements) { const connected = edge.source === id || edge.target === id; item.classList.toggle('ik-muted', Boolean(id) && !connected); item.classList.toggle('ik-edge-highlight', Boolean(id) && connected); }
+    };
+    view.list.replaceChildren(...shown.map(node => {
+      const item = h('button', { type: 'button', onclick: () => { if (project === key && graphEpoch === epoch) select(node.id); }, class: `ik-node ik-node-${source(node)}${node.pinned ? ' ik-node-pinned' : ''}${selectedId === node.id ? ' ik-node-selected' : ''}`, 'data-memory-node': node.id, 'aria-pressed': String(selectedId === node.id), 'aria-label': `${node.title} · ${sourceLabel(node)} · r${node.revision || 1}${node.pinned ? ` · ${tr('고정')}` : ''}` }, node.title || tr('제목 없는 노트'));
+      item.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); item.click(); } });
+      item.addEventListener('mouseenter', () => highlight(node.id)); item.addEventListener('mouseleave', () => highlight(null)); item.addEventListener('focus', () => highlight(node.id)); item.addEventListener('blur', () => highlight(null)); nodeElements.set(node.id, item); return h('li', {}, item);
+    }));
+    view.relations.replaceChildren(...edges.map(edge => {
+      const provenance = edge.provenance === 'keyword' ? 'keyword' : edge.provenance === 'wikilink' ? 'wiki' : 'manual';
+      const item = h('li', { class: `ik-edge ik-edge-${provenance}`, 'data-memory-edge': edge.id || `${edge.source}:${edge.target}`, 'data-edge-provenance': edge.provenance || 'user' }, `${titles.get(edge.source)} → ${titles.get(edge.target)} · ${edge.type || ''} · ${tr(provenance === 'wiki' ? '위키 링크' : provenance === 'keyword' ? '키워드 관계' : '수동 관계')}`); edgeElements.push({ edge, item }); return item;
+    }));
   }
-  function select(id) { if (!active().some(node => node.id === id) && !orphanDrafts().some(([orphanId]) => orphanId === id)) return; captureDraft(); selectedId = id; editorFields = null; drawGraph(); renderList(); renderInspector(true); }
+  function select(id) { if (!active().some(node => node.id === id) && !orphanDrafts().some(([orphanId]) => orphanId === id)) return; captureDraft(); selectedId = id; editorFields = null; drawGraph(graphMode === 'local'); renderList(); renderInspector(true); }
   function renderList() {
     const records = matches(); page = Math.min(page, Math.max(0, Math.ceil(records.length / PAGE_SIZE) - 1)); const shown = records.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
     resultsList.replaceChildren(...shown.map(node => h('button', { type: 'button', class: `ik-result${selectedId === node.id ? ' selected' : ''}`, 'data-memory-row': node.id, 'aria-pressed': String(selectedId === node.id), onclick: () => select(node.id) }, h('span', { class: 'ik-result-source', 'data-source': source(node) }, node.pinned ? '◆' : '◌'), h('span', { class: 'ik-result-copy' }, h('strong', {}, node.title || tr('제목 없는 노트')), h('small', {}, `${tr(KINDS[node.kind] || '노트')} · r${node.revision || 1}`)))));
@@ -246,11 +255,13 @@
     state = incoming || callbacks.getState?.() || state; if (!container) return;
     const key = state.settings?.workspace;
     if (!key) { notice(tr('불러오는 중…')); return; }
-    if (project !== key) { captureDraft(); project = key; generation++; clearTimeout(refreshTimer); dialog?.close(); data = { nodes: [], edges: [], history: [], stats: {} }; selectedId = null; editorFields = null; query = ''; filter = 'all'; page = 0; camera = { x: 0, y: 0, scale: 1 }; lastMemoryUpdate = state.memoryUpdatedAt; build(); refresh(); }
+    if (project !== key) { captureDraft(); project = key; generation++; clearTimeout(refreshTimer); dialog?.close(); data = { nodes: [], edges: [], history: [], stats: {} }; selectedId = null; editorFields = null; query = ''; filter = 'all'; page = 0; lastMemoryUpdate = state.memoryUpdatedAt; build(); refresh(); }
     else { if (language !== lang()) build(); if (state.memoryUpdatedAt && state.memoryUpdatedAt !== lastMemoryUpdate) { lastMemoryUpdate = state.memoryUpdatedAt; scheduleRefresh(); } }
   }
-  function mount(target, configuration = {}) { container = typeof target === 'string' ? document.querySelector(target) : target; callbacks = configuration; if (!container) return; state = callbacks.getState?.() || state; build(); render(state); }
-  window.ImperiumKnowledge = { mount, render, reload: refresh };
+  function unmount() { captureDraft(); destroyGraph(); generation++; clearTimeout(refreshTimer); dialog?.close(); editorFields = null; project = null; container = null; }
+  function mount(target, configuration = {}) { unmount(); container = typeof target === 'string' ? document.querySelector(target) : target; callbacks = configuration; if (!container) return; state = callbacks.getState?.() || state; build(); render(state); }
+  window.ImperiumKnowledge = { mount, unmount, render, reload: refresh };
+  window.addEventListener('pagehide', unmount);
   window.addEventListener('imperium:memory-changed', () => { if (container && project) scheduleRefresh(); });
-  window.addEventListener('imperium:knowledge-search', event => { if (!container) return; captureDraft(); query = String(event.detail?.query || '').slice(0, 1000); filter = 'all'; graphMode = 'all'; camera = { x: 0, y: 0, scale: 1 }; page = 0; if (search) search.value = query; renderData(); search?.focus(); });
+  window.addEventListener('imperium:knowledge-search', event => { if (!container) return; captureDraft(); query = String(event.detail?.query || '').slice(0, 1000); filter = 'all'; graphMode = 'all'; page = 0; if (search) search.value = query; renderData(); search?.focus(); });
 })();

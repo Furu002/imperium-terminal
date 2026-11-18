@@ -4,7 +4,7 @@
 
 **IMPERIUM**, Latin for command or authority, is a local operations terminal for building your own AI workspace. Add yourself, AI connections, roles, and memory to an empty canvas, then follow queues, execution status, tool events, and results from Codex, Claude Code, and other providers. A company organization chart is an optional layout; names and titles are yours to choose.
 
-Version 1.5.0 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
+Version 1.6.0 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
 
 The app runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
@@ -16,17 +16,36 @@ Project knowledge uses a note explorer, graph, and editor inspired by Obsidian's
 
 Saved knowledge and explicit connections are retrieved as context for later work. This does not train model weights or synchronize an Obsidian vault. A new project starts empty and shows only saved records.
 
+Version 1.6.0 uses black and neutral-gray surfaces with amber, cyan, and green semantic colors. The project-memory graph includes [Cytoscape.js](https://github.com/cytoscape/cytoscape.js) 3.35.0; measured usage and performance charts include [Chart.js](https://github.com/chartjs/Chart.js) 4.6.1. Both ship locally, supporting pan/zoom/selection or chart tooltips without a CDN or model call. Keyboard node lists and source data tables accompany the canvases. Missing measurements remain empty. See [third-party notices](../THIRD_PARTY_NOTICES.md) for sources and licenses.
+
+OUTPUT separates your request and the AI response in a readable conversation view, with headings, lists, tables, code blocks, code copying, raw text, and an expanded reading view. Original results and exports are preserved. Execution settings and process logs remain available in details. Model-provided HTML and external images are not automatically executed or loaded.
+
+Small original model avatars show registered connections and actual task states in the current project. They animate only during execution and distinguish queues, sign-in, connection errors, and local-only restrictions. **Live progress** shows publicly reported work summaries, actual tool events, and reported progress/ETA, with a link to the task's answer. Public summaries remain in execution logs. Private internal reasoning is not collected; missing summaries or estimates are not invented. Models can report a public work stage using `[[IMPERIUM_STATUS {"summary":"Public work stage"}]]`, or use the existing `IMPERIUM_PROGRESS` format when a numerical estimate is supported.
+
 ## Run the desktop app
 
-The Windows internal-validation installer is named **`Imperium-Setup-1.5.0-x64.exe`** and includes a guided setup wizard.
+Use **AI accounts (F5) → Remove model connection** for saved model registrations, or **Remove agent** in the node inspector for an agent definition. **Remove from canvas** only removes the placed node. Confirmation identifies the target and retained records. Active, queued, or still-exiting processes and connections assigned in other projects block removal. Conversations, results, memory, and CLI sign-in are retained; a removed agent's conversations remain readable.
+**CHAT → Conversations** continues questions with the same agent. Codex and Claude resume official CLI sessions captured by this app; follow-ups sent during execution wait in conversation order. Choose **New conversation** for fresh context. Project, agent, provider, connection, requested model, or file-permission changes separate conversations. Other providers receive up to 12,000 characters of retained completed-turn history, with the transport labeled. The app does not search for uncaptured legacy sessions or import other apps' chats. If a previously successful native session cannot be verified, continuation fails explicitly instead of silently starting a fresh session.
+
+Standalone F2 operations and default workflows start fresh conversations. Only CHAT follow-ups that explicitly select an existing conversation resume it.
+
+Answers and operation rows show the requested model and, when explicitly reported by the CLI, the execution model. Aliases, defaults, and usage are not treated as proof of the actual model. Conversation history and unsent drafts remain separate by project and conversation, with original answers, copying, and execution logs available.
+
+**Settings (F8) → Access and change review** provides a global read-only policy or the existing per-task file-edit choice. The server rejects edit tasks under global read-only. Interactive terminals have a separate enable switch; disabling closes existing app terminal sessions. Policy changes are rejected while AI tasks run or wait. Codex uses its CLI sandbox; Claude uses a restricted tool set, which is not OS filesystem isolation. Terminals run with the user's OS privileges. No administrator, full-access, or approval-bypass option is added.
+
+**Git change review** displays current-workspace unstaged and staged patches plus untracked file names, using read-only Git commands with external diff and textconv disabled. Untracked file contents are not automatically read. This is current Git state, rather than changes attributed only to a particular AI task or an approval result. Missing Git and non-repository states are explicit. The viewer does not apply, revert, stage, or commit changes.
+
+**Skills used** appear in live progress and remain in execution logs. Sources distinguish explicit Claude `Skill` calls, `Read` calls for `SKILL.md`, and model self reports through `IMPERIUM_SKILL`. Observing an invocation does not confirm success; self reports are not independently verified execution evidence. Activity not exposed by a CLI remains unconfirmed, and installed skills are not assumed active. Observation does not expand tool permissions or execute new skill files.
+
+The Windows internal-validation installer is named **`Imperium-Setup-1.6.0-x64.exe`** and includes a guided setup wizard.
 
 1. Run the installer and proceed through **Next → Install → Finish**. You can change the installation folder. The app installs for the current Windows user.
 2. Open the app using the **IMPERIUM** shortcut on your desktop or in the Start menu.
 3. To uninstall, select **IMPERIUM** in the apps list in Windows Settings.
 
-For use without installation, choose the portable file `Imperium-1.5.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
+For use without installation, choose the portable file `Imperium-1.6.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
 
-Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.5.0-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.5.0-mac-x64.dmg` and `.zip`.
+Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.6.0-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.6.0-mac-x64.dmg` and `.zip`.
 
 The author metadata names **Sato Junichiro**. This metadata alone does not establish a Windows-verified publisher. Builds remain unsigned developer packages until an actual Authenticode certificate is supplied and used for signing; Windows may show an unknown publisher. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
 
@@ -34,19 +53,19 @@ Desktop records are stored in `hq-data/` under the operating system's applicatio
 
 ## Install on Linux
 
-Linux x64 build targets are `Imperium-1.5.0-linux-amd64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.5.0-linux-x86_64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
+Linux x64 build targets are `Imperium-1.6.0-linux-amd64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.6.0-linux-x86_64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
 
 To install on Debian or Ubuntu:
 
 ```sh
-sudo apt install ./Imperium-1.5.0-linux-amd64.deb
+sudo apt install ./Imperium-1.6.0-linux-amd64.deb
 ```
 
 After installation, launch **IMPERIUM** from your application menu. To use the AppImage:
 
 ```sh
-chmod +x Imperium-1.5.0-linux-x86_64.AppImage
-./Imperium-1.5.0-linux-x86_64.AppImage
+chmod +x Imperium-1.6.0-linux-x86_64.AppImage
+./Imperium-1.6.0-linux-x86_64.AppImage
 ```
 
 The AppImage does not automatically create application-menu or desktop shortcuts. Linux also requires Codex or Claude Code installation and subscription login. A successful Linux CI build confirms package generation and automated checks, rather than manual testing in a Linux desktop session.
@@ -94,7 +113,7 @@ Model-list labels distinguish **Account discovery**, **CLI alias**, **Local mode
 
 ## Select a model, reasoning effort, and speed
 
-Version 1.5.0 lets you save execution model, reasoning effort, and response speed defaults for each role or agent. Override them for one task under **Model settings for this task** in **Operations (F2)**. **Load account models** retrieves models and supported options reported by Codex or Claude Code, including Claude aliases and their resolved model IDs. A manually entered ID does not establish access or support for every option.
+Version 1.6.0 lets you save execution model, reasoning effort, and response speed defaults for each role or agent. Override them for one task under **Model settings for this task** in **Operations (F2)**. **Load account models** retrieves models and supported options reported by Codex or Claude Code, including Claude aliases and their resolved model IDs. A manually entered ID does not establish access or support for every option.
 
 | Setting | Behavior |
 | --- | --- |
@@ -208,7 +227,7 @@ Pretendard, Pretendard JP, and JetBrains Mono are bundled in `public/fonts/` and
 
 ## Updates and release status
 
-Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.5.0 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
+Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.6.0 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
 
 Windows installed builds use the NSIS update path. Linux AppImage builds use the AppImage update path; DEB users download and install the next package manually. macOS may require manual updates while signing certificates are unavailable. File-hash verification is not a code signature, and the **Sato Junichiro** author metadata is not certificate signing. Instructions do not require disabling a firewall or system-wide OS security settings.
 

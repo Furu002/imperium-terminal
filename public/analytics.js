@@ -23,86 +23,89 @@
     },
   };
   const h = (tag, className, value) => { const element = document.createElement(tag); if (className) element.className = className; if (value !== undefined) element.textContent = String(value); return element; };
-  const s = (tag, attributes, value) => { const element = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [key, item] of Object.entries(attributes || {})) element.setAttribute(key, String(item)); if (value !== undefined) element.textContent = String(value); return element; };
+  Object.assign(COPY.en, { '데이터 표 보기': 'Show data table', '차트를 사용할 수 없습니다. 데이터 표를 확인하세요.': 'Chart unavailable. See the data table.', '날짜': 'Date', '합계': 'Total', '작업': 'Task', '상태': 'Status', '실행 시간': 'Duration', '문자': 'Characters', '작업 상태 분포': 'Task status distribution', '취소': 'Cancelled', '중단': 'Interrupted', '누적': 'Cumulative', '평균 보고 토큰': 'Average reported tokens' });
+  Object.assign(COPY.ja, { '데이터 표 보기': 'データ表を表示', '차트를 사용할 수 없습니다. 데이터 표를 확인하세요.': 'チャートを表示できません。データ表を確認してください。', '날짜': '日付', '합계': '合計', '작업': 'タスク', '상태': '状態', '실행 시간': '実行時間', '문자': '文字数', '작업 상태 분포': 'タスク状態の分布', '취소': 'キャンセル', '중단': '中断', '누적': '累積', '평균 보고 토큰': '平均報告トークン' });
   const known = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
-  let root, options, latestState = {}, language = 'ko', data, signature = '', generation = 0, timer, disposed = false;
+  let root, options, latestState = {}, language = 'ko', data, signature = '', paintedSignature = '', generation = 0, timer, disposed = false, charts, pendingCharts = [];
   const t = (key, values = {}) => (COPY[language]?.[key] || key).replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
   const locale = () => language === 'ja' ? 'ja-JP' : language === 'en' ? 'en-US' : 'ko-KR';
   const n = value => known(value) ? value.toLocaleString(locale(), { maximumFractionDigits: 1 }) : '—';
   const duration = value => !known(value) ? '—' : value < 1000 ? `${n(value)} ms` : value < 60000 ? `${n(value / 1000)} s` : `${n(value / 60000)} min`;
   const percentage = value => typeof value === 'number' && Number.isFinite(value) ? `${value > 0 ? '+' : ''}${value.toLocaleString(locale(), { maximumFractionDigits: 1 })}%` : '—';
   const empty = message => h('div', 'ia-empty', t(message));
+  const colors = { amber: '#FF9F00', cyan: '#00B7EB', green: '#00D77A', red: '#FF4D4F', muted: '#A0A0A0', white: '#F2F2F2' };
+  const statusLabel = status => t(({ completed: '완료', failed: '실패', running: '실행 중', queued: '대기', cancelled: '취소', interrupted: '중단' })[status] || status || '보고 없음');
   function panel(title, label) {
     const card = h('section', 'ia-panel'), header = h('header', 'ia-panel-heading');
     header.append(h('h3', '', t(title))); if (label) header.append(h('span', 'ia-panel-label', label));
     card.append(header); return card;
   }
-  function chart(label, height = 220) {
-    const image = s('svg', { viewBox: `0 0 720 ${height}`, role: 'img', 'aria-label': t(label), class: 'ia-chart' });
-    image.append(s('title', {}, t(label))); return image;
+  function dataTable(title, headers, rows) {
+    const details = h('details', 'ia-chart-table'), summary = h('summary', '', t('데이터 표 보기'));
+    const wrap = h('div', 'ia-table-wrap'), table = h('table', 'ia-comparison-table'), head = h('thead'), header = h('tr'), body = h('tbody');
+    table.append(h('caption', '', t(title)));
+    for (const label of headers) { const cell = h('th', '', t(label)); cell.scope = 'col'; header.append(cell); }
+    head.append(header); table.append(head);
+    for (const values of rows) { const row = h('tr'); values.forEach(value => row.append(h('td', '', value))); body.append(row); }
+    table.append(body); wrap.append(table); details.append(summary, wrap); return details;
   }
-  function axes(image, maximum, height = 220, left = 52) {
-    for (const value of [0, maximum / 2, maximum]) {
-      const y = height - 38 - value / maximum * (height - 62);
-      image.append(s('line', { x1: left, y1: y, x2: 705, y2: y, class: 'ia-gridline' }), s('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', class: 'ia-axis' }, n(value)));
-    }
+  function chart(card, label, specification, headers, rows, height = 220) {
+    const stage = h('div', 'ia-chart-stage'), canvas = h('canvas', 'ia-chart-canvas');
+    stage.style.height = `${height}px`; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', t(label));
+    canvas.textContent = t('데이터 표 보기'); stage.append(canvas);
+    const table = dataTable(label, headers, rows);
+    const unavailable = () => {
+      stage.hidden = true; table.open = true;
+      const message = h('p', 'ia-chart-unavailable ia-caption', t('차트를 사용할 수 없습니다. 데이터 표를 확인하세요.'));
+      message.setAttribute('role', 'status'); stage.after(message);
+    };
+    card.append(stage, table); pendingCharts.push({ canvas, specification: { ...specification, locale: locale() }, unavailable });
   }
+  const tooltip = unit => ({ callbacks: { label: context => {
+    const number = context.dataset.data[context.dataIndex];
+    return `${context.dataset.label || context.label}: ${known(number) ? n(number) : t('보고 없음')}${known(number) && unit ? ` ${unit}` : ''}`;
+  } } });
   function dailyChart(rows) {
     const card = panel('일별 보고 토큰', 'UTC / TOKENS');
-    const legend = h('div', 'ia-legend'); legend.append(h('span', 'ia-input-key', t('입력')), h('span', 'ia-output-key', t('출력'))); card.append(legend);
     const values = rows.slice(-14);
     if (!values.some(row => known(row.totalTokens))) { card.append(empty('보고된 토큰 기록이 없습니다.')); return card; }
-    const image = chart('일별 보고 토큰'), max = Math.max(1, ...values.map(row => known(row.totalTokens) ? row.totalTokens : 0));
-    axes(image, max);
-    const step = 640 / values.length;
-    values.forEach((row, index) => {
-      const x = 57 + step * index, width = Math.min(32, step * .6), base = 182;
-      const input = known(row.inputTokens) ? row.inputTokens / max * 158 : 0, output = known(row.outputTokens) ? row.outputTokens / max * 158 : 0;
-      if (known(row.totalTokens)) {
-        const group = s('g'); group.append(s('title', {}, `${row.day}: ${n(row.totalTokens)} tokens · ${t('입력')} ${n(row.inputTokens)} / ${t('출력')} ${n(row.outputTokens)}`));
-        group.append(s('rect', { x, y: base - input, width, height: input, class: 'ia-input-bar' }), s('rect', { x, y: base - input - output, width, height: output, class: 'ia-output-bar' })); image.append(group);
-      } else image.append(s('text', { x: x + width / 2, y: 173, 'text-anchor': 'middle', class: 'ia-axis' }, '—'));
-      image.append(s('text', { x: x + width / 2, y: 207, 'text-anchor': 'middle', class: 'ia-axis' }, String(row.day).slice(5)));
-    });
-    card.append(image); return card;
+    chart(card, '일별 보고 토큰', { type: 'bar', data: { labels: values.map(row => row.day), datasets: [
+      { label: t('입력'), data: values.map(row => known(row.inputTokens) ? row.inputTokens : null), backgroundColor: colors.amber, maxBarThickness: 30 },
+      { label: t('출력'), data: values.map(row => known(row.outputTokens) ? row.outputTokens : null), backgroundColor: colors.cyan, maxBarThickness: 30 },
+    ] }, options: { scales: { x: { stacked: true, grid: { display: false }, ticks: { callback(value) { return String(this.getLabelForValue(value)).slice(5); } } }, y: { stacked: true } }, plugins: { tooltip: tooltip('tokens') } } }, ['날짜', '입력', '출력', '합계'], values.map(row => [row.day, n(row.inputTokens), n(row.outputTokens), n(row.totalTokens)]));
+    return card;
   }
   function historyChart(rows) {
     const card = panel('누적 보고 이력', 'OBSERVED / TOKENS');
     card.append(h('p', 'ia-caption', t('저장된 보고값의 누적 합계')));
-    if (!rows.length) { card.append(empty('보고된 토큰 기록이 없습니다.')); return card; }
-    const values = rows.slice(-60), image = chart('누적 보고 이력'), max = Math.max(1, ...values.map(row => known(row.cumulativeTokens) ? row.cumulativeTokens : 0));
-    axes(image, max);
-    const points = values.map((row, index) => ({ x: values.length === 1 ? 375 : 57 + index / (values.length - 1) * 640, y: 182 - (known(row.cumulativeTokens) ? row.cumulativeTokens : 0) / max * 158, row }));
-    image.append(s('path', { d: points.map((point, i) => `${i ? 'L' : 'M'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' '), class: 'ia-history-line' }));
-    points.forEach(point => { const circle = s('circle', { cx: point.x, cy: point.y, r: points.length > 30 ? 2 : 3, class: 'ia-history-point' }); circle.append(s('title', {}, `${point.row.day}: ${n(point.row.cumulativeTokens)} tokens`)); image.append(circle); });
-    image.append(s('text', { x: 57, y: 207, class: 'ia-axis' }, String(values[0].day)), s('text', { x: 699, y: 207, 'text-anchor': 'end', class: 'ia-axis' }, String(values.at(-1).day)));
-    card.append(image); return card;
+    const values = rows.slice(-60);
+    if (!values.some(row => known(row.cumulativeTokens))) { card.append(empty('보고된 토큰 기록이 없습니다.')); return card; }
+    chart(card, '누적 보고 이력', { type: 'line', data: { labels: values.map(row => row.day), datasets: [{ label: t('누적'), data: values.map(row => known(row.cumulativeTokens) ? row.cumulativeTokens : null), borderColor: colors.amber, backgroundColor: '#FF9F0018', pointBackgroundColor: colors.amber, pointRadius: values.length > 30 ? 1 : 2, pointHoverRadius: 4, borderWidth: 1.5, tension: 0, fill: true, spanGaps: false }] }, options: { scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } } }, plugins: { legend: { display: false }, tooltip: tooltip('tokens') } } }, ['날짜', '합계', '누적'], values.map(row => [row.day, n(row.tokens), n(row.cumulativeTokens)]));
+    return card;
   }
   function durationChart(rows, latency) {
     const card = panel('실행 시간 · 최근 관측 작업', 'DURATION / SECONDS');
     const values = rows.filter(row => known(row.durationMs)).slice(-12);
     if (!values.length) card.append(empty('관측된 실행 시간 기록이 없습니다.'));
     else {
-      const height = 30 + values.length * 29, image = chart('실행 시간 · 최근 관측 작업', height), max = Math.max(1, ...values.map(row => row.durationMs));
-      values.forEach((row, index) => {
-        const y = 12 + index * 29, group = s('g'); group.append(s('title', {}, `${row.title} · ${duration(row.durationMs)} · ${row.provider}`));
-        group.append(s('text', { x: 16, y: y + 13, class: 'ia-task-label' }, String(row.title || row.id).slice(0, 14)), s('rect', { x: 210, y, width: row.durationMs / max * 400, height: 17, class: row.status === 'failed' ? 'ia-failed-bar' : 'ia-duration-bar' }), s('text', { x: 700, y: y + 13, 'text-anchor': 'end', class: 'ia-axis' }, duration(row.durationMs)));
-        image.append(group);
-      }); card.append(image);
+      chart(card, '실행 시간 · 최근 관측 작업', { type: 'bar', data: { labels: values.map(row => row.title || row.id), datasets: [{ label: t('실행 시간'), data: values.map(row => row.durationMs / 1000), backgroundColor: values.map(row => row.status === 'failed' ? colors.red : colors.green), maxBarThickness: 14 }] }, options: { indexAxis: 'y', scales: { x: { beginAtZero: true }, y: { grid: { display: false }, ticks: { maxTicksLimit: 12, callback(value) { const label = String(this.getLabelForValue(value)); return label.length > 22 ? `${label.slice(0, 22)}…` : label; } } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${duration(values[context.dataIndex].durationMs)} · ${values[context.dataIndex].provider} · ${statusLabel(values[context.dataIndex].status)}` } } } } }, ['작업', '상태', '실행 시간'], values.map(row => [row.title || row.id, statusLabel(row.status), duration(row.durationMs)]), Math.max(200, 46 + values.length * 24));
     }
     const note = h('div', 'ia-panel-foot'); note.append(h('span', '', t('첫 출력 지연 P50')), h('strong', '', duration(latency?.p50)), h('span', '', t('관측 {count}건', { count: n(latency?.samples) }))); card.append(note); return card;
   }
   function memoryPanel(value) {
     const card = panel('장기 기억 문맥', 'MEMORY / CHARACTERS');
     if (!value?.measuredTasks) { card.append(empty('기억 사용 기록이 없습니다.')); return card; }
-    const bars = h('div', 'ia-memory-bars');
-    const maximum = Math.max(1, known(value.totalMemoryChars) ? value.totalMemoryChars : 0, known(value.initialContextChars) ? value.initialContextChars : 0, known(value.retrievedChars) ? value.retrievedChars : 0);
-    for (const [label, number, kind] of [['초기 전달 문맥', value.initialContextChars, 'context'], ['작업별 전체 기억 합계', value.totalMemoryChars, 'pool'], ['추가 조회 문자', value.retrievedChars, 'retrieved']]) {
-      const row = h('div', 'ia-memory-row'), track = h('div', 'ia-memory-track'), fill = h('span', `ia-memory-fill ia-${kind}`);
-      fill.style.width = `${known(number) ? number / maximum * 100 : 0}%`; track.append(fill); row.append(h('span', '', t(label)), track, h('strong', '', n(number))); bars.append(row);
-    }
-    card.append(bars, h('p', 'ia-caption', `${t('추가 조회')} ${n(value.additionalRetrievals)} · ${t('관측 {count}건', { count: n(value.measuredTasks) })}`), h('p', 'ia-disclaimer', t('문자 수 기준이며 문맥 레이블을 포함합니다. 토큰·요금 절감량이 아닙니다.')));
+    const values = [['초기 전달 문맥', value.initialContextChars], ['작업별 전체 기억 합계', value.totalMemoryChars], ['추가 조회 문자', value.retrievedChars]];
+    chart(card, '장기 기억 문맥', { type: 'bar', data: { labels: values.map(([label]) => t(label)), datasets: [{ label: t('문자'), data: values.map(([, number]) => known(number) ? number : null), backgroundColor: [colors.cyan, colors.muted, colors.amber], maxBarThickness: 16 }] }, options: { indexAxis: 'y', scales: { x: { beginAtZero: true }, y: { grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: tooltip(t('문자')) } } }, ['구성', '문자'], values.map(([label, number]) => [t(label), n(number)]), 190);
+    card.append(h('p', 'ia-caption', `${t('추가 조회')} ${n(value.additionalRetrievals)} · ${t('관측 {count}건', { count: n(value.measuredTasks) })}`), h('p', 'ia-disclaimer', t('문자 수 기준이며 문맥 레이블을 포함합니다. 토큰·요금 절감량이 아닙니다.')));
     if (value.unknownRetrievedCharTasks) card.append(h('p', 'ia-disclaimer', t('추가 조회 문자 미보고 작업 {count}건', { count: n(value.unknownRetrievedCharTasks) })));
+    return card;
+  }
+  function statusChart(total) {
+    const card = panel('작업 상태 분포', 'RETAINED / TASKS');
+    const values = [['completed', colors.green], ['failed', colors.red], ['running', colors.cyan], ['queued', colors.amber], ['cancelled', colors.muted], ['interrupted', colors.white]].map(([status, color]) => ({ status, color, count: total[status] })).filter(row => known(row.count) && row.count > 0);
+    if (!values.length) { card.append(empty('작업 기록이 없습니다.')); return card; }
+    chart(card, '작업 상태 분포', { type: 'doughnut', data: { labels: values.map(row => statusLabel(row.status)), datasets: [{ data: values.map(row => row.count), backgroundColor: values.map(row => row.color), borderColor: '#000000', borderWidth: 2, hoverOffset: 2 }] }, options: { cutout: '76%', plugins: { tooltip: tooltip(t('작업')) } } }, ['상태', '작업'], values.map(row => [statusLabel(row.status), n(row.count)]));
     return card;
   }
   function comparisonPanel(value) {
@@ -111,8 +114,16 @@
     const groups = Array.isArray(value?.groups) ? value.groups : [];
     if (!groups.length) card.append(empty('비교 가능한 보고 표본이 아직 없습니다.'));
     else {
+      const comparable = groups.filter(group => group.status === 'available' && group.previousCount >= 3 && group.recentCount >= 3 && known(group.previousAverageTokens) && known(group.recentAverageTokens)).slice(0, 8);
+      if (comparable.length) {
+        const labels = comparable.map(group => `${group.provider} / ${group.modelId} · ${group.departmentId} · ${group.permission} · ${group.reasoningEffort || 'default'} · ${group.speed || 'default'}`);
+        chart(card, '평균 보고 토큰', { type: 'bar', data: { labels, datasets: [
+          { label: t('이전 평균'), data: comparable.map(group => group.previousAverageTokens), backgroundColor: colors.amber, maxBarThickness: 16 },
+          { label: t('최근 평균'), data: comparable.map(group => group.recentAverageTokens), backgroundColor: colors.cyan, maxBarThickness: 16 },
+        ] }, options: { indexAxis: 'y', scales: { x: { beginAtZero: true }, y: { grid: { display: false }, ticks: { callback(value) { const label = String(this.getLabelForValue(value)); return label.length > 28 ? `${label.slice(0, 28)}…` : label; } } } }, plugins: { tooltip: tooltip('tokens') } } }, ['구성', '이전 평균', '최근 평균'], comparable.map((group, index) => [labels[index], n(group.previousAverageTokens), n(group.recentAverageTokens)]), Math.max(200, comparable.length * 48 + 50));
+      }
       const wrap = h('div', 'ia-table-wrap'), table = h('table', 'ia-comparison-table'), head = h('thead'), header = h('tr');
-      for (const title of ['구성', '각 군 표본', '이전 평균', '최근 평균', '변화']) header.append(h('th', '', t(title))); head.append(header); table.append(head);
+      for (const title of ['구성', '각 군 표본', '이전 평균', '최근 평균', '변화']) { const cell = h('th', '', t(title)); cell.scope = 'col'; header.append(cell); } head.append(header); table.append(head);
       const body = h('tbody');
       groups.slice(0, 20).forEach(group => {
         const row = h('tr'), config = h('td'), change = h('td', group.status === 'available' ? 'ia-change-value' : 'ia-insufficient');
@@ -126,6 +137,9 @@
   }
   function paint(value) {
     if (!root || disposed) return;
+    const nextSignature = JSON.stringify([language, value]);
+    if (nextSignature === paintedSignature) { charts?.resize(); return; }
+    charts?.destroyCharts(); pendingCharts = [];
     const focused = root.contains(document.activeElement) && document.activeElement?.classList.contains('ia-refresh');
     const header = h('header', 'ia-heading'), title = h('div'); title.append(h('span', 'ia-eyebrow', 'PERFORMANCE / LOCAL TELEMETRY'), h('h2', '', t('사용량과 운영 성능')), h('p', '', t('저장된 실제 작업 기준 · DEMO 제외')));
     const refreshButton = h('button', 'ia-refresh', t('새로고침')); refreshButton.type = 'button'; refreshButton.addEventListener('click', () => { void load(); }); header.append(title, refreshButton);
@@ -139,10 +153,16 @@
       ['구독 잔량', '—', t('화면 상단의 계정별 잔여 한도를 확인하세요.')],
     ];
     for (const [label, number, note] of values) { const metric = h('div', 'ia-metric'); metric.append(h('span', 'ia-metric-label', t(label)), h('strong', 'ia-metric-value', number), h('span', 'ia-metric-note', note)); metrics.append(metric); }
-    const grid = h('div', 'ia-grid'); grid.append(dailyChart(value.byDay || []), historyChart(value.tokenHistory || []), durationChart(value.taskBars || [], performance.firstOutputLatencyMs), memoryPanel(value.memory), comparisonPanel(value.comparison));
+    const grid = h('div', 'ia-grid'); grid.append(dailyChart(value.byDay || []), historyChart(value.tokenHistory || []), durationChart(value.taskBars || [], performance.firstOutputLatencyMs), statusChart(total), memoryPanel(value.memory), comparisonPanel(value.comparison));
     const footer = h('footer', 'ia-footnote'); footer.append(h('p', '', t('UTC 날짜 기준 · 저장된 기록의 범위이며 계정 전체 사용량이 아닙니다.')), h('p', '', t('운영 지표이며 모델 응답의 정확도나 품질을 측정하지 않습니다.')));
     if (value.meta?.legacyWorkspaceTasks) footer.append(h('p', '', t('작업 폴더가 없는 이전 기록 {count}건을 현재 프로젝트에 포함했습니다.', { count: n(value.meta.legacyWorkspaceTasks) })));
-    root.replaceChildren(header, metrics, grid, footer); if (focused) refreshButton.focus({ preventScroll: true });
+    root.replaceChildren(header, metrics, grid, footer);
+    for (const job of pendingCharts) {
+      if (charts) charts.draw(job.canvas, job.specification, job.unavailable);
+      else job.unavailable();
+    }
+    pendingCharts = []; paintedSignature = nextSignature; charts?.resize(true);
+    if (focused) refreshButton.focus({ preventScroll: true });
   }
   async function load() {
     if (!root || disposed) return;
@@ -152,11 +172,11 @@
       if (disposed || version !== generation || workspace !== latestState.settings?.workspace) return;
       const incoming = response?.analytics || response;
       if (!incoming || typeof incoming !== 'object' || !incoming.totals) throw new Error('analytics');
-      data = incoming; paint(data);
+      data = incoming; root.querySelector('.ia-load-error')?.remove(); paint(data);
     } catch {
       if (disposed || version !== generation) return;
       if (!data) root.replaceChildren(empty('분석 데이터를 불러오지 못했습니다.'));
-      else { paint(data); const message = h('p', 'ia-load-error', t('분석 데이터를 불러오지 못했습니다.')); message.setAttribute('role', 'status'); root.prepend(message); }
+      else { paint(data); root.querySelector('.ia-load-error')?.remove(); const message = h('p', 'ia-load-error', t('분석 데이터를 불러오지 못했습니다.')); message.setAttribute('role', 'status'); root.prepend(message); }
     }
   }
   function render(state) {
@@ -166,16 +186,18 @@
     const languageChanged = selectedLanguage !== language; language = selectedLanguage;
     const current = JSON.stringify([latestState.settings?.workspace, (latestState.tasks || []).map(task => [task.id, task.status, task.createdAt, task.startedAt, task.finishedAt, task.firstOutputAt, task.usageReported, task.usage, task.memoryUsage])]);
     if (current !== signature) {
-      if (data?.meta?.workspace !== latestState.settings?.workspace) { data = null; root.replaceChildren(empty('불러오는 중…')); }
+      if (data?.meta?.workspace !== latestState.settings?.workspace) { data = null; paintedSignature = ''; charts?.destroyCharts(); root.replaceChildren(empty('불러오는 중…')); }
       signature = current;
       if (!timer) timer = setTimeout(() => { timer = null; void load(); }, 150);
     } else if (languageChanged && data) paint(data);
+    charts?.resize();
   }
   function mount(container, configuration = {}) {
-    clearTimeout(timer); timer = null; generation++; disposed = false; root = container; options = configuration; data = null; signature = '';
+    clearTimeout(timer); timer = null; generation++; charts?.destroy(); disposed = false; root = container; options = configuration; data = null; signature = ''; paintedSignature = '';
     if (!root || typeof root.replaceChildren !== 'function') throw new TypeError('An analytics container is required');
+    charts = window.ImperiumAnalyticsCharts?.createManager({ container: root, Chart: options.Chart });
     root.classList.add('ia-analytics'); root.setAttribute('aria-label', 'IMPERIUM analytics'); root.replaceChildren(empty('불러오는 중…')); render(options.getState?.() || {});
-    return { render, refresh: load, destroy() { disposed = true; generation++; clearTimeout(timer); timer = null; root?.replaceChildren(); } };
+    return { render, refresh: load, destroy() { disposed = true; generation++; clearTimeout(timer); timer = null; charts?.destroy(); charts = null; root?.replaceChildren(); } };
   }
   window.ImperiumAnalytics = { mount, render, refresh: load };
 }());

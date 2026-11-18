@@ -193,7 +193,7 @@ let dispatchPending = false;
 let lastFeedSignature = '';
 let stream;
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
-let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false;
+let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false;
 let quotasMounted = false, quotaStamp;
 let dispatchExecution, departmentExecution, executionContext = '', executionSummary;
 function safeExecutionValue(widget) { try { return widget?.getValue() || {}; } catch { return {}; } }
@@ -220,22 +220,27 @@ function syncDispatchExecution(force = false) {
   if (executionSummary) executionSummary.textContent = t('이번 작업 모델 설정');
 }
 const taskDetailCache = new Map(), taskDetailRequests = new Map(), projectDrafts = new Map();
+let inspectorOutputView, inspectorOutputIdentity = '';
 const taskDetailKey = task => `${task.id}:${task.status}:${task.finishedAt || ''}:${task.outputChars || task.output?.length || 0}`;
 function inspectedTask(task) {
   if (task && ACTIVE.has(task.status)) return { ...task, detailsTruncated: false };
   const cached = task && taskDetailCache.get(taskDetailKey(task)); return cached ? { ...task, output: cached.output, logs: cached.logs, detailsTruncated: false } : task;
 }
 Object.assign(TRANSLATIONS.en, {
+  '대화·결과': 'Conversation & results',
   'AI 계정': 'AI accounts', '각자의 계정으로 모델을 등록하고 연결하세요.': 'Register models with your own account.', '터미널': 'Terminal', '프로젝트 폴더의 실제 셸을 사용합니다.': 'Use an interactive shell in your project directory.', '업데이트': 'Updates', '새 버전을 확인하고 설치하세요.': 'Check for a new version and install it.',
   '닫기': 'Close', '현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.': 'Export this project’s memory and all operation records. Shell content and login data are excluded.',
   'F5 AI 계정': 'F5 AI accounts', 'F6 터미널': 'F6 Terminal', 'F7 업데이트': 'F7 Updates'
 });
 Object.assign(TRANSLATIONS.ja, {
+  '대화·결과': '会話と結果',
   'AI 계정': 'AIアカウント', '각자의 계정으로 모델을 등록하고 연결하세요.': '自分のアカウントでモデルを登録・接続します。', '터미널': 'ターミナル', '프로젝트 폴더의 실제 셸을 사용합니다.': 'プロジェクトフォルダーの対話型シェルを使用します。', '업데이트': 'アップデート', '새 버전을 확인하고 설치하세요.': '新しいバージョンを確認してインストールします。',
   '닫기': '閉じる', '현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.': '現在のプロジェクトの記憶と全タスク履歴を書き出します。シェル内容とログイン情報は含みません。',
   'F5 AI 계정': 'F5 AIアカウント', 'F6 터미널': 'F6 ターミナル', 'F7 업데이트': 'F7 アップデート'
 });
 
+Object.assign(TRANSLATIONS.en, { '대화': 'Conversations', '대화 이어가기': 'Continue a conversation', '같은 에이전트와 이전 맥락을 이어서 질문하세요.': 'Continue the conversation with the same agent and context.' });
+Object.assign(TRANSLATIONS.ja, { '대화': '会話', '대화 이어가기': '会話を続ける', '같은 에이전트와 이전 맥락을 이어서 질문하세요.': '同じエージェントと文脈を引き継いで質問します。' });
 // Capture original static text once so repeated language changes do not translate user content.
 const staticText = [];
 const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -426,7 +431,10 @@ function render() {
   $('#workspace-path').textContent = state.settings.workspace || 'WORKSPACE —';
   $('#workspace-path').title = state.settings.workspace || t('작업 폴더');
   $('.sidebar-version b').textContent = `v${state.server.version || '1.2.0'}`;
-  $('#permission-description').textContent = t($('#write-permission').checked ? '파일 수정이 가능한 작업으로 실행합니다.' : '기본: 읽기 및 분석만');
+  const policyReadOnly = state.settings.accessPolicy === 'read-only';
+  if (policyReadOnly) $('#write-permission').checked = false;
+  $('#write-permission').disabled = policyReadOnly;
+  $('#permission-description').textContent = policyReadOnly ? (language === 'ja' ? '全体の読み取り専用ポリシーを適用中' : language === 'en' ? 'Global read-only policy is enforced' : '전역 읽기 전용 정책 적용 중') : t($('#write-permission').checked ? '파일 수정이 가능한 작업으로 실행합니다.' : '기본: 읽기 및 분석만');
   const identity = state.settings.identity || { name: '나', title: '워크스페이스 소유자' };
   const profileText = $('#settings-top > span:nth-child(2)');
   profileText.replaceChildren(identity.name, node('small', {}, identity.title || ''));
@@ -604,11 +612,11 @@ function renderMissions() {
   const filtered = state.tasks.filter(task => {
     const department = state.departments.find(dept => dept.id === task.departmentId);
     const matchesStatus = currentFilter === 'all' || (currentFilter === 'active' && ACTIVE.has(task.status)) || (currentFilter === 'completed' && task.status === 'completed') || (currentFilter === 'attention' && ['failed', 'interrupted'].includes(task.status));
-    return matchesStatus && (!search || `${task.title} ${task.id} ${task.prompt} ${departmentName(department)} ${task.provider}`.toLocaleLowerCase().includes(search));
+    return matchesStatus && (!search || `${task.title} ${task.id} ${task.prompt} ${(department ? departmentName(department) : task.departmentName || task.departmentId)} ${task.provider}`.toLocaleLowerCase().includes(search));
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   $('#mission-rows').replaceChildren(...filtered.map(task => {
     const department = state.departments.find(dept => dept.id === task.departmentId);
-    const subline = node('span', { class: 'task-department' }, departmentName(department));
+    const subline = node('span', { class: 'task-department' }, (department ? departmentName(department) : task.departmentName || task.departmentId));
     if (task.priority === 'high') subline.append(node('span', { class: 'priority-mark' }, '↑ HIGH'));
     if (task.demo) subline.append(node('span', { class: 'demo-tag' }, 'DEMO'));
     const action = node('td');
@@ -616,7 +624,7 @@ function renderMissions() {
     const row = node('tr', { class: selectedTaskId === task.id ? 'selected' : '', tabindex: '0', 'aria-label': `${task.title} · ${STATUS[task.status] || task.status}`, 'aria-selected': selectedTaskId === task.id ? 'true' : 'false' },
       node('td', {}, node('span', { class: 'task-short-id' }, `#${task.id.slice(-5).toUpperCase()}`)),
       node('td', {}, node('span', { class: 'task-name', title: task.title }, task.title), subline),
-      node('td', {}, node('span', { class: `provider-name ${task.provider}` }, providerName(task.provider))),
+      node('td', {}, node('span', { class: `provider-name ${task.provider}` }, providerName(task.provider)), node('span', { class: 'task-model-id', title: `${task.reportedModel ? (language === 'ja' ? 'CLI報告モデル' : language === 'en' ? 'CLI reported model' : 'CLI 보고 모델') : (language === 'ja' ? '指定モデル・実行モデル未報告' : language === 'en' ? 'Requested model · execution model unreported' : '요청 모델 · 실행 모델 미보고')} · ${task.reportedModel || task.modelId || 'CLI default'}` }, task.reportedModel || task.modelId || 'CLI default')),
       node('td', {}, statusTag(task)), node('td', {}, node('span', { class: 'elapsed-text', 'data-elapsed-task': task.id }, elapsed(task))), action);
     const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); };
     row.addEventListener('click', choose);
@@ -663,11 +671,13 @@ function renderFeed() {
 
 function renderInspector() {
   const container = $('#inspector-content');
+  const focusedControl = container.contains(document.activeElement) ? document.activeElement : null;
   const oldScroll = container.scrollTop;
   const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
   let task = inspectedTask(state.tasks.find(item => item.id === selectedTaskId));
   $('#copy-output').disabled = !task?.output || task.detailsTruncated;
   if (!task) {
+    inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = '';
     container.replaceChildren(node('div', { class: 'inspector-empty' }, node('div', { class: 'inspector-empty-visual', 'aria-hidden': 'true' }, node('span'), node('span'), node('span')), node('strong', {}, t('작업을 선택하세요')), node('p', {}, t('작업 현황에서 항목을 선택하면'), node('br'), t('진행 과정과 결과를 확인할 수 있습니다.'))));
     return;
   }
@@ -685,17 +695,28 @@ function renderInspector() {
     }
   }
   const department = state.departments.find(dept => dept.id === task.departmentId);
-  const tags = node('div', { class: 'inspector-tags' }, node('span', {}, departmentName(department)), node('span', {}, providerName(task.provider)), node('span', {}, t(task.permission === 'workspace-write' ? '파일 수정 허용됨' : '읽기 전용')));
+  const tags = node('div', { class: 'inspector-tags' }, node('span', {}, (department ? departmentName(department) : task.departmentName || task.departmentId)), node('span', {}, providerName(task.provider)), node('span', {}, t(task.permission === 'workspace-write' ? '파일 수정 허용됨' : '읽기 전용')));
   if (task.demo) tags.append(node('span', { class: 'demo-tag' }, 'DEMO'));
   const meta = node('div', { class: 'inspector-meta' }, node('div', { class: 'inspector-meta-top' }, node('span', {}, `#${task.id.slice(-8).toUpperCase()}`), statusTag(task)), node('h3', {}, task.title), tags);
-  meta.append(node('p', { class: 'execution-request-note' }, `${t('요청 실행 설정')} · ${task.modelId || t('CLI 기본 모델')} · ${t('추론 강도')}: ${task.reasoningEffort || 'default'} · ${t('처리 속도')}: ${task.speed || 'default'}`));
-  const prompt = node('div', { class: 'inspector-prompt' }, node('span', { class: 'inspector-section-label' }, t('작업 지시')), node('p', {}, task.prompt || ''));
-  const result = node('div', { class: 'inspector-result' }, node('span', { class: 'inspector-section-label' }, t('실행 결과')));
-  if (task.detailsTruncated) result.append(node('p', { class: 'waiting-output' }, language === 'ja' ? 'プレビュー · 全文を読み込み中…' : language === 'en' ? 'Preview · loading full output…' : '미리보기 · 전체 결과 불러오는 중…'));
-  if (task.output) result.append(node('pre', {}, task.output));
-  else result.append(node('p', { class: 'waiting-output' }, t(ACTIVE.has(task.status) ? '결과를 기다리는 중입니다…' : task.status === 'cancelled' ? '작업이 취소되었습니다.' : '아직 결과가 없습니다.')));
-  if (task.error) result.append(node('p', { class: 'inspector-error' }, task.error));
-  const parts = [meta, prompt, result];
+  const parts = [meta];
+  if (window.ImperiumOutput) {
+    const identity = JSON.stringify([state.settings.workspace, task.id]);
+    if (!inspectorOutputView || inspectorOutputIdentity !== identity) {
+      inspectorOutputView?.destroy(); inspectorOutputIdentity = identity;
+      inspectorOutputView = window.ImperiumOutput.create({ onCopy: copyText });
+    }
+    inspectorOutputView.update({ task, language, provider: providerName(task.provider) });
+    parts.push(inspectorOutputView.element);
+  } else {
+    meta.append(node('p', { class: 'execution-request-note' }, `${t('요청 실행 설정')} · ${task.modelId || t('CLI 기본 모델')} · ${t('추론 강도')}: ${task.reasoningEffort || 'default'} · ${t('처리 속도')}: ${task.speed || 'default'}`));
+    const prompt = node('div', { class: 'inspector-prompt' }, node('span', { class: 'inspector-section-label' }, t('작업 지시')), node('p', {}, task.prompt || ''));
+    const result = node('div', { class: 'inspector-result' }, node('span', { class: 'inspector-section-label' }, t('실행 결과')));
+    if (task.detailsTruncated) result.append(node('p', { class: 'waiting-output' }, language === 'ja' ? 'プレビュー · 全文を読み込み中…' : language === 'en' ? 'Preview · loading full output…' : '미리보기 · 전체 결과 불러오는 중…'));
+    if (task.output) result.append(node('pre', {}, task.output));
+    else result.append(node('p', { class: 'waiting-output' }, t(ACTIVE.has(task.status) ? '결과를 기다리는 중입니다…' : task.status === 'cancelled' ? '작업이 취소되었습니다.' : '아직 결과가 없습니다.')));
+    if (task.error) result.append(node('p', { class: 'inspector-error' }, task.error));
+    parts.push(prompt, result);
+  }
   if (['running', 'completed'].includes(task.status)) parts.splice(1, 0, progressView(task));
   if (task.memoryUsage) {
     const m = task.memoryUsage;
@@ -705,16 +726,18 @@ function renderInspector() {
   if (task.usage && (task.usage.inputTokens || task.usage.outputTokens)) parts.push(node('div', { class: 'inspector-usage' }, node('span', {}, t('입력 {count} 토큰', { count: num(task.usage.inputTokens) })), node('span', {}, t('출력 {count} 토큰', { count: num(task.usage.outputTokens) }))));
   if (task.status === 'failed') parts.push(node('div', { class: 'inspector-links' }, node('button', { class: 'text-button', type: 'button', onclick: openSettings }, t('연결 상태 확인'), ' ↗')));
   container.replaceChildren(...parts);
+  if (focusedControl?.isConnected) focusedControl.focus({ preventScroll: true });
   container.scrollTop = wasAtBottom && task.status === 'running' ? container.scrollHeight : oldScroll;
 }
 
 function updateView(next) {
-  view = ['overview', 'operations', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
+  view = ['overview', 'operations', 'chat', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
   $('.app-shell').dataset.view = view;
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const content = {
     overview: ['NODE WORKSPACE', '노드 워크스페이스', '노드를 직접 추가하고 이름표와 연결을 구성하세요.'],
     operations: ['OPERATIONS', '작업 관리', '부서별 작업을 확인하고 실행 결과를 검토하세요.'],
+    chat: ['CONVERSATIONS', '대화', '같은 에이전트와 이전 맥락을 이어서 질문하세요.'],
     departments: ['ORGANIZATION', '부서 관리', '부서의 역할과 담당 모델을 구성하세요.'],
     logs: ['ACTIVITY STREAM', '활동 로그', '모든 부서의 실행 기록을 실시간으로 확인하세요.'],
     accounts: ['AI CONNECTIONS', 'AI 계정', '각자의 계정으로 모델을 등록하고 연결하세요.'],
@@ -731,14 +754,25 @@ function updateView(next) {
 }
 
 function renderExtensions() {
+  if (view === 'chat' && window.ImperiumConversations) {
+    if (!conversationsMounted) { conversationsMounted = true; window.ImperiumConversations.mount($('#conversations-section'), { getState: () => state, api, onChanged: async () => receiveState(await api('/api/state')) }); }
+    window.ImperiumConversations.render(state);
+  }
+  window.ImperiumAccessReview?.render(state, { language, api, onSettingsChanged: async () => receiveState(await api('/api/state')) });
+  window.ImperiumLiveProgress?.render(state, { language, onSelectTask: id => {
+    if (!state.tasks.some(task => task.id === id)) return;
+    selectedTaskId = id; updateView('operations'); renderMissions(); renderInspector();
+    $('#inspector-section').scrollIntoView({ block: 'nearest' });
+  } });
   window.ImperiumTerminalShell?.render(state, { language, view, connected, onNavigate: updateView, onSettings: openSettings, onPrepareTask: text => { const prompt = $('#dispatch-prompt'); if (prompt.value.trim() && prompt.value.trim() !== text.trim()) return false; if (!prompt.value.trim()) { prompt.value = text; prompt.dispatchEvent(new Event('input')); } prompt.focus(); return true; } });
+  window.ImperiumMascots?.render(state, { language });
   if (state.server.csrfToken && window.ImperiumQuotas) {
     if (!quotasMounted) { quotasMounted = true; quotaStamp = state.server.quotaUpdatedAt; window.ImperiumQuotas.mount($('#quotas-section'), { getState: () => state, api, compact: true }); }
     window.ImperiumQuotas.render(state);
     if (state.server.quotaUpdatedAt !== quotaStamp) { quotaStamp = state.server.quotaUpdatedAt; if (quotaStamp) void window.ImperiumQuotas.refresh(); }
   }
   if (state.server.csrfToken) syncDispatchExecution();
-  window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor });
+  window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')) });
   if (state.server.csrfToken && window.ImperiumAccounts) {
     if (!accountsMounted) {
       accountsMounted = true;
@@ -746,7 +780,13 @@ function renderExtensions() {
     }
     window.ImperiumAccounts.render(state);
   }
-  if (view === 'terminal' && window.ImperiumTerminal && !terminalMounted) {
+  if (state.settings.terminalEnabled === false) {
+    if (terminalMounted) window.ImperiumTerminal?.destroy();
+    terminalMounted = false;
+    const message = language === 'ja' ? '権限設定で対話型ターミナルが無効になっています。F8で設定を確認してください。' : language === 'en' ? 'Interactive terminal is disabled in access settings. Open F8 to review the policy.' : '권한 설정에서 실제 터미널 사용이 꺼져 있습니다. F8에서 설정을 확인하세요.';
+    if ($('#terminal-section').textContent !== message) $('#terminal-section').replaceChildren(node('p', { class: 'settings-description' }, message));
+  } else if (view === 'terminal' && window.ImperiumTerminal && !terminalMounted) {
+    $('#terminal-section').replaceChildren();
     terminalMounted = true;
     window.ImperiumTerminal.mount($('#terminal-section'), { api, getState: () => state, language, autoStart: false });
   }
@@ -813,8 +853,8 @@ function openDepartmentEditor(dept) {
 }
 
 async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); toast(t('클립보드에 복사했습니다.')); }
-  catch { toast(t('복사할 수 없습니다. 텍스트를 직접 선택해주세요.'), true); }
+  try { await navigator.clipboard.writeText(text); toast(t('클립보드에 복사했습니다.')); return true; }
+  catch { toast(t('복사할 수 없습니다. 텍스트를 직접 선택해주세요.'), true); return false; }
 }
 
 async function cancelTask(id) {
