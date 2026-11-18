@@ -227,9 +227,27 @@ test('frontend renders truthful connection state and does not dispatch to a miss
   assert.equal(document.querySelector('#settings-dialog').open, true, 'missing CLI should show actionable connection guidance');
   const missing = document.querySelector('.provider-card[data-provider="claude"]');
   assert.match(missing.textContent, /설치 필요/);
-  assert.match(missing.textContent, /npm install -g @anthropic-ai\/claude-code/);
-  assert.match(missing.textContent, /claude auth login/);
+  assert.ok(missing.querySelector('[data-provider-setup="claude"]'), 'connection setup should route to the official account guide');
+  assert.equal(missing.querySelector('.provider-command'), null, 'legacy settings should not guess installation or login commands');
   assert.equal(document.querySelectorAll('input[type="password"]').length, 0, 'subscription setup must not collect secrets');
+});
+
+test('missing Gemini Copilot and Ollama providers route to account setup without guessed Codex commands or automatic actions', async t => {
+  const initial = sampleState();
+  initial.providers.push(...[
+    ['gemini', 'Gemini CLI'], ['copilot', 'GitHub Copilot CLI'], ['ollama', 'Ollama'],
+  ].map(([id, name]) => ({ id, name, installed: false, authenticated: false, status: 'missing', detail: 'Not installed' })));
+  const { document, calls } = await loadUI(t, initial);
+  for (const id of ['gemini', 'copilot', 'ollama']) {
+    document.querySelector('#settings-top').click();
+    const card = document.querySelector(`.provider-card[data-provider="${id}"]`);
+    assert.ok(card); assert.match(card.textContent, /설치 필요/);
+    assert.ok(!card.textContent.includes('@openai/codex'), `${id} must not display a guessed Codex installation command`);
+    assert.equal(card.querySelector('.provider-command'), null);
+    const guide = card.querySelector(`[data-provider-setup="${id}"]`); assert.ok(guide); guide.click();
+    assert.equal(document.querySelector('#settings-dialog').open, false); assert.equal(document.querySelector('.app-shell').dataset.view, 'accounts'); assert.match(document.querySelector('#page-title').textContent, /AI 계정/);
+  }
+  assert.ok(calls.every(call => call.method === 'GET' && call.url === '/api/state'), 'setup navigation must not install a CLI, send terminal commands, or start a model');
 });
 
 test('frontend restores the saved server language and persists Korean, English and Japanese changes', async t => {

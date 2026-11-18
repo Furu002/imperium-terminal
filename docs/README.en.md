@@ -4,21 +4,21 @@
 
 **IMPERIUM**, Latin for command or authority, is a local operations terminal for building your own AI workspace. Add yourself, AI connections, roles, and memory to an empty canvas, then follow queues, execution status, tool events, and results from Codex, Claude Code, and other providers. A company organization chart is an optional layout; names and titles are yours to choose.
 
-Version 1.3.1 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
+Version 1.3.2 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
 
 The app runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
 ## Run the desktop app
 
-The Windows internal-validation installer is named **`Imperium-Setup-1.3.1-x64.exe`** and includes a guided setup wizard.
+The Windows internal-validation installer is named **`Imperium-Setup-1.3.2-x64.exe`** and includes a guided setup wizard.
 
 1. Run the installer and proceed through **Next → Install → Finish**. You can change the installation folder. The app installs for the current Windows user.
 2. Open the app using the **IMPERIUM** shortcut on your desktop or in the Start menu.
 3. To uninstall, select **IMPERIUM** in the apps list in Windows Settings.
 
-For use without installation, choose the portable file `Imperium-1.3.1-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
+For use without installation, choose the portable file `Imperium-1.3.2-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
 
-Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.3.1-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.3.1-mac-x64.dmg` and `.zip`.
+Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.3.2-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.3.2-mac-x64.dmg` and `.zip`.
 
 The author metadata names **Sato Junichiro**. This metadata alone does not establish a Windows-verified publisher. Builds remain unsigned developer packages until an actual Authenticode certificate is supplied and used for signing; Windows may show an unknown publisher. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
 
@@ -26,19 +26,19 @@ Desktop records are stored in `hq-data/` under the operating system's applicatio
 
 ## Install on Linux
 
-Linux x64 build targets are `Imperium-1.3.1-linux-amd64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.3.1-linux-x86_64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
+Linux x64 build targets are `Imperium-1.3.2-linux-amd64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.3.2-linux-x86_64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
 
 To install on Debian or Ubuntu:
 
 ```sh
-sudo apt install ./Imperium-1.3.1-linux-amd64.deb
+sudo apt install ./Imperium-1.3.2-linux-amd64.deb
 ```
 
 After installation, launch **IMPERIUM** from your application menu. To use the AppImage:
 
 ```sh
-chmod +x Imperium-1.3.1-linux-x86_64.AppImage
-./Imperium-1.3.1-linux-x86_64.AppImage
+chmod +x Imperium-1.3.2-linux-x86_64.AppImage
+./Imperium-1.3.2-linux-x86_64.AppImage
 ```
 
 The AppImage does not automatically create application-menu or desktop shortcuts. Linux also requires Codex or Claude Code installation and subscription login. A successful Linux CI build confirms package generation and automated checks, rather than manual testing in a Linux desktop session.
@@ -170,7 +170,7 @@ Pretendard, Pretendard JP, and JetBrains Mono are bundled in `public/fonts/` and
 
 ## Updates and release status
 
-Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.3.1 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
+Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.3.2 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
 
 Windows installed builds use the NSIS update path. Linux AppImage builds use the AppImage update path; DEB users download and install the next package manually. macOS may require manual updates while signing certificates are unavailable. File-hash verification is not a code signature, and the **Sato Junichiro** author metadata is not certificate signing. Instructions do not require disabling a firewall or system-wide OS security settings.
 

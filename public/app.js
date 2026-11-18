@@ -732,16 +732,11 @@ function renderProviders() {
     const friendly = { ready: '구독 계정으로 연결되었습니다.', missing: 'CLI를 설치한 뒤 구독 계정으로 로그인하세요.', login_required: '터미널에서 아래 명령으로 로그인한 뒤 상태를 새로고침하세요.', error: '연결을 확인할 수 없습니다. 상태를 새로고침하세요.' }[provider.status] || '연결을 확인할 수 없습니다. 상태를 새로고침하세요.';
     const card = node('div', { class: 'provider-card', 'data-provider': provider.id }, node('div', { class: 'provider-card-header' }, node('span', { class: 'provider-card-name' }, node('span', { class: 'provider-letter', 'aria-hidden': 'true' }, provider.id === 'claude' ? 'C' : 'G'), provider.name || providerName(provider.id)), node('span', { class: `provider-card-status ${provider.status}` }, `● ${t(statusLabels[provider.status] || '확인 필요')}`)), node('p', { class: 'provider-card-detail' }, t(friendly)));
     if (provider.version) card.append(node('div', { class: 'provider-version' }, `VERSION ${provider.version}`));
-    if (provider.status === 'missing') card.append(commandLine(provider.id === 'claude' ? 'npm install -g @anthropic-ai/claude-code' : 'npm install -g @openai/codex', t('설치')));
-    if (provider.status !== 'ready') card.append(commandLine(provider.loginCommand || (provider.id === 'claude' ? 'claude auth login' : 'codex login'), t('로그인')));
+    if (provider.status !== 'ready') card.append(node('button', { type: 'button', 'data-provider-setup': provider.id, onclick: () => { $('#settings-dialog').close(); updateView('accounts'); } }, t('AI 계정'), ' ↗'));
     // Provider diagnostics are local tool output, not translated or interpreted as HTML.
     if (provider.detail && provider.status === 'error') card.append(node('p', { class: 'provider-card-detail muted-text' }, `${t('상세 정보')}: ${provider.detail}`));
     return card;
   }));
-}
-
-function commandLine(command, label) {
-  return node('div', { class: 'provider-command' }, node('span', { class: 'command-label' }, label), node('code', {}, command), node('button', { type: 'button', onclick: () => copyText(command) }, t('복사')));
 }
 
 function openSettings() {

@@ -4,21 +4,21 @@
 
 ラテン語で指揮権・統率権を意味する**IMPERIUM**は、自分のAIワークスペースを構成するローカル運用ターミナルです。空のキャンバスに自分、AI、役割、記憶を追加し、Codex・Claude Codeなどの待機列、実行状況、ツールのイベント、結果を確認できます。会社の組織図は任意の構成であり、名前と肩書きは自由に決められます。
 
-v1.3.1は**内部検証の対象バージョン**です。機能の拡張に伴い、v1.2.0の最終外部配布は行わず次のバージョンを準備します。ベンチマークと配布の検証が完了するまで、外部向けリリースは公開しません。以下のファイル名と更新手順はビルド・配布の対象を示すもので、公開ダウンロードが提供済みという意味ではありません。
+v1.3.2は**内部検証の対象バージョン**です。機能の拡張に伴い、v1.2.0の最終外部配布は行わず次のバージョンを準備します。ベンチマークと配布の検証が完了するまで、外部向けリリースは公開しません。以下のファイル名と更新手順はビルド・配布の対象を示すもので、公開ダウンロードが提供済みという意味ではありません。
 
 ローカルWebサーバーをデスクトップのウィンドウまたはブラウザーで利用します。このアプリから開始したタスクを追跡します。既存のChatGPT・Claudeの会話や、別のターミナルで動くセッションを監視する機能はありません。
 
 ## デスクトップ版の起動
 
-Windowsの内部検証用インストーラーは**`Imperium-Setup-1.3.1-x64.exe`**という形式で、セットアップウィザードを含みます。
+Windowsの内部検証用インストーラーは**`Imperium-Setup-1.3.2-x64.exe`**という形式で、セットアップウィザードを含みます。
 
 1. インストーラーを実行し、**次へ（Next）→ インストール（Install）→ 完了（Finish）**の順に進みます。インストール先を変更でき、現在のWindowsユーザー用にインストールされます。
 2. デスクトップまたはスタートメニューの**IMPERIUM**ショートカットからアプリを開きます。
 3. アンインストールする場合は、Windowsの設定のアプリ一覧から**IMPERIUM**を選択します。
 
-インストールせずに使用する場合は、ポータブル版の`Imperium-1.3.1-win-x64.exe`を選択してください。どちらも専用ウィンドウで開きます。モデルとの接続には、以下のCodex・Claude Codeのインストールとサブスクリプションでのログインが必要です。
+インストールせずに使用する場合は、ポータブル版の`Imperium-1.3.2-win-x64.exe`を選択してください。どちらも専用ウィンドウで開きます。モデルとの接続には、以下のCodex・Claude Codeのインストールとサブスクリプションでのログインが必要です。
 
-非公開のソースリポジトリーにアクセスできる開発者は、Actionsの**Build Imperium desktop**を実行し、成功した実行の**Artifacts**からOSに合った検証用ファイルを取得できます。Windowsは`imperium-windows-x64`、macOSは`imperium-macos-intel-apple-silicon`、Linuxは`imperium-linux-x64`です。macOS用のDMG・ZIPは、macOSランナーでのビルド成功後に取得できます。Apple Silicon版のファイル名は`Imperium-1.3.1-mac-arm64.dmg`・`.zip`、Intel版は`Imperium-1.3.1-mac-x64.dmg`・`.zip`です。
+非公開のソースリポジトリーにアクセスできる開発者は、Actionsの**Build Imperium desktop**を実行し、成功した実行の**Artifacts**からOSに合った検証用ファイルを取得できます。Windowsは`imperium-windows-x64`、macOSは`imperium-macos-intel-apple-silicon`、Linuxは`imperium-linux-x64`です。macOS用のDMG・ZIPは、macOSランナーでのビルド成功後に取得できます。Apple Silicon版のファイル名は`Imperium-1.3.2-mac-arm64.dmg`・`.zip`、Intel版は`Imperium-1.3.2-mac-x64.dmg`・`.zip`です。
 
 作成者メタデータの名前は**Sato Junichiro**です。このメタデータだけでは、Windowsに確認された発行元にはなりません。実際のAuthenticode証明書を提供して署名するまでは未署名の開発用ビルドであり、Windowsで不明な発行元と表示される場合があります。Windowsでセキュリティ通知が出た場合は、配布元を確認したうえで、そのアプリのみ実行を許可してください。macOSでブロックされた場合は、システム設定の「プライバシーとセキュリティ」で、そのアプリのみ開くことを許可できます。OS全体のセキュリティ機能を無効にする必要はありません。
 
@@ -26,19 +26,19 @@ Windowsの内部検証用インストーラーは**`Imperium-Setup-1.3.1-x64.exe
 
 ## Linuxへのインストール
 
-Linux x64のビルド対象は、Debian・Ubuntu用の`Imperium-1.3.1-linux-amd64.deb`と、直接実行する`Imperium-1.3.1-linux-x86_64.AppImage`です。検証用パッケージを受け取った場合は、そのファイルがあるフォルダーで必要なコマンドを実行してください。
+Linux x64のビルド対象は、Debian・Ubuntu用の`Imperium-1.3.2-linux-amd64.deb`と、直接実行する`Imperium-1.3.2-linux-x86_64.AppImage`です。検証用パッケージを受け取った場合は、そのファイルがあるフォルダーで必要なコマンドを実行してください。
 
 Debian・Ubuntuにインストールする場合：
 
 ```sh
-sudo apt install ./Imperium-1.3.1-linux-amd64.deb
+sudo apt install ./Imperium-1.3.2-linux-amd64.deb
 ```
 
 インストール後は、アプリメニューの**IMPERIUM**から起動できます。AppImageを使用する場合：
 
 ```sh
-chmod +x Imperium-1.3.1-linux-x86_64.AppImage
-./Imperium-1.3.1-linux-x86_64.AppImage
+chmod +x Imperium-1.3.2-linux-x86_64.AppImage
+./Imperium-1.3.2-linux-x86_64.AppImage
 ```
 
 AppImageは、アプリメニューやデスクトップのショートカットを自動作成しません。LinuxでもCodex・Claude Codeのインストールとサブスクリプションでのログインが必要です。LinuxのCIビルド成功はパッケージの生成と自動検査を意味し、Linuxデスクトップでの手動実行テストを意味するものではありません。
@@ -170,7 +170,7 @@ Pretendard・Pretendard JP・JetBrains Monoは`public/fonts/`に同梱され、�
 
 ## 更新と配布の状況
 
-ソースは非公開リポジトリー`Furu002/imperium-terminal`で管理します。公開配布用の[Furu002/imperium-releases](https://github.com/Furu002/imperium-releases)は現在空であり、ベンチマーク完了前に外部リリースは公開しません。v1.3.1は内部検証の対象です。**更新（F7）**には、パッケージ版アプリ、設定済み公開チャンネル、実際に公開されたリリースが必要です。ローカル専用モードでは更新のネットワーク要求を停止します。ダウンロードとインストールはユーザーの明示的な操作で行います。
+ソースは非公開リポジトリー`Furu002/imperium-terminal`で管理します。公開配布用の[Furu002/imperium-releases](https://github.com/Furu002/imperium-releases)は現在空であり、ベンチマーク完了前に外部リリースは公開しません。v1.3.2は内部検証の対象です。**更新（F7）**には、パッケージ版アプリ、設定済み公開チャンネル、実際に公開されたリリースが必要です。ローカル専用モードでは更新のネットワーク要求を停止します。ダウンロードとインストールはユーザーの明示的な操作で行います。
 
 Windowsのインストール版はNSIS更新、Linux AppImageはAppImage更新の経路を使用します。DEBは新しいパッケージを取得し、手動でインストールします。macOSは現在、署名証明書がないため手動更新が必要になる場合があります。ファイルのハッシュ検証はコード署名ではなく、**Sato Junichiro**の作成者メタデータも証明書による署名ではありません。ファイアウォールやOS全体のセキュリティ設定を無効にする手順は提供しません。
 
