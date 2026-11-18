@@ -52,8 +52,8 @@ test('peer retrieval only exposes scoped public output and explicit public statu
 
 test('project retention removes only old completed artifacts and preserves active peers with a bounded audit trail', t => {
   const f = fixture(t); mkdirSync(f.dataDir, { recursive: true });
-  const scope = path.resolve(f.workspace).toLowerCase();
-  const artifacts = Array.from({ length: 500 }, (_, index) => ({ id: `artifact-${index}`, sequence: index + 1, workspace: process.platform === 'win32' ? scope : f.workspace, taskId: index < 20 ? 'peer' : 'old-completed', provider: 'claude', departmentId: 'quality', title: `Record ${index}`, content: 'retained', kind: 'finding', idempotencyKey: `key-${index}`, createdAt: '2026-11-19T00:00:00Z', confidence: 'unverified' }));
+  const scope = canonicalMemoryWorkspace(f.workspace);
+  const artifacts = Array.from({ length: 500 }, (_, index) => ({ id: `artifact-${index}`, sequence: index + 1, workspace: scope, taskId: index < 20 ? 'peer' : 'old-completed', provider: 'claude', departmentId: 'quality', title: `Record ${index}`, content: 'retained', kind: 'finding', idempotencyKey: `key-${index}`, createdAt: '2026-11-19T00:00:00Z', confidence: 'unverified' }));
   writeFileSync(path.join(f.dataDir, 'collaboration-board.json'), JSON.stringify({ version: 1, sequence: 500, artifacts, events: [] }));
   const board = createCollaborationStore({ dataDir: f.dataDir, getState: f.getState }); board.publish({ task: f.tasks[0], input: publication() });
   assert.equal(board.get({ workspace: f.workspace, id: 'artifact-0' }).taskId, 'peer');
