@@ -24,12 +24,32 @@ files:
 win:
   icon: build/icon.ico
   target:
+    - target: nsis
+      arch:
+        - x64
     - target: portable
       arch:
         - x64
 
 portable:
   requestExecutionLevel: user
+
+nsis:
+  artifactName: 'Imperium-Setup-${version}-${arch}.${ext}'
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: IMPERIUM
+  uninstallDisplayName: IMPERIUM
+  runAfterFinish: false
+  deleteAppDataOnUninstall: false
+  installerLanguages:
+    - en_US
+    - ko_KR
+    - ja_JP
 
 mac:
   icon: build/icon.png

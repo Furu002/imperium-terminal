@@ -8,11 +8,17 @@ Version 1 runs a local web server, viewed in a desktop window or your browser. I
 
 ## Run the desktop app
 
-The Windows portable package is named `Imperium-1.0.0-win-x64.exe`. The packaged app opens its own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
+For Windows, the recommended download is **`Imperium-Setup-1.0.0-x64.exe`**, which includes a guided setup wizard.
+
+1. Run the installer and proceed through **Next → Install → Finish**. You can change the installation folder. The app installs for the current Windows user.
+2. Open the app using the **IMPERIUM** shortcut on your desktop or in the Start menu.
+3. To uninstall, select **IMPERIUM** in the apps list in Windows Settings.
+
+For use without installation, choose the portable file `Imperium-1.0.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
 
 Once this app is hosted on GitHub, run **Build Imperium desktop** in Actions and download the appropriate package from the successful run's **Artifacts**: `imperium-windows-x64` or `imperium-macos-intel-apple-silicon`. macOS DMG and ZIP packages are available after a successful build on a macOS runner.
 
-Developer packages are unsigned. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
+The author metadata names **Sato Junichiro**. This metadata alone does not establish a Windows-verified publisher. Builds remain unsigned developer packages until an actual Authenticode certificate is supplied and used for signing; Windows may show an unknown publisher. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
 
 Desktop records are stored in `hq-data/` under the operating system's application-data location. The default working folder is `Imperium Workspace` in Documents, and can be changed in settings.
 
@@ -89,7 +95,7 @@ npm install
 npm run desktop
 ```
 
-On Windows, run `npm run build:win` to generate the portable app. For macOS DMG and ZIP packages, run `npm run build:mac` on a Mac or use the GitHub Actions macOS build. Build output is written to `dist/`. Check the workflow result to confirm whether each platform build succeeded.
+On Windows, `npm run build:win` generates both the setup wizard and the portable app. Run `npm run build:installer` to generate only the installer. For macOS DMG and ZIP packages, run `npm run build:mac` on a Mac or use the GitHub Actions macOS build. Build output is written to `dist/`. Check the workflow result to confirm whether each platform build succeeded.
 
 ## Validate
 

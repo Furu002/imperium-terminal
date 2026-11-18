@@ -10,11 +10,17 @@ v1은 로컬 웹 서버를 데스크톱 창이나 브라우저에서 사용하�
 
 ## 데스크톱 실행
 
-Windows용 포터블 배포 파일은 `Imperium-1.0.0-win-x64.exe`입니다. 패키징된 앱은 자체 창에서 열리며, 모델 연결에는 아래의 Codex·Claude Code 설치 및 구독 로그인이 필요합니다.
+Windows에서는 설치 마법사가 포함된 **`Imperium-Setup-1.0.0-x64.exe`**를 권장합니다.
+
+1. 설치 파일을 실행하고 **다음(Next) → 설치(Install) → 마침(Finish)** 순서로 진행합니다. 설치 폴더를 변경할 수 있으며 현재 Windows 사용자용으로 설치됩니다.
+2. 바탕 화면이나 시작 메뉴의 **IMPERIUM** 바로가기로 앱을 엽니다.
+3. 제거할 때는 Windows 설정의 앱 목록에서 **IMPERIUM**을 선택합니다.
+
+설치 없이 실행하려면 포터블 파일 `Imperium-1.0.0-win-x64.exe`를 사용하세요. 두 방식 모두 자체 창에서 열리며, 모델 연결에는 아래의 Codex·Claude Code 설치 및 구독 로그인이 필요합니다.
 
 GitHub에 이 앱을 게시한 경우 Actions의 **Build Imperium desktop** 워크플로를 실행하고, 성공한 실행의 **Artifacts**에서 운영체제에 맞는 파일을 받으세요. Windows는 `imperium-windows-x64`, macOS는 `imperium-macos-intel-apple-silicon`입니다. macOS용 DMG·ZIP은 macOS 러너의 빌드가 성공한 뒤 받을 수 있습니다.
 
-개발용 배포 파일에는 코드 서명이 없습니다. Windows의 보안 안내에서는 출처를 확인한 앱만 개별 실행하세요. macOS에서 차단되면 시스템 설정의 개인정보 보호 및 보안에서 해당 앱에 한해 열기를 허용할 수 있습니다. 운영체제 전체의 보안 설정을 끌 필요는 없습니다.
+제작자 메타데이터의 이름은 **Sato Junichiro**입니다. 이 이름을 넣는 것만으로 Windows가 게시자를 인증하지는 않습니다. 실제 Authenticode 인증서를 제공해 서명하기 전까지는 코드 서명이 없는 개발용 빌드이며, Windows에 확인되지 않은 게시자로 표시될 수 있습니다. Windows의 보안 안내에서는 출처를 확인한 앱만 개별 실행하세요. macOS에서 차단되면 시스템 설정의 개인정보 보호 및 보안에서 해당 앱에 한해 열기를 허용할 수 있습니다. 운영체제 전체의 보안 설정을 끌 필요는 없습니다.
 
 데스크톱 앱의 기록은 운영체제별 앱 데이터 위치의 `hq-data/`에 저장됩니다. 기본 작업 폴더는 문서 폴더의 `Imperium Workspace`이며 설정에서 변경할 수 있습니다.
 
@@ -91,7 +97,7 @@ npm install
 npm run desktop
 ```
 
-Windows 포터블 빌드는 Windows에서 `npm run build:win`으로 생성합니다. macOS의 DMG·ZIP은 Mac에서 `npm run build:mac`을 실행하거나 GitHub Actions의 macOS 빌드를 사용하세요. 빌드 결과는 `dist/`에 생성됩니다. 플랫폼별 빌드 성공 여부는 해당 워크플로의 실행 결과에서 확인할 수 있습니다.
+Windows에서 `npm run build:win`을 실행하면 설치 마법사와 포터블 파일을 함께 생성합니다. 설치 파일만 필요하면 `npm run build:installer`를 실행하세요. macOS의 DMG·ZIP은 Mac에서 `npm run build:mac`을 실행하거나 GitHub Actions의 macOS 빌드를 사용하세요. 빌드 결과는 `dist/`에 생성됩니다. 플랫폼별 빌드 성공 여부는 해당 워크플로의 실행 결과에서 확인할 수 있습니다.
 
 ## 검증
 
