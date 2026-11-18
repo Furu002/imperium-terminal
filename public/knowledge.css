@@ -240,3 +240,50 @@
 .ik-graph-accessibility .ik-node-selected{background:var(--orange,#FF9F00);color:#000;border-color:var(--orange,#FF9F00)}
 .ik-graph-unavailable{padding:16px;color:var(--red,#FF4D4F);font-size:12px;line-height:1.6;background:#111;border:1px solid #555}
 .ik-graph-surface[hidden],.ik-graph-accessibility[hidden],.ik-graph-unavailable[hidden],.ik-empty[hidden]{display:none}
+
+/* Explicit graph maintenance controls stay visible at narrow panel widths. */
+.ik-graph-tools{flex-wrap:wrap}
+.ik-graph-tools [data-ik-action=arrange]{border-color:var(--orange,#FF9F00);color:var(--orange,#FF9F00);background:#111}
+.ik-editor-tabs{flex-wrap:wrap}
+.ik-knowledge .ik-archive-button{margin-left:auto;color:var(--orange,#FF9F00);border-color:#777;white-space:nowrap}
+.ik-recorded-links>div{flex-wrap:wrap}
+.ik-knowledge .ik-recorded-links .ik-unlink{margin-left:auto;max-width:none;color:var(--red,#FF4D4F);font-size:11px}
+.ik-note-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.ik-note-actions>strong{color:var(--orange,#FF9F00);font-size:12px}
+.ik-archived-record{padding:12px}
+.ik-archived-record>h3{font-size:16px;overflow-wrap:anywhere;margin:12px 0}
+.ik-archived-record .ik-inspector-body{display:block;padding:10px 0;border-top:1px solid #555}
+.ik-action-dialog{box-sizing:border-box;width:min(500px,94vw);max-width:94vw;max-height:85dvh;overflow:auto;padding:18px;border:1px solid #777;background:#111;color:#F2F2F2;font:13px/1.7 var(--font-sans,sans-serif)}
+.ik-action-dialog::backdrop{background:#000B}
+.ik-action-dialog h2{font-size:18px;color:var(--orange,#FF9F00);margin:0 0 10px}
+.ik-action-name{display:block;font-size:15px;overflow-wrap:anywhere;margin-bottom:10px}
+.ik-action-dialog p{margin:7px 0;overflow-wrap:anywhere}
+.ik-action-draft-note{padding:8px;border-left:2px solid var(--orange,#FF9F00);background:#000}
+.ik-action-error{color:var(--red,#FF4D4F)}
+.ik-action-error:empty{display:none}
+.ik-action-buttons{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}
+.ik-action-buttons button{min-height:32px;padding:5px 12px;border:1px solid #777;background:#000;color:#F2F2F2;font:12px var(--font-sans,sans-serif)}
+.ik-action-buttons .ik-primary{background:var(--orange,#FF9F00);border-color:var(--orange,#FF9F00);color:#000}
+.ik-action-buttons button:focus-visible{outline:2px solid var(--orange,#FF9F00);outline-offset:2px}
+
+/* Desktop vault uses the actual remaining work area; each pane scrolls itself. */
+@media(min-width:761px){
+  .app-shell[data-view=knowledge]>.main-content{display:flex;flex-direction:column;gap:6px;overflow:hidden}
+  .app-shell[data-view=knowledge] .page-heading,.app-shell[data-view=knowledge] #quotas-section,.app-shell[data-view=knowledge]>.main-content>.notice{flex:none;margin-top:0;margin-bottom:0}
+  .app-shell[data-view=knowledge] .lp-live-progress{flex:none;margin:0;max-height:23dvh;overflow:auto}
+  .app-shell[data-view=knowledge] #quotas-section .iq-expanded-body{max-height:20dvh;overflow:auto}
+  .app-shell[data-view=knowledge] #knowledge-section.ik-knowledge{display:flex;flex-direction:column;flex:1 1 0%;min-height:0;min-width:0;overflow:hidden}
+  .ik-knowledge>.ik-heading,.ik-knowledge>.ik-explanation,.ik-knowledge>.ik-statusbar{flex:none}
+  .ik-knowledge>.ik-body{display:grid;grid-template-columns:clamp(150px,15vw,210px) minmax(220px,1fr) clamp(230px,27vw,340px);grid-template-rows:minmax(0,1fr);flex:1 1 0%;height:auto;min-height:0;overflow:hidden}
+  .ik-body>.ik-explorer{grid-column:1;grid-row:1;min-height:0;max-height:none;overflow:hidden}
+  .ik-body>.ik-network-panel{grid-column:2;grid-row:1;height:auto;min-height:0;overflow:auto;overscroll-behavior:contain}
+  .ik-body>.ik-inspector{grid-column:3;grid-row:1;height:auto;min-height:0;max-height:none;overflow:auto;border-left:1px solid #555;border-top:0;overscroll-behavior:contain}
+  .ik-inspector>.ik-inspector-body{display:block}
+  .ik-network-panel>.ik-graph-controls,.ik-network-panel>.ik-legend,.ik-network-panel>.ik-graph-disclaimer{flex:none}
+  .ik-network-panel>.ik-graph-area{min-height:180px;flex:1 1 0%}
+  .ik-graph-area>.ik-graph-surface{min-height:96px}
+  .ik-knowledge .ik-inspector-empty{min-height:0;height:calc(100% - 28px);box-sizing:border-box}
+  .ik-knowledge .ik-empty{min-height:0;padding:12px}
+  .ik-statusbar{min-width:0;max-height:60px;overflow:auto}
+  .ik-explorer>.ik-results-list{min-height:0;overscroll-behavior:contain}
+}

@@ -42,7 +42,7 @@ const STATUSES = Object.freeze([
   'downloading', 'downloaded', 'error', 'unsupported', 'offline',
 ]);
 
-const CHECK_INTERVAL_MS = 30 * 60 * 1000;
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const MIN_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const MANUAL_COOLDOWN_MS = 60 * 1000;
 const MAX_ERROR_LENGTH = 300;

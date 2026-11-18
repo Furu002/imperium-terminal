@@ -1,6 +1,6 @@
 {
   "name": "imperium-terminal",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "description": "IMPERIUM — a local AI command terminal for Codex and Claude Code subscriptions.",
@@ -35,6 +35,7 @@
     "@xterm/xterm": "^6.0.0",
     "chart.js": "4.6.1",
     "cytoscape": "3.35.0",
+    "cytoscape-fcose": "2.2.0",
     "electron-updater": "^6.8.11",
     "exceljs": "^4.4.0"
   },

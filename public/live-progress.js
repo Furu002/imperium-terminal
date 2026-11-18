@@ -28,7 +28,7 @@
   function mount() {
     const quotas = document.querySelector('#quotas-section'); if (!quotas) return false;
     root = h('section', 'lp-live-progress'); root.id = 'live-progress-section'; root.hidden = true;
-    disclosure = h('details', 'lp-disclosure'); disclosure.open = true;
+    disclosure = h('details', 'lp-disclosure');
     const summary = h('summary', 'lp-heading'); heading = h('strong'); count = h('span', 'lp-count'); projectLabel = h('span', 'lp-project');
     summary.append(h('span', 'lp-live-dot'), heading, count, projectLabel);
     description = h('p', 'lp-description'); list = h('div', 'lp-task-list');

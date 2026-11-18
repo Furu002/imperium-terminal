@@ -6,6 +6,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 const script = await readFile(new URL('../public/knowledge.js', import.meta.url), 'utf8');
 const graphScript = await readFile(new URL('../public/knowledge-graph.js', import.meta.url), 'utf8');
 const cytoscapeScript = await readFile(new URL('../node_modules/cytoscape/dist/cytoscape.min.js', import.meta.url), 'utf8');
+const forceScripts = (await Promise.all(['layout-base/layout-base.js', 'cose-base/cose-base.js', 'cytoscape-fcose/cytoscape-fcose.js'].map(file => readFile(new URL(`../node_modules/${file}`, import.meta.url), 'utf8')))).join('\n');
 const copy = value => JSON.parse(JSON.stringify(value));
 const settle = async (delay = 0) => { if (delay) await new Promise(resolve => setTimeout(resolve, delay)); for (let turn = 0; turn < 4; turn++) await new Promise(resolve => setImmediate(resolve)); };
 function knowledge() {
@@ -20,11 +21,12 @@ function knowledge() {
     history: [{ id: 'fact-1', title: 'Older architecture', content: 'Earlier source text.', revision: 1, source: 'user', confidence: 'user', updatedAt, recordedAt: updatedAt }], stats: { method: 'local-keyword' },
   };
 }
-async function setup(t, { initial = knowledge(), delayed, delayedWrite, writeResponse, graphEngine = true, graphWidth = 920 } = {}) {
+async function setup(t, { initial = knowledge(), delayed, delayedWrite, writeResponse, graphEngine = true, graphWidth = 920, graphHeight = 560, reducedMotion = false } = {}) {
   const errors = [], virtualConsole = new VirtualConsole(); virtualConsole.on('jsdomError', error => errors.push(error.message));
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div id="knowledge"></div></body></html>', { url: 'http://127.0.0.1:4310', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
   const { window } = dom, state = { settings: { workspace: 'C:\\Project A', language: 'en' }, server: { csrfToken: 'knowledge-test-csrf' } }, calls = [], byProject = new Map([[state.settings.workspace, copy(initial)]]);
-  window.__graphWidth = graphWidth; window.__graphHeight = 560;
+  window.__graphWidth = graphWidth; window.__graphHeight = graphHeight;
+  window.matchMedia = () => ({ matches: reducedMotion });
   Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', { get() { return this.classList.contains('ik-cytoscape') ? window.__graphWidth : 0; } });
   Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { get() { return this.classList.contains('ik-cytoscape') ? window.__graphHeight : 0; } });
   const resizeObservers = [];
@@ -42,15 +44,97 @@ async function setup(t, { initial = knowledge(), delayed, delayedWrite, writeRes
       const id = parsed.pathname.split('/').at(-1), index = current.nodes.findIndex(node => node.id === id), old = current.nodes[index];
       if (body.expectedRevision !== old.revision) return { ok: false, status: 409, json: async () => ({ error: 'Revision conflict' }) };
       current.history.push({ ...old, recordedAt: new Date().toISOString() }); current.nodes[index] = { ...old, ...body, revision: old.revision + 1, source: 'user', confidence: 'user' }; result = { node: current.nodes[index] };
+    } else if (method === 'DELETE' && parsed.pathname.startsWith('/api/memory/links/')) {
+      const id = decodeURIComponent(parsed.pathname.split('/').at(-1)), edge = current.edges.find(item => item.id === id);
+      if (!edge || edge.provenance && edge.provenance !== 'user') return { ok: false, status: 409, json: async () => ({ error: 'Manual relationships only' }) };
+      const source = current.nodes.find(item => item.id === edge.source), target = current.nodes.find(item => item.id === edge.target);
+      if (body.expectedSourceRevision !== source.revision || body.expectedTargetRevision !== target.revision) return { ok: false, status: 409, json: async () => ({ error: 'Revision conflict' }) };
+      current.edges = current.edges.filter(item => item.id !== id); result = { ok: true };
     } else if (method === 'POST') { const node = { ...body, id: 'new-memory', revision: 1, source: 'user', confidence: 'user', updatedAt: new Date().toISOString() }; current.nodes.push(node); byProject.set(workspace, current); result = { node }; }
     else throw new Error(`Unexpected ${method} ${url}`);
     return { ok: true, status: 200, json: async () => copy(result) };
   };
-  if (graphEngine) window.eval(cytoscapeScript + '\nwindow.__graphEngines = []; window.__headlessGraph = options => { const cy = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true }); window.__graphEngines.push(cy); return cy; };');
+  if (graphEngine) {
+    window.eval(cytoscapeScript + '\nwindow.__graphEngines = []; window.__graphLayouts = []; window.__headlessGraph = options => { const cy = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true }); cy.width = () => window.__graphWidth || 1; cy.height = () => window.__graphHeight || 1; cy.size = () => ({ width: cy.width(), height: cy.height() }); const layout = cy.layout.bind(cy); cy.layout = options => { const entry = { ...options, stopped: false }; window.__graphLayouts.push(entry); const value = layout({ ...options, animate: false }); const run = value.run.bind(value); value.run = () => { try { return run(); } catch(e) { entry.error = e.stack; throw e; } }; const stop = value.stop.bind(value); value.stop = () => { entry.stopped = true; return stop(); }; return value; }; window.__graphEngines.push(cy); return cy; };');
+    window.eval(forceScripts);
+  }
   const engines = window.__graphEngines || [], cytoscapeFactory = window.__headlessGraph;
   window.eval(graphScript); window.eval(script); window.ImperiumKnowledge.mount(window.document.querySelector('#knowledge'), { getState: () => state, cytoscapeFactory }); await settle(); t.after(() => { window.ImperiumKnowledge.unmount(); window.close(); });
   return { window, document: window.document, state, calls, byProject, errors, engines, resizeObservers };
 }
+
+test('Natural layout invokes the actual fCoSE force engine explicitly, respects reduced motion and stays stable across refreshes', async t => {
+  const { window, document, calls, engines, errors } = await setup(t);
+  const cy = engines.at(-1), before = { ...cy.getElementById('node:fact-1').position() };
+  document.querySelector('[data-ik-action="arrange"]').click();
+  const layout = window.__graphLayouts.at(-1); assert.equal(layout.name, 'fcose'); assert.equal(layout.animate, true); assert.equal(layout.animationDuration, 600);
+  assert.equal(layout.randomize, false); assert.ok(cy.nodes().every(node => Number.isFinite(node.position('x')) && Number.isFinite(node.position('y'))));
+  assert.notDeepEqual({ ...cy.getElementById('node:fact-1').position() }, before);
+  const count = window.__graphLayouts.length, position = { ...cy.getElementById('node:fact-1').position() };
+  await window.ImperiumKnowledge.reload(); assert.equal(window.__graphLayouts.length, count); assert.deepEqual({ ...cy.getElementById('node:fact-1').position() }, position);
+  document.querySelector('[data-ik-action="arrange"]').click(); assert.equal(layout.stopped, true);
+  assert.ok(calls.every(call => call.method === 'GET')); assert.deepEqual(errors, []);
+});
+
+test('Natural layout is immediate for reduced motion and its running layout is stopped when the project changes', async t => {
+  const { window, document, state, engines } = await setup(t, { reducedMotion: true });
+  document.querySelector('[data-ik-action="arrange"]').click(); const layout = window.__graphLayouts.at(-1); assert.equal(layout.name, 'fcose'); assert.equal(layout.animate, false);
+  const engine = engines.at(-1); state.settings.workspace = 'C:\\Other project'; window.ImperiumKnowledge.render(state); await settle();
+  assert.equal(layout.stopped, true); assert.equal(engine.destroyed(), true);
+});
+
+test('small graph panes use bounded adaptive padding for initial fit, explicit fit and natural layout without changing positions or normal-update viewport', async t => {
+  const { window, document, engines } = await setup(t, { graphWidth: 420, graphHeight: 100, reducedMotion: true });
+  const cy = engines.at(-1); assert.equal(window.__graphLayouts[0].padding, 10);
+  let box = cy.nodes().renderedBoundingBox(); assert.ok(box.h <= 100, JSON.stringify(box));
+  const positions = cy.nodes().map(node => ({ ...node.position() }));
+  window.__graphHeight = 150; document.querySelector('[data-ik-zoom="fit"]').click();
+  assert.deepEqual(cy.nodes().map(node => ({ ...node.position() })), positions, 'fit changes only the viewport');
+  box = cy.nodes().renderedBoundingBox(); assert.ok(box.h <= 150 && box.y1 >= 0 && box.y2 <= 150, JSON.stringify(box));
+  document.querySelector('[data-ik-action="arrange"]').click(); assert.equal(window.__graphLayouts.at(-1).padding, 11);
+  window.eval('__graphEngines.at(-1).viewport({ zoom: .8, pan: { x: 40, y: -20 } });');
+  await window.ImperiumKnowledge.reload(); assert.equal(cy.zoom(), .8); assert.equal(cy.pan().x, 40); assert.equal(cy.pan().y, -20);
+  window.__graphWidth = 1200; window.__graphHeight = 900; document.querySelector('[data-ik-action="arrange"]').click(); assert.equal(window.__graphLayouts.at(-1).padding, 32);
+});
+
+test('archiving is explicit, preserves a dirty draft and can be reversed from Archive without losing saved history', async t => {
+  const { window, document, calls, state, byProject, engines } = await setup(t);
+  document.querySelector('[data-memory-row="fact-1"]').click(); const form = document.querySelector('.ik-review-form');
+  form.querySelector('textarea').value = 'MY_UNSAVED_LOCAL_TEXT'; form.querySelector('textarea').dispatchEvent(new window.Event('input', { bubbles: true }));
+  const cy = engines.at(-1); window.eval('__graphEngines.at(-1).getElementById("node:decision-1").position({ x: 700, y: 450 });');
+  document.querySelector('[data-ik-archive="fact-1"]').click();
+  assert.match(document.querySelector('.ik-action-dialog').textContent, /Unsaved edits stay/); assert.equal(calls.filter(call => call.method === 'PATCH').length, 0);
+  document.querySelector('[data-ik-cancel]').click(); assert.equal(calls.filter(call => call.method === 'PATCH').length, 0);
+  document.querySelector('[data-ik-archive="fact-1"]').click(); document.querySelector('[data-ik-confirm]').click(); await settle();
+  assert.equal(byProject.get(state.settings.workspace).nodes.find(node => node.id === 'fact-1').archived, true);
+  assert.equal(document.querySelector('[data-memory-node="fact-1"]'), null); assert.equal(document.querySelector('[data-ik-recovery="fact-1"] textarea').value, 'MY_UNSAVED_LOCAL_TEXT');
+  assert.deepEqual({ ...cy.getElementById('node:decision-1').position() }, { x: 700, y: 450 });
+  document.querySelector('[data-kind-filter="archived"]').click(); assert.ok(document.querySelector('[data-memory-row="fact-1"]')); assert.equal(document.querySelectorAll('[data-memory-node]').length, 0);
+  document.querySelector('[data-memory-row="fact-1"]').click(); document.querySelector('[data-ik-restore="fact-1"]').click(); document.querySelector('[data-ik-confirm]').click(); await settle();
+  assert.equal(byProject.get(state.settings.workspace).nodes.find(node => node.id === 'fact-1').archived, false); assert.ok(document.querySelector('[data-memory-node="fact-1"]'));
+  assert.equal(document.querySelector('.ik-review-form textarea').value, 'MY_UNSAVED_LOCAL_TEXT');
+  const writes = calls.filter(call => call.method === 'PATCH'); assert.deepEqual(writes.map(call => call.body.archived), [true, false]); assert.deepEqual(writes.map(call => call.body.expectedRevision), [2, 3]);
+  assert.ok(byProject.get(state.settings.workspace).history.length >= 3);
+});
+
+test('archive revision conflicts preserve the active note and draft, and project switching invalidates an old confirmation', async t => {
+  const { window, document, state, calls, byProject } = await setup(t, { writeResponse: async () => ({ ok: false, status: 409, json: async () => ({ error: 'Revision conflict' }) }) });
+  document.querySelector('[data-memory-row="fact-1"]').click(); document.querySelector('[data-ik-archive="fact-1"]').click(); document.querySelector('[data-ik-confirm]').click(); await settle();
+  assert.match(document.querySelector('.ik-action-error').textContent, /Revision conflict/); assert.ok(!byProject.get(state.settings.workspace).nodes[0].archived);
+  const old = document.querySelector('[data-ik-confirm]'); state.settings.workspace = 'C:\\Other project'; window.ImperiumKnowledge.render(state); await settle(); old.click(); await settle();
+  assert.equal(calls.filter(call => call.method === 'PATCH').length, 1); assert.equal(document.querySelector('.ik-action-dialog'), null);
+});
+
+test('manual unlink is explicit, checks both revisions and preserves note bodies and newer unsaved edits', async t => {
+  const { window, document, calls, state, byProject } = await setup(t);
+  document.querySelector('[data-memory-row="task-1"]').click(); const editor = document.querySelector('.ik-review-form textarea'); editor.value = 'UNSAVED_MANUAL_LINK_EDIT'; editor.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.equal(document.querySelector('[data-ik-unlink="actual-keyword-edge"]'), null);
+  document.querySelector('[data-ik-unlink="actual-user-edge"]').click(); assert.equal(calls.filter(call => call.method === 'DELETE').length, 0);
+  document.querySelector('[data-ik-confirm]').click(); await settle();
+  const request = calls.find(call => call.method === 'DELETE'); assert.equal(request.path, '/api/memory/links/actual-user-edge'); assert.equal(request.body.expectedSourceRevision, 1); assert.equal(request.body.expectedTargetRevision, 1); assert.equal(request.workspace, state.settings.workspace);
+  assert.equal(byProject.get(state.settings.workspace).edges.some(edge => edge.id === 'actual-user-edge'), false);
+  assert.equal(document.querySelector('.ik-review-form textarea').value, 'UNSAVED_MANUAL_LINK_EDIT'); assert.equal(byProject.get(state.settings.workspace).nodes[1].content, 'An unverified implementation proposal.');
+});
 
 test('an empty knowledge graph has no invented nodes, edges, or automatic writes', async t => {
   const { document, calls, state, errors } = await setup(t, { initial: { nodes: [], edges: [], history: [], stats: {} } });

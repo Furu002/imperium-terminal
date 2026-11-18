@@ -38,3 +38,21 @@ The desktop app also includes node-pty (the `@lydell/node-pty` distribution), xt
 - Used for measured usage, task performance, memory retrieval, and task-status charts.
 
 Both graph libraries are pinned production dependencies, served from the installed app through its local server. No CDN, telemetry service, or external chart-rendering API is used. Chart input remains local task and memory metadata; unavailable measurements are not estimated by these libraries.
+
+
+## fCoSE 2.2.0 and supporting layout libraries
+
+- Projects: https://github.com/iVis-at-Bilkent/cytoscape.js-fcose , https://github.com/iVis-at-Bilkent/cose-base , https://github.com/iVis-at-Bilkent/layout-base
+- License: MIT; original notices are included in public/licenses/cytoscape-fcose-LICENSE.txt, cose-base-LICENSE.txt, and layout-base-LICENSE.txt.
+- Unmodified browser builds are served locally, after Cytoscape.js, in dependency order: layout-base.js, cose-base.js, cytoscape-fcose.js.
+- Used for explicitly requested animated memory-graph arrangement. No remote layout service is contacted.
+
+## Provider logos
+
+- Source: https://github.com/lobehub/lobe-icons , revision 34270bc208d7122778dc00b30bd460f97ea03216.
+- MIT source notice, individual filenames and display modifications: public/model-icons/NOTICE.
+- Logos identify connected providers. Codex uses the OpenAI provider symbol; this does not claim it is the current Codex desktop application icon. Brand and trademark rights remain with their respective owners.
+
+## Workflow design references
+
+n8n execution status and run-inspection interactions were studied from its official documentation. No n8n code is bundled or copied; the n8n repository has its own restricted licenses. IMPERIUM's workflow execution and collaboration board are implemented independently.

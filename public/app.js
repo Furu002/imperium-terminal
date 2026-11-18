@@ -3,7 +3,7 @@
 // UI translations are local. Model output and user content always remain untouched.
 const TRANSLATIONS = {
   en: {
-    '지휘 통제실': 'Command center', '지시하고, 연결하고, 모든 작업의 흐름을 확인하세요.': 'Direct your organization. Follow every operation in one place.',
+    '협업 보드': 'Collaboration board', '에이전트의 공유 결과와 실제 참조 기록을 확인하세요.': 'Inspect shared agent results and recorded references.', '지휘 통제실': 'Command center', '지시하고, 연결하고, 모든 작업의 흐름을 확인하세요.': 'Direct your organization. Follow every operation in one place.',
     '작업 관리': 'Operations', '부서별 작업을 확인하고 실행 결과를 검토하세요.': 'Track assignments and inspect the work your teams deliver.',
     '부서 관리': 'Departments', '부서의 역할과 담당 모델을 구성하세요.': 'Configure each department’s responsibilities and assigned model.',
     '활동 로그': 'Activity log', '모든 부서의 실행 기록을 실시간으로 확인하세요.': 'Follow the execution history of every department in real time.',
@@ -53,6 +53,7 @@ const TRANSLATIONS = {
     '지금 개발하려는 기능의 요구사항을 정리하고, 구현 단계와 검증 방법을 제안해줘.': 'Clarify the requirements for the planned feature. Propose implementation steps and a verification plan.'
   },
   ja: {
+    '협업 보드': 'コラボレーション', '에이전트의 공유 결과와 실제 참조 기록을 확인하세요.': 'エージェントの共有結果と実際の参照記録を確認します。',
     '지휘 통제실': 'コマンドセンター', '지시하고, 연결하고, 모든 작업의 흐름을 확인하세요.': '指示を出し、つなぎ、すべての作業の流れを把握。',
     '작업 관리': 'タスク管理', '부서별 작업을 확인하고 실행 결과를 검토하세요.': '部署ごとのタスクを確認し、実行結果を検討します。',
     '부서 관리': '部署管理', '부서의 역할과 담당 모델을 구성하세요.': '各部署の役割と担当モデルを設定します。',
@@ -193,7 +194,7 @@ let dispatchPending = false;
 let lastFeedSignature = '';
 let stream;
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
-let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false;
+let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false, collaborationMounted = false;
 let quotasMounted = false, quotaStamp;
 let dispatchExecution, departmentExecution, executionContext = '', executionSummary;
 function safeExecutionValue(widget) { try { return widget?.getValue() || {}; } catch { return {}; } }
@@ -626,7 +627,7 @@ function renderMissions() {
       node('td', {}, node('span', { class: 'task-name', title: task.title }, task.title), subline),
       node('td', {}, node('span', { class: `provider-name ${task.provider}` }, providerName(task.provider)), node('span', { class: 'task-model-id', title: `${task.reportedModel ? (language === 'ja' ? 'CLI報告モデル' : language === 'en' ? 'CLI reported model' : 'CLI 보고 모델') : (language === 'ja' ? '指定モデル・実行モデル未報告' : language === 'en' ? 'Requested model · execution model unreported' : '요청 모델 · 실행 모델 미보고')} · ${task.reportedModel || task.modelId || 'CLI default'}` }, task.reportedModel || task.modelId || 'CLI default')),
       node('td', {}, statusTag(task)), node('td', {}, node('span', { class: 'elapsed-text', 'data-elapsed-task': task.id }, elapsed(task))), action);
-    const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); };
+    const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); inspectorOutputView?.openFull(); };
     row.addEventListener('click', choose);
     row.addEventListener('keydown', event => { if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); choose(); } });
     return row;
@@ -731,13 +732,14 @@ function renderInspector() {
 }
 
 function updateView(next) {
-  view = ['overview', 'operations', 'chat', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
+  view = ['overview', 'operations', 'chat', 'collaboration', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
   $('.app-shell').dataset.view = view;
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const content = {
     overview: ['NODE WORKSPACE', '노드 워크스페이스', '노드를 직접 추가하고 이름표와 연결을 구성하세요.'],
     operations: ['OPERATIONS', '작업 관리', '부서별 작업을 확인하고 실행 결과를 검토하세요.'],
     chat: ['CONVERSATIONS', '대화', '같은 에이전트와 이전 맥락을 이어서 질문하세요.'],
+    collaboration: ['AGENT COLLABORATION', '협업 보드', '에이전트의 공유 결과와 실제 참조 기록을 확인하세요.'],
     departments: ['ORGANIZATION', '부서 관리', '부서의 역할과 담당 모델을 구성하세요.'],
     logs: ['ACTIVITY STREAM', '활동 로그', '모든 부서의 실행 기록을 실시간으로 확인하세요.'],
     accounts: ['AI CONNECTIONS', 'AI 계정', '각자의 계정으로 모델을 등록하고 연결하세요.'],
@@ -754,6 +756,16 @@ function updateView(next) {
 }
 
 function renderExtensions() {
+  if (window.ImperiumCollaboration && state.server.csrfToken) {
+    if (!collaborationMounted && view === 'collaboration') {
+      collaborationMounted = true;
+      window.ImperiumCollaboration.mount($('#collaboration-section'), { getState: () => state, api, isVisible: () => view === 'collaboration', onSelectTask: id => {
+        if (!state.tasks.some(task => task.id === id)) return;
+        selectedTaskId = id; updateView('operations'); renderMissions(); renderInspector(); inspectorOutputView?.openFull();
+      } });
+    }
+    if (collaborationMounted) window.ImperiumCollaboration.render(state, { visible: view === 'collaboration' });
+  }
   if (view === 'chat' && window.ImperiumConversations) {
     if (!conversationsMounted) { conversationsMounted = true; window.ImperiumConversations.mount($('#conversations-section'), { getState: () => state, api, onChanged: async () => receiveState(await api('/api/state')) }); }
     window.ImperiumConversations.render(state);
@@ -772,7 +784,7 @@ function renderExtensions() {
     if (state.server.quotaUpdatedAt !== quotaStamp) { quotaStamp = state.server.quotaUpdatedAt; if (quotaStamp) void window.ImperiumQuotas.refresh(); }
   }
   if (state.server.csrfToken) syncDispatchExecution();
-  window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')) });
+  window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenCollaboration: () => updateView('collaboration'), onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')) });
   if (state.server.csrfToken && window.ImperiumAccounts) {
     if (!accountsMounted) {
       accountsMounted = true;

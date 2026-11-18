@@ -4,6 +4,7 @@ import test from 'node:test';
 import { JSDOM } from 'jsdom';
 
 const source = readFileSync(new URL('../public/output-view.js', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../public/output-view.css', import.meta.url), 'utf8');
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const task = changes => ({ id: 'task-one', title: 'Readable result', prompt: 'Please inspect **this exact request**.', provider: 'claude', modelId: 'configured-model', reasoningEffort: 'high', speed: 'fast', permission: 'read-only', status: 'completed', output: '# Result\n\nThe answer is **ready**.', logs: [], ...changes });
 
@@ -21,11 +22,12 @@ test('model labels distinguish requested configuration from explicit CLI executi
     assert.equal(ui.document.querySelector('script'), null);
   } finally { ui.close(); }
 });
-function fixture() {
+function fixture(savedFont) {
   const dom = new JSDOM('<main></main>', { runScripts: 'outside-only', url: 'http://127.0.0.1:4310/' });
   const writes = [];
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); this.dispatchEvent(new dom.window.Event('close')); };
+  if (savedFont !== undefined) dom.window.localStorage.setItem('imperium.outputFontSize', savedFont);
   dom.window.eval(source);
   const view = dom.window.ImperiumOutput.create({ onCopy: async value => { writes.push(value); return true; } });
   dom.window.document.querySelector('main').append(view.element);
@@ -208,4 +210,54 @@ test('completed task logs retain original text while translating skill and publi
       assert.ok(body.querySelector('.io-log-source-note'));
     }
   } finally { ui.close(); }
+});
+
+test('readable defaults expose a public large-reader API and a nearly full-window dialog', () => {
+  const ui = fixture();
+  try {
+    const style = ui.document.createElement('style'); style.textContent = styles; ui.document.head.append(style);
+    ui.update(task({ reportedModel: 'observed-model' }));
+    assert.equal(ui.view.element.style.getPropertyValue('--io-body-size'), '18px');
+    assert.equal(ui.document.querySelector('.io-expand').textContent, 'Read large');
+    assert.equal(ui.document.querySelector('dialog'), null, 'streamed updates do not open a window');
+    ui.view.openFull();
+    const dialog = ui.document.querySelector('.io-dialog');
+    assert.equal(dialog.open, true);
+    assert.equal(dialog.querySelector('.io-conversation').style.getPropertyValue('--io-body-size'), '20px');
+    assert.equal(Number.parseFloat(ui.dom.window.getComputedStyle(dialog).width), Math.min(1400, ui.dom.window.innerWidth - 32));
+    assert.equal(Number.parseFloat(ui.dom.window.getComputedStyle(dialog).height), ui.dom.window.innerHeight - 32);
+    assert.match(dialog.querySelector('.io-model-label').textContent, /observed-model/);
+    assert.equal(dialog.querySelector('.io-expand'), null);
+    ui.view.openFull(); assert.equal(ui.document.querySelectorAll('.io-dialog').length, 1);
+    assert.doesNotMatch(styles, /\.io-dialog \.io-markdown\{font-size:(?:14|15)px/);
+  } finally { ui.close(); }
+});
+
+test('text size controls persist bounded global reader preferences without changing source text or reparsing', async () => {
+  const ui = fixture(), value = task({ output: '# Heading\n\nThe **original** response.\n\n```js\nexact();\n```' });
+  try {
+    ui.update(value); const parsed = ui.document.querySelector('.io-markdown');
+    ui.document.querySelector('.io-font-up').click();
+    assert.equal(ui.view.element.style.getPropertyValue('--io-body-size'), '20px');
+    assert.equal(ui.dom.window.localStorage.getItem('imperium.outputFontSize'), '20');
+    assert.equal(ui.document.querySelector('.io-markdown'), parsed);
+    for (let i = 0; i < 10; i++) ui.document.querySelector('.io-font-up').click();
+    assert.equal(ui.view.element.style.getPropertyValue('--io-body-size'), '28px');
+    assert.equal(ui.document.querySelector('.io-font-up').disabled, true);
+    ui.view.openFull();
+    assert.equal(ui.document.querySelector('.io-dialog .io-conversation').style.getPropertyValue('--io-body-size'), '28px');
+    for (let i = 0; i < 10; i++) ui.document.querySelector('.io-font-down').click();
+    assert.equal(ui.view.element.style.getPropertyValue('--io-body-size'), '14px');
+    assert.equal(ui.document.querySelector('.io-font-down').disabled, true);
+    ui.update(value, 'ja');
+    assert.equal(ui.view.element.style.getPropertyValue('--io-body-size'), '14px');
+    assert.equal(ui.document.querySelector('.io-font-up').getAttribute('aria-label'), '文字を大きく');
+    ui.document.querySelector('.io-answer-copy').click(); await settle();
+    assert.equal(ui.writes[0], value.output);
+  } finally { ui.close(); }
+  for (const [stored, expected] of [['22', '22px'], ['garbage', '18px'], ['999', '28px'], ['-4', '14px']]) {
+    const restored = fixture(stored);
+    try { restored.update(task({})); assert.equal(restored.view.element.style.getPropertyValue('--io-body-size'), expected); }
+    finally { restored.close(); }
+  }
 });

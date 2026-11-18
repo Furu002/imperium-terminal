@@ -14,10 +14,13 @@
   Object.assign(WORDS.ja, { '최신 저장본을 확인하지 못했습니다. 새로고침 후 비교하세요.': '最新の保存内容を確認できませんでした。更新してから比較してください。' });
   Object.assign(WORDS.en, { '노드와 관계 목록': 'Nodes and relationships', '그래프 엔진을 불러오지 못했습니다. 아래 노드와 관계 목록을 이용하세요.': 'The graph engine could not be loaded. Use the nodes and relationships list below.' });
   Object.assign(WORDS.ja, { '노드와 관계 목록': 'ノードと関係の一覧', '그래프 엔진을 불러오지 못했습니다. 아래 노드와 관계 목록을 이용하세요.': 'グラフエンジンを読み込めませんでした。下のノードと関係の一覧を利用してください。' });
+  Object.assign(WORDS.en, { '자연 배열': 'Natural layout', '배열 엔진을 사용할 수 없습니다. 앱을 새로고침한 뒤 다시 시도하세요.': 'The layout engine is unavailable. Reload the app and try again.', '기억 보관': 'Archive memory', '기억 복원': 'Restore memory', '보관함': 'Archive', '보관됨': 'Archived', '취소': 'Cancel', '기억을 보관했습니다.': 'Memory archived.', '기억을 복원했습니다.': 'Memory restored.', '보관한 기억은 그래프와 AI 검색에서 제외되며 보관함에서 복원할 수 있습니다.': 'Archived memories leave the graph and AI retrieval. Restore them from Archive.', '저장하지 않은 초안은 복구 가능한 초안에 그대로 보존됩니다.': 'Unsaved edits stay in Recoverable drafts.', '보관한 기억을 복원하면 그래프와 AI 검색에 다시 포함됩니다.': 'Restoring includes this memory in the graph and AI retrieval again.', '현재 저장본만 변경합니다.': 'This action changes only the saved note.', '변경 요청을 처리하지 못했습니다. 최신 기록을 확인하고 다시 시도하세요.': 'The change could not be applied. Check the latest record and try again.', '관계 해제': 'Unlink', '수동 관계를 해제합니다. 두 기억과 원문은 보존됩니다.': 'Remove this manual relationship. Both notes and their text are kept.', '수동 관계를 해제했습니다.': 'Manual relationship removed.', '위키 링크는 원문의 [[링크]]를 수정해 해제하세요.': 'Remove wiki links by editing [[links]] in the note text.', '키워드 관계는 내용에서 자동으로 계산됩니다.': 'Keyword relationships are derived automatically from note content.' });
+  Object.assign(WORDS.ja, { '자연 배열': '自然に配置', '배열 엔진을 사용할 수 없습니다. 앱을 새로고침한 뒤 다시 시도하세요.': '配置エンジンを利用できません。アプリを再読み込みしてください。', '기억 보관': '記憶を保管', '기억 복원': '記憶を復元', '보관함': '保管庫', '보관됨': '保管済み', '취소': 'キャンセル', '기억을 보관했습니다.': '記憶を保管しました。', '기억을 복원했습니다.': '記憶を復元しました。', '보관한 기억은 그래프와 AI 검색에서 제외되며 보관함에서 복원할 수 있습니다.': '保管した記憶はグラフとAI検索から除外され、保管庫から復元できます。', '저장하지 않은 초안은 복구 가능한 초안에 그대로 보존됩니다.': '未保存の編集は復旧できる下書きに保持されます。', '보관한 기억을 복원하면 그래프와 AI 검색에 다시 포함됩니다.': '復元した記憶はグラフとAI検索に再び含まれます。', '현재 저장본만 변경합니다.': '現在の保存済みノートのみを変更します。', '변경 요청을 처리하지 못했습니다. 최신 기록을 확인하고 다시 시도하세요.': '変更できませんでした。最新の記録を確認してください。', '관계 해제': '関係を解除', '수동 관계를 해제합니다. 두 기억과 원문은 보존됩니다.': '手動の関係を解除します。両方の記憶と本文は保持されます。', '수동 관계를 해제했습니다.': '手動の関係を解除しました。', '위키 링크는 원문의 [[링크]]를 수정해 해제하세요.': 'ウィキリンクは本文の[[リンク]]を編集して解除してください。', '키워드 관계는 내용에서 자동으로 계산됩니다.': 'キーワードの関係は本文から自動的に計算されます。' });
   const KINDS = { decision: '결정', fact: '사실', task: '작업', constraint: '제약', note: '노트' }, PAGE_SIZE = 50, GRAPH_LIMIT = 150, EDGE_LIMIT = 1200;
   const h = (tag, attrs = {}, ...children) => { const node = document.createElement(tag); for (const [key, value] of Object.entries(attrs)) { if (key === 'class') node.className = value; else if (key.startsWith('on')) node.addEventListener(key.slice(2).toLowerCase(), value); else if (value !== null && value !== false && value !== undefined) node.setAttribute(key, String(value)); } children.flat().forEach(child => { if (child !== undefined && child !== null) node.append(child instanceof Node ? child : document.createTextNode(String(child))); }); return node; };
   let container, callbacks = {}, state = {}, project = null, generation = 0, data = { nodes: [], edges: [], history: [], stats: {} }, selectedId = null, filter = 'all', query = '', page = 0, language = '', refreshTimer, lastMemoryUpdate;
-  let metrics, search, filters, graphArea, graphControls, resultsList, orphanList, listFooter, inspector, message, dialog, editorFields;
+  let metrics, search, filters, graphArea, graphControls, resultsList, orphanList, listFooter, inspector, message, dialog, editorFields, actionDialog;
+  const pendingActions = new Set();
   let graphMode = 'all', depth = 1, editorMode = 'source', graphRenderer, graphView, graphEpoch = 0;
   const drafts = new Map();
   let indexedNodes, titleIndex;
@@ -30,7 +33,7 @@
   const active = () => data.nodes.filter(node => !node.archived);
   const orphanDrafts = () => { const ids = new Set(active().map(node => node.id)); return [...(drafts.get(project) || [])].filter(([id, draft]) => !ids.has(id) && (draft.dirty || draft.saving)); };
   const actualEdges = () => { const ids = new Set(active().map(node => node.id)); return data.edges.filter(edge => ids.has(edge.source) && ids.has(edge.target)); };
-  const matches = () => { const needle = titleKey(query); return active().filter(node => (filter === 'all' || node.kind === filter) && (!needle || titleKey(`${node.title || ''}\n${node.content || ''}\n${(node.tags || []).join(' ')}`).includes(needle))).sort((a, b) => (new Date(b.updatedAt || b.createdAt).getTime() || 0) - (new Date(a.updatedAt || a.createdAt).getTime() || 0) || String(a.id).localeCompare(String(b.id))); };
+  const matches = () => { const needle = titleKey(query); return data.nodes.filter(node => (filter === 'archived' ? node.archived : !node.archived && (filter === 'all' || node.kind === filter)) && (!needle || titleKey(`${node.title || ''}\n${node.content || ''}\n${(node.tags || []).join(' ')}`).includes(needle))).sort((a, b) => (new Date(b.updatedAt || b.createdAt).getTime() || 0) - (new Date(a.updatedAt || a.createdAt).getTime() || 0) || String(a.id).localeCompare(String(b.id))); };
   function values(node) { return { title: node.title || '', content: node.content || '', kind: node.kind || 'note', pinned: Boolean(node.pinned) }; }
   function draftFor(node) {
     if (!drafts.has(project)) drafts.set(project, new Map());
@@ -54,14 +57,57 @@
   async function refresh() {
     if (!container || !project) return false;
     captureDraft(); clearTimeout(refreshTimer); const key = project, current = ++generation; notice(tr('불러오는 중…'));
-    try { const result = await api('/api/memory', 'GET', undefined, key); if (key !== project || current !== generation) return false; captureDraft(); data = { nodes: Array.isArray(result.nodes) ? result.nodes : [], edges: Array.isArray(result.edges) ? result.edges : [], history: Array.isArray(result.history) ? result.history : [], stats: result.stats || {} }; for (const node of active()) { const draft = drafts.get(project)?.get(node.id); if (draft?.conflict && draft.revision === node.revision) draft.conflict = false; } if (selectedId && !active().some(node => node.id === selectedId) && !orphanDrafts().some(([id]) => id === selectedId)) { selectedId = null; editorFields = null; } renderData(); notice(''); return true; }
+    try { const result = await api('/api/memory', 'GET', undefined, key); if (key !== project || current !== generation) return false; captureDraft(); data = { nodes: Array.isArray(result.nodes) ? result.nodes : [], edges: Array.isArray(result.edges) ? result.edges : [], history: Array.isArray(result.history) ? result.history : [], stats: result.stats || {} }; for (const node of active()) { const draft = drafts.get(project)?.get(node.id); if (draft?.conflict && draft.revision === node.revision) draft.conflict = false; } if (selectedId && !data.nodes.some(node => node.id === selectedId) && !orphanDrafts().some(([id]) => id === selectedId)) { selectedId = null; editorFields = null; } renderData(); notice(''); return true; }
     catch (error) { if (key === project && current === generation) notice(error.message, true); return false; }
   }
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 70); }
   const button = (label, action, attrs = {}) => h('button', { type: 'button', ...attrs, onclick: action }, tr(label));
+  function closeActionDialog() { actionDialog?.close(); actionDialog?.remove(); actionDialog = null; }
+  function confirmAction(title, name, explanation, commit) {
+    closeActionDialog(); const key = project;
+    const error = h('p', { class: 'ik-action-error', role: 'alert' });
+    const modal = h('dialog', { class: 'ik-action-dialog', 'aria-label': tr(title) }, h('h2', {}, tr(title)), h('strong', { class: 'ik-action-name' }, name), h('p', {}, tr(explanation)), h('p', {}, tr('현재 저장본만 변경합니다.')), error);
+    const submit = button(title, async () => {
+      if (project !== key || !modal.isConnected || !modal.open || submit.disabled) return;
+      submit.disabled = true; cancel.disabled = true;
+      try { await commit(key); if (project === key && actionDialog === modal) closeActionDialog(); }
+      catch (failure) { if (project === key && actionDialog === modal) error.textContent = failure.message || tr('변경 요청을 처리하지 못했습니다. 최신 기록을 확인하고 다시 시도하세요.'); }
+      finally { submit.disabled = false; cancel.disabled = false; }
+    }, { class: 'ik-primary', 'data-ik-confirm': '' });
+    const cancel = button('취소', closeActionDialog, { 'data-ik-cancel': '' });
+    modal.append(h('div', { class: 'ik-action-buttons' }, cancel, submit));
+    actionDialog = modal; document.body.append(modal); modal.showModal(); cancel.focus();
+  }
+  function archiveNote(node, archived) {
+    captureDraft(); const draft = drafts.get(project)?.get(node.id);
+    if (draft?.saving || pendingActions.has(node.id)) return;
+    const explanation = archived ? '보관한 기억은 그래프와 AI 검색에서 제외되며 보관함에서 복원할 수 있습니다.' : '보관한 기억을 복원하면 그래프와 AI 검색에 다시 포함됩니다.';
+    confirmAction(archived ? '기억 보관' : '기억 복원', node.title, explanation, async key => {
+      pendingActions.add(node.id);
+      try {
+        const result = await api(`/api/memory/${encodeURIComponent(node.id)}`, 'PATCH', { expectedRevision: node.revision, archived }, key);
+        if (project !== key) return;
+        if (result.node?.archived !== archived) throw new Error(tr('변경 요청을 처리하지 못했습니다. 최신 기록을 확인하고 다시 시도하세요.'));
+        graphRenderer?.cancelLayout(); if (!archived) filter = 'all';
+        await refresh(); if (project !== key) return;
+        notice(tr(archived ? '기억을 보관했습니다.' : '기억을 복원했습니다.'));
+        window.dispatchEvent(new CustomEvent('imperium:memory-changed'));
+      } finally { pendingActions.delete(node.id); }
+    });
+    if (draft?.dirty) actionDialog?.querySelector('.ik-action-buttons')?.before(h('p', { class: 'ik-action-draft-note' }, tr('저장하지 않은 초안은 복구 가능한 초안에 그대로 보존됩니다.')));
+  }
+  function unlink(edge) {
+    captureDraft(); const source = active().find(node => node.id === edge.source), target = active().find(node => node.id === edge.target);
+    if (!source || !target || edge.provenance && edge.provenance !== 'user') return;
+    confirmAction('관계 해제', `${source.title} → ${target.title}`, '수동 관계를 해제합니다. 두 기억과 원문은 보존됩니다.', async key => {
+      await api(`/api/memory/links/${encodeURIComponent(edge.id)}`, 'DELETE', { expectedSourceRevision: source.revision, expectedTargetRevision: target.revision }, key);
+      if (project !== key) return; graphRenderer?.cancelLayout(); await refresh();
+      if (project === key) { notice(tr('수동 관계를 해제했습니다.')); window.dispatchEvent(new CustomEvent('imperium:memory-changed')); }
+    });
+  }
   function build() {
     if (!container) return;
-    captureDraft(); destroyGraph(); editorFields = null; language = lang();
+    captureDraft(); closeActionDialog(); destroyGraph(); editorFields = null; language = lang();
     const heading = h('header', { class: 'ik-heading' }, h('div', {}, h('span', { class: 'ik-eyebrow' }, 'PROJECT / KNOWLEDGE VAULT'), h('h2', {}, tr('프로젝트 지식 그래프'))), h('div', { class: 'ik-heading-actions' }, button('새로고침', refresh, { 'data-ik-action': 'refresh' }), button('새 기억', openCreate, { class: 'ik-primary', 'data-ik-action': 'create' })));
     search = h('input', { type: 'search', placeholder: tr('기억 검색'), 'aria-label': tr('기억 검색'), value: query }); search.addEventListener('input', () => { captureDraft(); query = search.value; page = 0; renderData(); });
     filters = h('div', { class: 'ik-filters', role: 'group', 'aria-label': tr('분류') }); resultsList = h('div', { class: 'ik-results-list' }); orphanList = h('section', { class: 'ik-orphan-drafts', style: 'max-height:180px;overflow:auto;flex-shrink:0', 'aria-label': tr('복구 가능한 초안') }); listFooter = h('div', { class: 'ik-list-footer' });
@@ -76,13 +122,14 @@
     if (!container || !graphArea) return;
     captureDraft(); const nodes = active(), edges = actualEdges();
     metrics.replaceChildren(...[['활성 기억', nodes.length], ['실제 관계', edges.length], ['고정 기억', nodes.filter(node => node.pinned).length], ['사용자 검토', nodes.filter(node => source(node) === 'user').length]].map(([key, value]) => h('span', {}, tr(key), ' ', h('strong', {}, String(value)))));
-    filters.replaceChildren(...[['all', '전체'], ...Object.entries(KINDS)].map(([kind, key]) => button(key, () => { captureDraft(); filter = kind; page = 0; renderData(); }, { class: kind === filter ? 'active' : '', 'data-kind-filter': kind, 'aria-pressed': String(kind === filter) })));
+    filters.replaceChildren(...[['all', '전체'], ...Object.entries(KINDS), ['archived', '보관함']].map(([kind, key]) => button(key, () => { captureDraft(); filter = kind; page = 0; renderData(); }, { class: kind === filter ? 'active' : '', 'data-kind-filter': kind, 'aria-pressed': String(kind === filter) })));
     renderGraphControls(); drawGraph(); renderList(); renderInspector();
   }
   function renderGraphControls() {
-    graphControls.replaceChildren(h('div', { class: 'ik-view-tabs' }, ...[['all', '전체 그래프'], ['local', '로컬 그래프']].map(([mode, label]) => button(label, () => { graphMode = mode; renderGraphControls(); drawGraph(true); }, { class: graphMode === mode ? 'active' : '', 'data-ik-graph-mode': mode, 'aria-pressed': String(graphMode === mode) }))), h('div', { class: 'ik-graph-tools' }, h('span', {}, tr('연결 깊이')), ...[1, 2].map(value => button(String(value), () => { depth = value; renderGraphControls(); drawGraph(true); }, { class: depth === value ? 'active' : '', disabled: graphMode !== 'local', 'data-ik-depth': value, 'aria-label': `${tr('연결 깊이')} ${value}` })), button('축소', () => graphRenderer?.zoomBy(.8), { 'data-ik-zoom': 'out', title: tr('축소') }), button('확대', () => graphRenderer?.zoomBy(1.25), { 'data-ik-zoom': 'in', title: tr('확대') }), button('화면 맞춤', () => graphRenderer?.fit(), { 'data-ik-zoom': 'fit' })));
+    graphControls.replaceChildren(h('div', { class: 'ik-view-tabs' }, ...[['all', '전체 그래프'], ['local', '로컬 그래프']].map(([mode, label]) => button(label, () => { graphMode = mode; renderGraphControls(); drawGraph(true); }, { class: graphMode === mode ? 'active' : '', 'data-ik-graph-mode': mode, 'aria-pressed': String(graphMode === mode) }))), h('div', { class: 'ik-graph-tools' }, h('span', {}, tr('연결 깊이')), ...[1, 2].map(value => button(String(value), () => { depth = value; renderGraphControls(); drawGraph(true); }, { class: depth === value ? 'active' : '', disabled: graphMode !== 'local', 'data-ik-depth': value, 'aria-label': `${tr('연결 깊이')} ${value}` })), button('축소', () => graphRenderer?.zoomBy(.8), { 'data-ik-zoom': 'out', title: tr('축소') }), button('확대', () => graphRenderer?.zoomBy(1.25), { 'data-ik-zoom': 'in', title: tr('확대') }), button('화면 맞춤', () => graphRenderer?.fit(), { 'data-ik-zoom': 'fit' }), button('자연 배열', () => { try { if (!graphRenderer) throw new Error('No graph engine'); graphRenderer.arrange(); } catch { notice(tr('배열 엔진을 사용할 수 없습니다. 앱을 새로고침한 뒤 다시 시도하세요.'), true); } }, { 'data-ik-action': 'arrange', disabled: !graphNodes().length })));
   }
   function graphNodes() {
+    if (filter === 'archived') return [];
     if (graphMode !== 'local') return matches();
     const nodes = active(), ids = new Set(nodes.map(node => node.id)); if (!ids.has(selectedId)) return [];
     const adjacency = new Map(); for (const edge of actualEdges()) { if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set()); if (!adjacency.has(edge.target)) adjacency.set(edge.target, new Set()); adjacency.get(edge.source).add(edge.target); adjacency.get(edge.target).add(edge.source); }
@@ -107,7 +154,7 @@
     view.empty.hidden = Boolean(shown.length); view.surface.hidden = !shown.length; view.accessible.hidden = !shown.length;
     if (!shown.length) {
       graphRenderer?.update({ nodes: [], edges: [] }); view.list.replaceChildren(); view.relations.replaceChildren(); view.status.hidden = true;
-      view.empty.replaceChildren(h('span', { 'aria-hidden': 'true' }, '◇'), h('h3', {}, tr(graphMode === 'local' ? '노트를 선택하면 주변 연결을 표시합니다.' : active().length ? '검색 조건에 맞는 기억이 없습니다.' : '첫 결과나 기억이 저장되면 그래프가 만들어집니다.')), h('p', {}, tr('표시할 관계나 노드를 임의로 만들지 않습니다.'))); return;
+      view.empty.replaceChildren(h('span', { 'aria-hidden': 'true' }, '◇'), h('h3', {}, tr(filter === 'archived' ? '보관한 기억은 그래프와 AI 검색에서 제외되며 보관함에서 복원할 수 있습니다.' : graphMode === 'local' ? '노트를 선택하면 주변 연결을 표시합니다.' : active().length ? '검색 조건에 맞는 기억이 없습니다.' : '첫 결과나 기억이 저장되면 그래프가 만들어집니다.')), h('p', {}, tr('표시할 관계나 노드를 임의로 만들지 않습니다.'))); return;
     }
     if (!graphRenderer) {
       const key = project, epoch = graphEpoch;
@@ -136,7 +183,7 @@
       const item = h('li', { class: `ik-edge ik-edge-${provenance}`, 'data-memory-edge': edge.id || `${edge.source}:${edge.target}`, 'data-edge-provenance': edge.provenance || 'user' }, `${titles.get(edge.source)} → ${titles.get(edge.target)} · ${edge.type || ''} · ${tr(provenance === 'wiki' ? '위키 링크' : provenance === 'keyword' ? '키워드 관계' : '수동 관계')}`); edgeElements.push({ edge, item }); return item;
     }));
   }
-  function select(id) { if (!active().some(node => node.id === id) && !orphanDrafts().some(([orphanId]) => orphanId === id)) return; captureDraft(); selectedId = id; editorFields = null; drawGraph(graphMode === 'local'); renderList(); renderInspector(true); }
+  function select(id) { if (!data.nodes.some(node => node.id === id) && !orphanDrafts().some(([orphanId]) => orphanId === id)) return; captureDraft(); selectedId = id; editorFields = null; drawGraph(graphMode === 'local'); renderList(); renderInspector(true); }
   function renderList() {
     const records = matches(); page = Math.min(page, Math.max(0, Math.ceil(records.length / PAGE_SIZE) - 1)); const shown = records.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
     resultsList.replaceChildren(...shown.map(node => h('button', { type: 'button', class: `ik-result${selectedId === node.id ? ' selected' : ''}`, 'data-memory-row': node.id, 'aria-pressed': String(selectedId === node.id), onclick: () => select(node.id) }, h('span', { class: 'ik-result-source', 'data-source': source(node) }, node.pinned ? '◆' : '◌'), h('span', { class: 'ik-result-copy' }, h('strong', {}, node.title || tr('제목 없는 노트')), h('small', {}, `${tr(KINDS[node.kind] || '노트')} · r${node.revision || 1}`)))));
@@ -169,7 +216,8 @@
     backlinks.slice(0, 150).forEach(other => incoming.append(h('button', { type: 'button', onclick: () => select(other.id), 'data-backlink-target': other.id }, other.title)));
     if (!backlinks.length) incoming.append(h('p', {}, tr('연결 없음')));
     const recorded = h('details', { class: 'ik-recorded-links' }, h('summary', {}, tr('기록된 관계')));
-    actualEdges().filter(edge => edge.source === node.id || edge.target === node.id).slice(0, 150).forEach(edge => { const other = active().find(value => value.id === (edge.source === node.id ? edge.target : edge.source)); if (other) recorded.append(h('div', {}, h('button', { type: 'button', onclick: () => select(other.id) }, other.title), h('small', {}, `${edge.type} · ${tr(edge.provenance === 'wikilink' ? '위키 링크' : edge.provenance === 'keyword' ? '키워드 관계' : '수동 관계')}`))); });
+    actualEdges().filter(edge => edge.source === node.id || edge.target === node.id).slice(0, 150).forEach(edge => { const other = active().find(value => value.id === (edge.source === node.id ? edge.target : edge.source)); if (other) recorded.append(h('div', {}, h('button', { type: 'button', onclick: () => select(other.id) }, other.title), h('small', {}, `${edge.type} · ${tr(edge.provenance === 'wikilink' ? '위키 링크' : edge.provenance === 'keyword' ? '키워드 관계' : '수동 관계')}`), ...(!edge.provenance || edge.provenance === 'user' ? [button('관계 해제', () => unlink(edge), { class: 'ik-unlink', 'data-ik-unlink': edge.id })] : []))); });
+    recorded.append(h('p', { class: 'ik-review-note' }, tr('위키 링크는 원문의 [[링크]]를 수정해 해제하세요.'), ' ', tr('키워드 관계는 내용에서 자동으로 계산됩니다.')));
     return h('div', { class: 'ik-link-panels' }, outgoing, incoming, recorded);
   }
   function field(key, input) { return h('label', { class: 'ik-field' }, h('span', {}, tr(key)), input); }
@@ -205,12 +253,18 @@
     const node = active().find(value => value.id === selectedId);
     if (node && !force && editorFields?.project === project && editorFields.id === node.id) { const draft = editorFields.draft; if (draft.dirty || draft.saving || draft.revision === node.revision) { inspector.querySelector('.ik-conflict')?.replaceWith(conflictPanel(node, draft)); const links = inspector.querySelector('.ik-link-panels'); if (links) links.replaceWith(connections(node, draft)); inspector.querySelector('.ik-history')?.replaceWith(revisionHistory(node)); return; } }
     editorFields = null; inspector.replaceChildren(h('div', { class: 'ik-inspector-heading' }, tr('기억 검사기')));
+    const archived = data.nodes.find(value => value.id === selectedId && value.archived);
+    if (archived) {
+      const draft = drafts.get(project)?.get(archived.id);
+      inspector.append(h('section', { class: 'ik-archived-record' }, h('div', { class: 'ik-note-actions' }, h('strong', {}, tr('보관됨')), button('기억 복원', () => archiveNote(archived, false), { 'data-ik-restore': archived.id })), h('p', { class: 'ik-review-note' }, tr('보관한 기억은 그래프와 AI 검색에서 제외되며 보관함에서 복원할 수 있습니다.')), h('h3', {}, archived.title), markdown(archived.content), ...(draft?.dirty || draft?.saving ? [recoveryView(archived.id, draft)] : []), revisionHistory(archived))); return;
+    }
     if (!node && selectedId) { const draft = drafts.get(project)?.get(selectedId); if (draft && (draft.dirty || draft.saving)) { inspector.append(recoveryView(selectedId, draft)); return; } }
     if (!node) { inspector.append(h('div', { class: 'ik-inspector-empty' }, h('span', { 'aria-hidden': 'true' }, '▱'), h('h3', {}, tr('기억을 선택하세요')), h('p', {}, tr('그래프나 목록에서 항목을 선택해 원문과 수정 이력을 확인하세요.')), h('p', {}, tr('노트에 [[제목]] 또는 [[제목|별칭]]을 입력해 연결하세요.')))); return; }
     const draft = draftFor(node), key = project, title = h('input', { value: draft.title, maxlength: '160', required: '', 'aria-label': tr('제목') }), content = h('textarea', { rows: '15', maxlength: '24000', required: '', spellcheck: 'false', 'aria-label': tr('내용') }); content.value = draft.content;
     const kind = h('select', { 'aria-label': tr('분류') }, ...Object.entries(KINDS).map(([value, label]) => h('option', { value }, tr(label)))); kind.value = draft.kind; const pinned = h('input', { type: 'checkbox' }); pinned.checked = draft.pinned;
     const dirtyStatus = h('span', { class: 'ik-draft-state', 'data-ik-dirty': String(draft.dirty) }, tr(draft.dirty ? '저장하지 않은 변경' : '변경 없음')), submit = h('button', { type: 'submit', class: 'ik-primary', title: `${tr('검토 후 저장')} · Ctrl/Cmd+Enter` }, tr('검토 후 저장'));
     const tabs = h('div', { class: 'ik-editor-tabs' }, ...[['source', '원문'], ['reading', '읽기']].map(([mode, label]) => button(label, () => { captureDraft(); editorMode = mode; renderInspector(true); }, { class: editorMode === mode ? 'active' : '', 'data-ik-editor-mode': mode, 'aria-pressed': String(editorMode === mode) })), dirtyStatus);
+    tabs.append(button('기억 보관', () => archiveNote(node, true), { class: 'ik-archive-button', 'data-ik-archive': node.id, disabled: draft.saving || pendingActions.has(node.id) }));
     const form = h('form', { class: 'ik-review-form' }, field('제목', title), h('div', { class: 'ik-editor-properties' }, field('분류', kind), h('label', { class: 'ik-checkbox' }, pinned, tr('고정'))), field('내용', content), h('p', { class: 'ik-review-note' }, tr('노트에 [[제목]] 또는 [[제목|별칭]]을 입력해 연결하세요.')), h('p', { class: 'ik-review-note' }, tr('저장하면 사용자 검토본으로 기록됩니다. 사실 여부는 직접 확인하세요.')), submit);
     form.hidden = editorMode !== 'source'; const reading = markdown(draft.content); reading.hidden = editorMode !== 'reading';
     editorFields = { project: key, id: node.id, draft, title, content, kind, pinned };
@@ -258,7 +312,7 @@
     if (project !== key) { captureDraft(); project = key; generation++; clearTimeout(refreshTimer); dialog?.close(); data = { nodes: [], edges: [], history: [], stats: {} }; selectedId = null; editorFields = null; query = ''; filter = 'all'; page = 0; lastMemoryUpdate = state.memoryUpdatedAt; build(); refresh(); }
     else { if (language !== lang()) build(); if (state.memoryUpdatedAt && state.memoryUpdatedAt !== lastMemoryUpdate) { lastMemoryUpdate = state.memoryUpdatedAt; scheduleRefresh(); } }
   }
-  function unmount() { captureDraft(); destroyGraph(); generation++; clearTimeout(refreshTimer); dialog?.close(); editorFields = null; project = null; container = null; }
+  function unmount() { captureDraft(); closeActionDialog(); destroyGraph(); generation++; clearTimeout(refreshTimer); dialog?.close(); editorFields = null; project = null; container = null; }
   function mount(target, configuration = {}) { unmount(); container = typeof target === 'string' ? document.querySelector(target) : target; callbacks = configuration; if (!container) return; state = callbacks.getState?.() || state; build(); render(state); }
   window.ImperiumKnowledge = { mount, unmount, render, reload: refresh };
   window.addEventListener('pagehide', unmount);

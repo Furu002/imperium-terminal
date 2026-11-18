@@ -1,5 +1,6 @@
-const { app, BrowserWindow, Menu, dialog, nativeTheme, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, nativeTheme, shell, ipcMain, screen } = require('electron');
 const { createUpdater, registerUpdateIpc, createStateSender } = require('./updater.cjs');
+const { windowBounds } = require('./window-layout.cjs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { randomBytes } = require('node:crypto');
@@ -140,14 +141,15 @@ function installMenu() {
 }
 
 async function createWindow() {
+  let display = screen.getPrimaryDisplay();
+  try { display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()); } catch { /* Cursor lookup is unavailable on Wayland. */ }
   mainWindow = new BrowserWindow({
-    width: 1560,
-    height: 1000,
-    minWidth: 1050,
-    minHeight: 720,
+    ...windowBounds(display.workArea),
+    resizable: true,
+    maximizable: true,
     title: 'IMPERIUM',
     icon: path.join(app.getAppPath(), 'build', 'icon.png'),
-    backgroundColor: '#090c10',
+    backgroundColor: '#000000',
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -203,7 +205,7 @@ async function startApplication() {
   });
   const { url } = await terminalServer.start();
   terminalURL = url;
-  updater = createUpdater({ app, sendState: createStateSender(() => mainWindow), offline: terminalServer.store.state.settings.localOnly === true, channel: { owner: 'Furu002', repo: 'imperium-releases' } });
+  updater = createUpdater({ app, sendState: createStateSender(() => mainWindow), offline: terminalServer.store.state.settings.localOnly === true, channel: { owner: 'Furu002', repo: 'imperium-terminal' } });
   removeUpdateIpc = registerUpdateIpc({ ipcMain, updater, getMainWindow: () => mainWindow, isTrustedURL: isLocalPage });
   installMenu();
   menuTimer = setInterval(installMenu, 1000);

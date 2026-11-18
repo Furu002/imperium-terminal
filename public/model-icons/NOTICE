@@ -1,0 +1,51 @@
+IMPERIUM bundled model/provider identification marks
+
+Source: https://github.com/lobehub/lobe-icons
+Pinned commit: 34270bc208d7122778dc00b30bd460f97ea03216
+Upstream directory: packages/static-svg/icons/
+
+Local file     Upstream file
+codex.svg      openai.svg (OpenAI provider Blossom, identifying the Codex connection)
+claude.svg     claude-color.svg (Claude asterisk)
+gemini.svg     gemini-color.svg (Gemini multicolor sparkle)
+copilot.svg    githubcopilot.svg (GitHub Copilot visor, not Microsoft Copilot)
+ollama.svg     ollama.svg (Ollama llama)
+
+SVG path geometry and brand color gradients are unchanged. Monochrome marks
+have only an explicit root color="#FFFFFF" for the application's black background.
+Logos are not animated, distorted or recolored by connection status. They identify
+third-party products; they do not imply endorsement or ownership by IMPERIUM.
+
+Brand references consulted:
+https://openai.com/brand/
+https://claude.com/
+https://brand.github.com/brand-identity/copilot
+https://gemini.google.com/
+https://ollama.com/
+
+OpenAI and Codex, Claude, Gemini, GitHub Copilot and Ollama marks belong to their
+respective owners. The icon library's MIT license does not grant trademark rights.
+This records the upstream open-source asset license, not a claim of trademark ownership.
+
+Upstream license follows verbatim:
+MIT License
+
+Copyright (c) 2023 LobeHub
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

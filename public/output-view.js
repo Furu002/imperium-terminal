@@ -12,6 +12,20 @@
   Object.assign(COPY.ko, { actualModel: 'CLI 보고 모델', requestedModel: '요청 모델', unreportedModel: '실행 모델 미보고' });
   Object.assign(COPY.en, { actualModel: 'CLI reported model', requestedModel: 'Requested model', unreportedModel: 'Execution model not reported' });
   Object.assign(COPY.ja, { actualModel: 'CLI報告モデル', requestedModel: '指定モデル', unreportedModel: '実行モデルは未報告' });
+  Object.assign(COPY.ko, { expand: '크게 읽기', fontDown: '글자 작게', fontUp: '글자 크게' });
+  Object.assign(COPY.en, { expand: 'Read large', fontDown: 'Smaller text', fontUp: 'Larger text' });
+  Object.assign(COPY.ja, { expand: '大きく読む', fontDown: '文字を小さく', fontUp: '文字を大きく' });
+  const FONT_KEY = 'imperium.outputFontSize', readers = new Set();
+  let fontWasChosen = false;
+  function storedFontSize() {
+    try { const raw = localStorage.getItem(FONT_KEY); if (raw === null || !raw.trim()) return 18; const size = Number(raw); if (!Number.isFinite(size)) return 18; fontWasChosen = true; return Math.max(14, Math.min(28, Math.round(size / 2) * 2)); } catch { return 18; }
+  }
+  let outputFontSize = storedFontSize();
+  function resizeText(delta, currentSize) {
+    outputFontSize = Math.max(14, Math.min(28, currentSize + delta)); fontWasChosen = true;
+    try { localStorage.setItem(FONT_KEY, String(outputFontSize)); } catch {}
+    for (const reader of readers) reader.applyFont();
+  }
   const h = (tag, className, value) => { const node = document.createElement(tag); if (className) node.className = className; if (value !== undefined) node.textContent = String(value); return node; };
   const text = value => typeof value === 'string' ? value : '';
   const words = language => COPY[language] || COPY.ko;
@@ -128,6 +142,15 @@
     const element = h('div', 'io-conversation');
     let current, language = 'ko', provider = '', previous, response, request, metadata, logs, dialog, expandedView, readingLimit = FIRST_CHUNK, rawLimit = RAW_CHUNK, rawSelected = false;
     const copyOptions = () => ({ onCopy: configuration.onCopy, copied: words(language).copied, copyFailed: words(language).copyFailed });
+    const fontForView = () => Math.min(28, outputFontSize + (configuration.expanded && !fontWasChosen ? 2 : 0));
+    function applyFont() {
+      const size = fontForView(), cssSize = `${size}px`;
+      if (element.style.getPropertyValue('--io-body-size') !== cssSize) element.style.setProperty('--io-body-size', cssSize);
+      for (const control of element.querySelectorAll('.io-font-down')) { control.disabled = size <= 14; control.setAttribute('aria-label', words(language).fontDown); control.title = words(language).fontDown; }
+      for (const control of element.querySelectorAll('.io-font-up')) { control.disabled = size >= 28; control.setAttribute('aria-label', words(language).fontUp); control.title = words(language).fontUp; }
+      for (const label of element.querySelectorAll('.io-font-size')) label.textContent = `${size}px`;
+    }
+    const reader = { applyFont }; readers.add(reader); applyFont();
     function closeDialog() {
       if (!dialog) return;
       const previousDialog = dialog; dialog = null; expandedView?.destroy(); expandedView = null;
@@ -158,7 +181,8 @@
       const read = button(w.reading, 'io-mode active', () => selectMode(false)), raw = button(w.raw, 'io-mode', () => selectMode(true));
       read.setAttribute('aria-pressed', 'true'); raw.setAttribute('aria-pressed', 'false'); modes.append(read, raw);
       let answerCopy; answerCopy = button(w.copy, 'io-answer-copy', () => { void copy(answerCopy, output, w.copy, copyOptions()); }); answerCopy.disabled = !output || Boolean(task.detailsTruncated);
-      toolbar.append(modes, answerCopy); article.append(toolbar);
+      const fontControls = h('div', 'io-font-controls'), smaller = button('A−', 'io-font-down', () => resizeText(-2, fontForView())), larger = button('A+', 'io-font-up', () => resizeText(2, fontForView()));
+      fontControls.append(smaller, h('span', 'io-font-size'), larger); toolbar.append(modes, fontControls, answerCopy); article.append(toolbar);
       if (task.detailsTruncated) article.append(h('p', 'io-preview-note', w.preview));
       const reading = h('div', 'io-reading'), rawView = h('div', 'io-raw-view'); rawView.hidden = true;
       let rawBuilt = false;
@@ -234,10 +258,11 @@
       previous = { language, provider, prompt: task.prompt, output: task.output, status: task.status, error: task.error, truncated: task.detailsTruncated, modelId: task.modelId, reportedModel: task.reportedModel, detailsKey, logsKey };
       const desired = [request, response, metadata, logs];
       if (desired.some((node, index) => element.children[index] !== node)) element.replaceChildren(...desired);
+      applyFont();
       expandedView?.update(value);
       if (dialog) { dialog.setAttribute('aria-label', words(language).answer); dialog.querySelector('.io-dialog-heading strong').textContent = task.title || words(language).answer; dialog.querySelector('.io-dialog-close').textContent = words(language).close; }
     }
-    return { element, update, destroy() { closeDialog(); element.remove(); previous = null; } };
+    return { element, update, openFull: expand, expand, destroy() { closeDialog(); readers.delete(reader); element.remove(); previous = null; } };
   }
   window.ImperiumOutput = Object.freeze({ create, renderMarkdown, safeLink });
 }());

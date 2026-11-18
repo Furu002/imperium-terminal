@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="/live-progress.css">
   <link rel="stylesheet" href="/access-review.css">
   <link rel="stylesheet" href="/conversations.css">
+  <link rel="stylesheet" href="/collaboration.css">
   <script src="/vendor/xterm.js" defer></script>
   <script src="/vendor/xterm-addon-fit.js" defer></script>
   <script src="/workspace.js" defer></script>
@@ -37,6 +38,9 @@
   <script src="/analytics-charts.js" defer></script>
   <script src="/analytics.js" defer></script>
   <script src="/vendor/cytoscape.min.js" defer></script>
+  <script src="/vendor/layout-base.js" defer></script>
+  <script src="/vendor/cose-base.js" defer></script>
+  <script src="/vendor/cytoscape-fcose.js" defer></script>
   <script src="/knowledge-graph.js" defer></script>
   <script src="/knowledge.js" defer></script>
   <script src="/quotas.js" defer></script>
@@ -47,6 +51,7 @@
   <script src="/live-progress.js" defer></script>
   <script src="/access-review.js" defer></script>
   <script src="/conversations.js" defer></script>
+  <script src="/collaboration.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -65,6 +70,7 @@
         <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>NODES</span><kbd>F1</kbd></button>
         <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>OPERATIONS</span><kbd>F2</kbd></button>
         <button class="nav-button" data-view="chat" aria-label="대화 이어가기"><span class="nav-icon">▣</span><span>CHAT</span></button>
+        <button class="nav-button" data-view="collaboration" aria-label="협업 보드"><span class="nav-icon">⇄</span><span>TEAM</span></button>
         <button class="nav-button" data-view="departments" aria-label="F3 부서 관리"><span class="nav-icon">⌘</span><span>DEPARTMENTS</span><kbd>F3</kbd></button>
         <button class="nav-button" data-view="logs" aria-label="F4 활동 로그"><span class="nav-icon">›_</span><span>ACTIVITY</span><kbd>F4</kbd></button>
         <button class="nav-button" data-view="accounts" aria-label="F5 AI 계정"><span class="nav-icon">⌁</span><span>AI ACCOUNTS</span><kbd>F5</kbd></button>
@@ -98,6 +104,7 @@
       <section id="analytics-section" class="extension-section"></section>
       <section id="knowledge-section" class="extension-section"></section>
       <section id="conversations-section" class="extension-section"></section>
+      <section id="collaboration-section" class="extension-section"></section>
       <section class="organization-panel" id="organization-section" aria-labelledby="organization-title">
         <div class="org-toolbar"><div class="org-heading-copy"><h2 class="org-title" id="organization-title">조직 연결 현황</h2><p class="org-subtitle">본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.</p></div><div class="org-summary" id="org-summary" aria-label="조직 현황 요약"></div></div>
         <div class="org-chart-root" id="org-chart-root"></div>

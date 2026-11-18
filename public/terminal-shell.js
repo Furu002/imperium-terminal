@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   const VIEWS = [
+    ['collaboration', 'TEAM', '', '협업 보드', 'Collaboration', 'コラボレーション'],
     ['overview', 'NODES', 'F1', '조직도', 'Nodes', 'ノード'], ['operations', 'TASK', 'F2', '작업', 'Tasks', 'タスク'],
     ['departments', 'AGENT', 'F3', '에이전트', 'Agents', 'エージェント'], ['logs', 'LOG', 'F4', '활동', 'Activity', 'ログ'],
     ['accounts', 'ACCOUNT', 'F5', 'AI 계정', 'Accounts', 'AIアカウント'], ['terminal', 'TERM', 'F6', '터미널', 'Terminal', 'ターミナル'],
@@ -57,7 +58,7 @@
     if (lastLanguage !== language) {
       lastLanguage = language; input.setAttribute('aria-label', tr('command')); input.placeholder = tr('placeholder'); form.querySelector('.terminal-go').textContent = `${tr('go')} ↵`; form.querySelector('.terminal-help-button').title = tr('help');
       keys.replaceChildren(...VIEWS.map(row => h('button', { type: 'button', 'data-function-view': row[0], onclick: () => navigate(row[0]) }, h('kbd', {}, row[2]), label(row))), h('button', { type: 'button', onclick: () => callbacks.onSettings?.() }, h('kbd', {}, 'F8'), tr('settings')));
-      tabs.replaceChildren(h('button', { type: 'button', 'data-terminal-view': 'chat', onclick: () => navigate('chat') }, 'CHAT'), ...VIEWS.filter(row => ['overview', 'operations', 'knowledge', 'terminal', 'analytics', 'projects'].includes(row[0])).map(row => h('button', { type: 'button', 'data-terminal-view': row[0], onclick: () => navigate(row[0]) }, row[1])));
+      tabs.replaceChildren(h('button', { type: 'button', 'data-terminal-view': 'chat', onclick: () => navigate('chat') }, 'CHAT'), ...VIEWS.filter(row => ['overview', 'operations', 'collaboration', 'knowledge', 'terminal', 'analytics', 'projects'].includes(row[0])).map(row => h('button', { type: 'button', 'data-terminal-view': row[0], onclick: () => navigate(row[0]) }, row[1])));
       help.setAttribute('aria-label', tr('help')); help.replaceChildren(h('div', { class: 'terminal-help-heading' }, h('strong', {}, tr('help')), h('button', { type: 'button', onclick: () => toggleHelp(false), 'aria-label': tr('close') }, '×')), ...VIEWS.map(row => h('button', { type: 'button', onclick: () => { toggleHelp(false); navigate(row[0]); } }, h('code', {}, row[1]), `${row[2]} · ${label(row)}`)), h('p', {}, tr('find')), h('p', {}, tr('task')), h('p', { class: 'terminal-help-note' }, tr('notice')));
     }
     host.querySelectorAll('[data-terminal-view],[data-function-view]').forEach(el => { const active = (el.dataset.terminalView || el.dataset.functionView) === view; el.classList.toggle('active', active); if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current'); });

@@ -162,8 +162,8 @@ test('MCP exposes read-only tools and scopes HTTP through an opaque header, neve
   const initialize = await server.handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', clientInfo: { name: 'offline-test', version: '1' }, capabilities: {} } });
   assert.equal(initialize.result.protocolVersion, '2025-06-18');
   const listed = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(listed.result.tools.map(tool => tool.name), ['memory_search', 'memory_get', 'memory_list']);
-  assert.ok(listed.result.tools.every(tool => tool.annotations.readOnlyHint && !tool.annotations.destructiveHint));
+  assert.deepEqual(listed.result.tools.map(tool => tool.name), ['memory_search', 'memory_get', 'memory_list', 'peer_tasks_list', 'peer_task_get', 'artifact_publish', 'artifact_list', 'artifact_get']);
+  assert.ok(listed.result.tools.every(tool => tool.annotations.readOnlyHint === (tool.name !== 'artifact_publish') && !tool.annotations.destructiveHint && tool.annotations.idempotentHint));
   const searched = await server.handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'memory_search', arguments: { query: '작업 원칙', limit: 2 } } });
   assert.equal(searched.result.isError, false);
   assert.equal(calls[0].url, 'http://127.0.0.1:4310/api/agent-memory/search');

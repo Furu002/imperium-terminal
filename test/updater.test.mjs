@@ -183,7 +183,7 @@ test('startup check configures the updater safely and reports current only on a 
   assert.equal(state.notice, 'windows-unsigned');
   assert.equal(timers.intervals.length, 1);
   assert.equal(timers.intervals[0].ms, CHECK_INTERVAL_MS);
-  assert.equal(CHECK_INTERVAL_MS, 30 * 60 * 1000);
+  assert.equal(CHECK_INTERVAL_MS, 5 * 60 * 1000);
   assert.equal(timers.intervals[0].unrefed, true);
   for (const s of sent) assert.ok(STATUSES.includes(s.status));
 });
@@ -342,7 +342,7 @@ test('manual checks are rate limited and de-duplicated; renderer arguments are i
   assert.equal(fake.downloads, 0);
 });
 
-test('the 30-minute schedule checks again and pauses while an update is downloaded', async () => {
+test('the 5-minute schedule checks again and pauses while an update is downloaded', async () => {
   const { updater, fake, timers } = harness({ onCheck: available({ version: '1.2.0' }) });
   await flush();
   assert.equal(fake.checks, 1);

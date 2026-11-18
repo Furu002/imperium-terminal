@@ -803,3 +803,18 @@ dialog::backdrop, .iw-memory-dialog::backdrop, .ia-wizard::backdrop { background
   .metric, .feed-entry, .iw-node, .ip-tile, .iq-meter-fill,
   .operation-progress-track > span, .iw-progress-fill { animation: none; transition: none; }
 }
+
+/* Fit the application frame to the window; working surfaces own their scroll. */
+html,body{width:100%;height:100%;overflow:hidden}
+.app-shell{height:100dvh;min-height:0;min-width:0;overflow:hidden}
+.app-shell>.sidebar{min-height:0!important;height:100%;overflow-y:auto;overflow-x:hidden}
+.app-shell>.main-content{min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain}
+.main-content>.extension-section{min-width:0}
+.topbar,.statusbar{min-width:0}
+.statusbar>div{overflow:hidden;white-space:nowrap}
+#terminal-section{min-height:0}
+#settings-dialog,#department-dialog,.ia-wizard,.ik-create-dialog,.iw-memory-dialog{max-width:96vw;max-height:90dvh;overflow:auto;margin:auto}
+#settings-dialog{width:min(1100px,96vw)}
+#settings-dialog>.dialog-heading{position:sticky;top:0;z-index:2}
+.settings-dialog .dialog-body,.department-dialog .dialog-body{min-width:0;overflow-wrap:anywhere}
+.settings-dialog .text-input,.department-dialog .text-input{max-width:100%;min-width:0}

@@ -40,6 +40,9 @@
   let graph = { nodes: [], edges: [] }, memories = [], memoryLoaded = false, project = null, loaded = false, loading = false, dirty = false, saving = false, errorMessage = '';
   let selected = null, pendingSource = null, drag = null, zoom = 1, pan = { x: 0, y: 0 }, saveTimer, progressTimer, requestGeneration = 0, inspectorSignature = '', loadedGraphHash = '', savingPromise = Promise.resolve(true);
   let agentExecutionControls, removalDialog;
+  const workflowDrafts = new Map();
+  Object.assign(WORDS.en, { '협업 보드': 'Collaboration board', '연결 에이전트 실행': 'Run connected agents', '실행 대상': 'Agents to run', '시작 에이전트': 'Starting agent', '파일 수정은 접근 설정과 모든 대상 모델이 허용할 때만 선택할 수 있습니다.': 'File edits can be enabled only when the access policy and every target provider allow them.', '실행 불가': 'Not ready', '그래프 저장이 끝난 뒤 다시 실행하세요.': 'Wait for graph changes to be saved, then run again.' });
+  Object.assign(WORDS.ja, { '협업 보드': '共同作業ボード', '연결 에이전트 실행': '接続したエージェントを実行', '실행 대상': '実行対象', '시작 에이전트': '開始エージェント', '파일 수정은 접근 설정과 모든 대상 모델이 허용할 때만 선택할 수 있습니다.': 'アクセス設定とすべての対象モデルが許可する場合のみ、ファイル編集を有効にできます。', '실행 불가': '実行不可', '그래프 저장이 끝난 뒤 다시 실행하세요.': 'グラフの保存が完了してから再実行してください。' });
   Object.assign(WORDS.en, { '에이전트 제거': 'Remove agent', '에이전트 등록과 캔버스 노드가 제거됩니다. 대화·작업·기억은 보존되며 계정에서 로그아웃하지 않습니다.': 'Removes the registered agent and its canvas nodes. Conversations, tasks and memories are retained. The account stays signed in.', '실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.': 'Wait for this agent’s running and queued tasks to finish before removing it.', '취소': 'Cancel', '제거 확인': 'Confirm removal', '에이전트를 제거했습니다.': 'Agent removed.', '모델 연결 등록을 제거하려면 AI 계정 화면을 여세요.': 'Open AI accounts to remove a registered model connection.' });
   Object.assign(WORDS.ja, { '에이전트 제거': 'エージェントを削除', '에이전트 등록과 캔버스 노드가 제거됩니다. 대화·작업·기억은 보존되며 계정에서 로그아웃하지 않습니다.': 'エージェント登録とキャンバスのノードを削除します。会話・タスク・記憶は保持し、アカウントからログアウトしません。', '실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.': '実行中・待機中のタスクが終了してから削除できます。', '취소': 'キャンセル', '제거 확인': '削除を確認', '에이전트를 제거했습니다.': 'エージェントを削除しました。', '모델 연결 등록을 제거하려면 AI 계정 화면을 여세요.': 'モデル接続の登録を削除するにはAIアカウント画面を開いてください。' });
   const tr = key => WORDS[options.language]?.[key] ?? key;
@@ -209,6 +212,7 @@
         h('button', { type: 'button', 'data-iw-action': 'arrange', onclick: arrangeCurrent }, tr('자동 배치')),
         h('button', { type: 'button', 'data-iw-action': 'add-node', class: 'iw-accent-button', onclick: openNodeLibrary }, '+ ', tr('노드 추가')),
         h('button', { type: 'button', 'data-iw-action': 'add-memory', class: 'iw-accent-button', onclick: openMemoryDialog }, '+ ', tr('기억 추가')),
+        h('button', { type: 'button', 'data-iw-action': 'collaboration', onclick: () => options.onOpenCollaboration?.() }, tr('협업 보드')),
         h('button', { type: 'button', 'data-iw-action': 'assign', onclick: () => { const item = graph.nodes.find(value => value.id === selected?.id); if (item?.type === 'department' && !isDisabled(item)) options.onAssignDepartment?.(item.referenceId); else announce(tr(item && isDisabled(item) ? '로컬 전용 모드에서 비활성화됨' : '선택한 부서가 없습니다.'), true); } }, tr('선택 부서 지시'))));
     const ready = online() ? (state.providers || []).filter(provider => provider.status === 'ready').length : 0;
     footer.replaceChildren(h('span', { class: 'iw-hint' }, tr('휠: 이동 · Ctrl+휠: 확대 · 빈 공간 드래그: 이동')), h('span', { class: 'iw-counts' }, `${ready}/${allProviders().length} ${tr('모델')} · ${(state.departments || []).length} ${tr('부서 역할')} · ${graph.edges.length} ${tr('연결')}`), label);
@@ -462,12 +466,19 @@
     return form;
   }
   function field(labelText, input) { return h('label', { class: 'iw-field' }, h('span', {}, labelText), input); }
+  function workflowTargets(item) {
+    const included = new Set([item.id]), pending = [item.id];
+    while (pending.length) { const source = pending.shift(); for (const edge of graph.edges) if (edge.type === 'handoff' && edge.source === source && !included.has(edge.target)) { included.add(edge.target); pending.push(edge.target); } }
+    return [...included].map(id => graph.nodes.find(node => node.id === id)).filter(node => node?.type === 'department').map(node => ({ node, department: deptFor(node) })).filter(value => value.department);
+  }
+  const workflowProvider = department => state.connections?.find(connection => connection.id === department.connectionId)?.providerId || department.provider;
+  function workflowBlocked(targets) { return !targets.length || !online() || targets.some(({ node, department }) => isDisabled(node) || department.connectionId && !state.connections?.some(connection => connection.id === department.connectionId) || !state.providers?.some(provider => provider.id === workflowProvider(department) && provider.status === 'ready' && provider.authenticated !== false)); }
   function renderInspector(force = false) {
     if (!inspector) return;
     if (!force && inspector.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const item = selected?.kind === 'node' ? graph.nodes.find(value => value.id === selected.id) : null;
     const edge = selected?.kind === 'edge' ? graph.edges.find(value => value.id === selected.id) : null;
-    const signature = JSON.stringify([selected, options.language, item && statusFor(item), item?.type === 'commander' && identity(), item?.type === 'department' && [deptFor(item), progressTask(item.referenceId)], item?.type === 'memory' && memoryFor(item), edge]);
+    const signature = JSON.stringify([selected, options.language, item && statusFor(item), item?.type === 'commander' && identity(), item?.type === 'department' && [deptFor(item), progressTask(item.referenceId), graph.edges, state.providers, state.settings?.accessPolicy], item?.type === 'memory' && memoryFor(item), edge]);
     if (!force && signature === inspectorSignature) return;
     inspectorSignature = signature;
     inspector.replaceChildren(h('div', { class: 'iw-inspector-heading' }, tr('노드 검사기')));
@@ -486,9 +497,24 @@
       body.append(h('button', { type: 'button', class: 'iw-danger-button', 'data-iw-action': 'remove-agent', disabled: busy, onclick: () => confirmAgentRemoval(dept) }, tr('에이전트 제거')));
       if (busy) body.append(h('p', { class: 'iw-inspector-note', 'data-iw-removal-blocked': dept.id }, tr('실행·대기 중인 작업이 끝난 뒤 에이전트를 제거할 수 있습니다.')));
       const formWorkspace = project;
-      const form = h('form', { class: 'iw-workflow-form' }), prompt = h('textarea', { rows: '4', maxlength: '12000', placeholder: tr('연결된 부서에 순서대로 전달할 목표를 작성하세요.'), required: '', 'aria-label': tr('워크플로 지시') }), permission = h('input', { type: 'checkbox' }), submit = h('button', { type: 'submit', class: 'iw-workflow-run', disabled: isDisabled(item) }, tr('연결된 흐름 실행'));
-      form.append(field(tr('워크플로 지시'), prompt), h('label', { class: 'iw-checkbox' }, permission, tr('파일 수정 허용')), h('p', { class: 'iw-inspector-note' }, tr('연결만으로 작업이 실행되지는 않습니다.')), submit);
-      form.addEventListener('submit', async event => { event.preventDefault(); if (!prompt.value.trim() || isDisabled(item)) return; submit.disabled = true; try { if (!await persist()) throw new Error(errorMessage || tr('저장 실패')); if (formWorkspace !== project) return; await request('/api/workflows/run', 'POST', { departmentId: dept.id, prompt: prompt.value.trim(), permission: permission.checked ? 'workspace-write' : 'read-only', priority: 'normal' }, formWorkspace); if (formWorkspace !== project) return; prompt.value = ''; announce(tr('워크플로를 시작했습니다.')); } catch (error) { announce(error.message, true); } finally { submit.disabled = isDisabled(item); } });
+      const targets = workflowTargets(item), blocked = workflowBlocked(targets), draftKey = `${project}\n${dept.id}`, canWrite = state.settings?.accessPolicy !== 'read-only' && targets.every(value => ['codex', 'claude'].includes(workflowProvider(value.department)));
+      const form = h('form', { class: 'iw-workflow-form' }), prompt = h('textarea', { rows: '4', maxlength: '12000', placeholder: tr('연결된 부서에 순서대로 전달할 목표를 작성하세요.'), required: '', 'aria-label': tr('워크플로 지시') }), permission = h('input', { type: 'checkbox', disabled: !canWrite }), submit = h('button', { type: 'submit', class: 'iw-workflow-run', disabled: blocked }, tr('연결 에이전트 실행'));
+      prompt.value = workflowDrafts.get(draftKey) || ''; prompt.addEventListener('input', () => workflowDrafts.set(draftKey, prompt.value));
+      form.append(h('p', { class: 'iw-inspector-note' }, tr('시작 에이전트'), ': ', deptName(dept)), h('strong', {}, tr('실행 대상'), ` · ${targets.length}`), h('ul', { class: 'iw-workflow-targets' }, ...targets.map(({ node, department }) => h('li', { 'data-workflow-agent': department.id }, `${deptName(department)} · ${providerLabel(workflowProvider(department))} · ${statusFor(node).text}`, ...(department.role ? [h('small', {}, ' — ', common(department.role))] : [])))), field(tr('워크플로 지시'), prompt), h('label', { class: 'iw-checkbox' }, permission, tr('파일 수정 허용')), h('p', { class: 'iw-inspector-note' }, tr('파일 수정은 접근 설정과 모든 대상 모델이 허용할 때만 선택할 수 있습니다.')), h('p', { class: 'iw-inspector-note' }, tr('연결만으로 작업이 실행되지는 않습니다.')), ...(blocked ? [h('p', { class: 'iw-error', 'data-workflow-blocked': '' }, tr('실행 불가'), ': ', targets.filter(value => workflowBlocked([value])).map(value => deptName(value.department)).join(', ') || tr('오프라인'))] : []), submit);
+      form.addEventListener('submit', async event => {
+        event.preventDefault(); const command = prompt.value.trim(); if (!command || workflowBlocked(workflowTargets(item))) return; workflowDrafts.set(draftKey, prompt.value); submit.disabled = true;
+        try {
+          for (let attempt = 0; attempt < 3; attempt++) { if (!await persist()) throw new Error(errorMessage || tr('저장 실패')); if (!dirty && !saving) break; }
+          if (formWorkspace !== project) return;
+          if (dirty || saving) throw new Error(tr('그래프 저장이 끝난 뒤 다시 실행하세요.'));
+          const current = workflowTargets(item); if (workflowBlocked(current)) throw new Error(tr('실행 불가'));
+          const editAllowed = state.settings?.accessPolicy !== 'read-only' && current.every(value => ['codex', 'claude'].includes(workflowProvider(value.department)));
+          await request('/api/workflows/run', 'POST', { departmentId: dept.id, prompt: command, permission: permission.checked && editAllowed ? 'workspace-write' : 'read-only', priority: 'normal' }, formWorkspace);
+          if (formWorkspace !== project) return;
+          if (prompt.value.trim() === command) { prompt.value = ''; workflowDrafts.delete(draftKey); } announce(tr('워크플로를 시작했습니다.'));
+        } catch (error) { if (formWorkspace === project) announce(error.message, true); }
+        finally { if (formWorkspace === project) submit.disabled = workflowBlocked(workflowTargets(item)); }
+      });
       body.append(form);
     } else if (item.type === 'provider') body.append(h('span', { class: 'iw-inspector-kind' }, 'PROVIDER / OFFICIAL CLI'), h('h3', {}, providerLabel(item.referenceId)), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, tr('모델은 각 운영체제 사용자 계정의 공식 CLI 로그인을 사용합니다.')), h('button', { type: 'button', class: 'iw-accent-button', onclick: () => options.onOpenSettings?.() }, tr('연결 관리')), h('p', { class: 'iw-inspector-note' }, tr('모델 연결 등록을 제거하려면 AI 계정 화면을 여세요.')));
     else if (item.type === 'commander') {

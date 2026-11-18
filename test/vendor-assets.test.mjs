@@ -15,6 +15,9 @@ test('graph vendors ship unchanged and load before adapters through the local al
   const index = await (await fetch(url)).text();
   for (const [route, file, adapter, consumer] of [
     ['/vendor/cytoscape.min.js', 'cytoscape/dist/cytoscape.min.js', '/knowledge-graph.js', '/knowledge.js'],
+    ['/vendor/layout-base.js', 'layout-base/layout-base.js', '/vendor/cose-base.js', '/vendor/cytoscape-fcose.js'],
+    ['/vendor/cose-base.js', 'cose-base/cose-base.js', '/vendor/cytoscape-fcose.js', '/knowledge-graph.js'],
+    ['/vendor/cytoscape-fcose.js', 'cytoscape-fcose/cytoscape-fcose.js', '/knowledge-graph.js', '/knowledge.js'],
     ['/vendor/chart.umd.js', 'chart.js/dist/chart.umd.js', '/analytics-charts.js', '/analytics.js'],
   ]) {
     const response = await fetch(url + route);
@@ -26,14 +29,21 @@ test('graph vendors ship unchanged and load before adapters through the local al
     assert.equal((await fetch(url + adapter)).status, 200);
   }
   assert.doesNotMatch(index, /<script[^>]+src=["']https?:/);
-  for (const feature of ['output-view', 'provider-mascots', 'live-progress', 'access-review', 'conversations']) {
+  for (const feature of ['output-view', 'provider-mascots', 'live-progress', 'access-review', 'conversations', 'collaboration']) {
     assert.equal((await fetch(`${url}/${feature}.js`)).status, 200);
     assert.equal((await fetch(`${url}/${feature}.css`)).status, 200);
     assert.ok(index.indexOf(`src="/${feature}.js"`) < index.indexOf('src="/app.js"'));
   }
   assert.equal((await fetch(url + '/vendor/cytoscape/package.json')).status, 404);
   assert.equal((await fetch(url + '/vendor/chart.js.map')).status, 404);
-  for (const [original, shipped] of [['cytoscape/LICENSE', 'cytoscape-LICENSE.txt'], ['chart.js/LICENSE.md', 'chartjs-LICENSE.txt']]) {
+  for (const provider of ['codex', 'claude', 'gemini', 'copilot', 'ollama']) {
+    const response = await fetch(`${url}/model-icons/${provider}.svg`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /image\/svg\+xml/);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), await readFile(new URL(`../public/model-icons/${provider}.svg`, import.meta.url)));
+  }
+  assert.equal((await fetch(url + '/model-icons/NOTICE')).status, 404);
+  for (const [original, shipped] of [['cytoscape/LICENSE', 'cytoscape-LICENSE.txt'], ['chart.js/LICENSE.md', 'chartjs-LICENSE.txt'], ...['cytoscape-fcose', 'cose-base', 'layout-base'].map(name => [name + '/LICENSE', name + '-LICENSE.txt'])]) {
     // Git checkouts can convert text licenses to CRLF on Windows. Preserve and
     // compare every character of the notice while allowing that text encoding.
     const originalNotice = await readFile(new URL('../node_modules/' + original, import.meta.url), 'utf8');

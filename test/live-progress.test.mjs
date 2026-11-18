@@ -23,7 +23,7 @@ test('the compact panel mounts after account quotas only for real active tasks i
     assert.equal(root.hidden, true);
     ui.render(state([task('real'), task('queue', { status: 'queued' }), task('demo', { demo: true }), task('finished', { status: 'completed' }), task('foreign', { workspace: 'C:\\Projects\\Foreign' }), task('legacy', { workspace: undefined })]));
     assert.equal(root.hidden, false);
-    assert.equal(root.querySelector('details').open, true);
+    assert.equal(root.querySelector('details').open, false);
     assert.equal(root.querySelectorAll('.lp-task').length, 2);
     assert.match(root.textContent, /Actual project/);
     assert.match(root.textContent, /Engineering.*real-model.*high.*fast/);

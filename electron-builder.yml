@@ -11,7 +11,7 @@ forceCodeSigning: false
 publish:
   provider: github
   owner: Furu002
-  repo: imperium-releases
+  repo: imperium-terminal
   releaseType: draft
 artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
 
