@@ -34,6 +34,10 @@ test('graph vendors ship unchanged and load before adapters through the local al
   assert.equal((await fetch(url + '/vendor/cytoscape/package.json')).status, 404);
   assert.equal((await fetch(url + '/vendor/chart.js.map')).status, 404);
   for (const [original, shipped] of [['cytoscape/LICENSE', 'cytoscape-LICENSE.txt'], ['chart.js/LICENSE.md', 'chartjs-LICENSE.txt']]) {
-    assert.deepEqual(await readFile(new URL('../node_modules/' + original, import.meta.url)), await readFile(new URL('../public/licenses/' + shipped, import.meta.url)));
+    // Git checkouts can convert text licenses to CRLF on Windows. Preserve and
+    // compare every character of the notice while allowing that text encoding.
+    const originalNotice = await readFile(new URL('../node_modules/' + original, import.meta.url), 'utf8');
+    const shippedNotice = await readFile(new URL('../public/licenses/' + shipped, import.meta.url), 'utf8');
+    assert.equal(originalNotice.replace(/\r\n/g, '\n'), shippedNotice.replace(/\r\n/g, '\n'));
   }
 });
