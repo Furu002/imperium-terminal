@@ -3,7 +3,22 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import path from 'node:path';
-import { createEventParser, createJsonLineReader, createProviderRunner, providerArguments, subscriptionEnvironment } from '../lib/providers.mjs';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { createEventParser, createJsonLineReader, createProviderRunner, providerArguments, subscriptionEnvironment, locateProvider } from '../lib/providers.mjs';
+
+test('current Claude npm packages resolve both native binaries and the modern wrapper', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'imperium-provider-'));
+  t.after(async () => { if (!path.resolve(root).startsWith(path.join(path.resolve(tmpdir()), 'imperium-provider-'))) throw new Error('Unexpected test path'); await rm(root, { recursive: true, force: true }); });
+  const packageRoot = path.join(root, 'node_modules', '@anthropic-ai', 'claude-code');
+  await mkdir(path.join(packageRoot, 'bin'), { recursive: true });
+  const wrapper = path.join(packageRoot, 'cli-wrapper.cjs');
+  await writeFile(wrapper, '// test fixture');
+  assert.deepEqual(await locateProvider('claude', { searchDirectories: [root], platform: 'win32' }), { command: process.execPath, prefix: [wrapper] });
+  const native = path.join(packageRoot, 'bin', 'claude.exe');
+  await writeFile(native, 'test fixture');
+  assert.deepEqual(await locateProvider('claude', { searchDirectories: [root], platform: 'win32' }), { command: native, prefix: [] });
+});
 
 test('subscription environment removes keys without changing the parent environment', () => {
   const env = { PATH: '/bin', OPENAI_API_KEY: 'secret', anthropic_api_key: 'secret', CLAUDE_CODE_OAUTH_TOKEN: 'secret', OPENAI_BASE_URL: 'https://example.test', KEEP: 'yes' };
