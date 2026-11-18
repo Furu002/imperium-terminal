@@ -1,10 +1,18 @@
 appId: com.imperium.terminal
 productName: Imperium
 asar: true
+asarUnpack:
+  - node_modules/@lydell/**/*
+  - lib/memory-mcp.mjs
 compression: normal
 npmRebuild: false
+beforePack: scripts/before-pack.cjs
 forceCodeSigning: false
-publish: null
+publish:
+  provider: github
+  owner: Furu002
+  repo: imperium-releases
+  releaseType: draft
 artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
 
 directories:

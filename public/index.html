@@ -9,6 +9,17 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/organization.css">
+  <link rel="stylesheet" href="/workspace.css">
+  <link rel="stylesheet" href="/accounts.css">
+  <link rel="stylesheet" href="/vendor/xterm.css">
+  <link rel="stylesheet" href="/terminal-pane.css">
+  <link rel="stylesheet" href="/updates.css">
+  <script src="/vendor/xterm.js" defer></script>
+  <script src="/vendor/xterm-addon-fit.js" defer></script>
+  <script src="/workspace.js" defer></script>
+  <script src="/accounts.js" defer></script>
+  <script src="/terminal-pane.js" defer></script>
+  <script src="/updates.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -28,6 +39,9 @@
         <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>OPERATIONS</span><kbd>F2</kbd></button>
         <button class="nav-button" data-view="departments" aria-label="F3 부서 관리"><span class="nav-icon">⌘</span><span>DEPARTMENTS</span><kbd>F3</kbd></button>
         <button class="nav-button" data-view="logs" aria-label="F4 활동 로그"><span class="nav-icon">›_</span><span>ACTIVITY</span><kbd>F4</kbd></button>
+        <button class="nav-button" data-view="accounts" aria-label="F5 AI 계정"><span class="nav-icon">⌁</span><span>AI ACCOUNTS</span><kbd>F5</kbd></button>
+        <button class="nav-button" data-view="terminal" aria-label="F6 터미널"><span class="nav-icon">▸_</span><span>TERMINAL</span><kbd>F6</kbd></button>
+        <button class="nav-button" data-view="updates" aria-label="F7 업데이트"><span class="nav-icon">↻</span><span>UPDATES</span><kbd>F7</kbd></button>
       </div>
       <div class="sidebar-bottom"><button class="nav-button" id="nav-settings" aria-label="F8 연결 및 설정"><span class="nav-icon">⚙</span><span>SETTINGS</span><kbd>F8</kbd></button><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.1</b></span></div>
     </aside>
@@ -44,6 +58,10 @@
 
       <div id="offline-banner" class="notice notice-warning" hidden><span>!</span><div><strong>서버 연결이 끊겼습니다.</strong> 자동으로 다시 연결하고 있습니다. 새 지시는 연결 후 보낼 수 있습니다.</div></div>
 
+      <div id="node-workspace"></div>
+      <section id="accounts-section" class="extension-section"></section>
+      <section id="terminal-section" class="extension-section"></section>
+      <section id="updates-section" class="extension-section"></section>
       <section class="organization-panel" id="organization-section" aria-labelledby="organization-title">
         <div class="org-toolbar"><div class="org-heading-copy"><h2 class="org-title" id="organization-title">조직 연결 현황</h2><p class="org-subtitle">본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.</p></div><div class="org-summary" id="org-summary" aria-label="조직 현황 요약"></div></div>
         <div class="org-chart-root" id="org-chart-root"></div>
@@ -83,5 +101,6 @@
 
   <dialog id="department-dialog" class="department-dialog"><div class="dialog-heading"><div><span class="eyebrow">ORGANIZATION SETTINGS</span><h2>부서 편집</h2></div><button class="icon-button dialog-close" data-close="department-dialog" aria-label="부서 편집 닫기">×</button></div><form id="department-form" class="dialog-body"><input type="hidden" id="edit-department-id"><label class="settings-label" for="edit-department-name">부서 이름</label><input id="edit-department-name" class="text-input" maxlength="24" required><label class="settings-label" for="edit-department-provider">담당 모델</label><select id="edit-department-provider" class="text-input"><option value="codex">ChatGPT / Codex</option><option value="claude">Claude Code</option></select><label class="settings-label" for="edit-department-role">역할과 업무 지침</label><textarea id="edit-department-role" class="text-input" rows="5" maxlength="1500" required></textarea><p class="field-help">부서의 역할은 앞으로 보내는 모든 작업의 지시에 함께 전달됩니다.</p><p id="department-error" class="form-error" role="alert" hidden></p><div class="settings-actions"><button class="button button-quiet" type="button" data-close="department-dialog">취소</button><button class="button button-primary" type="submit">부서 저장</button></div></form></dialog>
   <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+  <dialog id="export-dialog" class="department-dialog"><div class="dialog-heading"><h2>기록 내보내기</h2><button class="icon-button" data-close="export-dialog" aria-label="닫기">×</button></div><div class="dialog-body"><p class="settings-description">현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.</p><div class="settings-actions"><button class="button button-outline" id="export-json">JSON</button><button class="button button-primary" id="export-excel">Excel · .xlsx</button></div></div></dialog>
 </body>
 </html>

@@ -182,6 +182,17 @@ let feedPaused = false;
 let dispatchPending = false;
 let lastFeedSignature = '';
 let stream;
+let accountsMounted = false, terminalMounted = false, updatesMounted = false;
+Object.assign(TRANSLATIONS.en, {
+  'AI 계정': 'AI accounts', '각자의 계정으로 모델을 등록하고 연결하세요.': 'Register models with your own account.', '터미널': 'Terminal', '프로젝트 폴더의 실제 셸을 사용합니다.': 'Use an interactive shell in your project directory.', '업데이트': 'Updates', '새 버전을 확인하고 설치하세요.': 'Check for a new version and install it.',
+  '닫기': 'Close', '현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.': 'Export this project’s memory and all operation records. Shell content and login data are excluded.',
+  'F5 AI 계정': 'F5 AI accounts', 'F6 터미널': 'F6 Terminal', 'F7 업데이트': 'F7 Updates'
+});
+Object.assign(TRANSLATIONS.ja, {
+  'AI 계정': 'AIアカウント', '각자의 계정으로 모델을 등록하고 연결하세요.': '自分のアカウントでモデルを登録・接続します。', '터미널': 'ターミナル', '프로젝트 폴더의 실제 셸을 사용합니다.': 'プロジェクトフォルダーの対話型シェルを使用します。', '업데이트': 'アップデート', '새 버전을 확인하고 설치하세요.': '新しいバージョンを確認してインストールします。',
+  '닫기': '閉じる', '현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.': '現在のプロジェクトの記憶と全タスク履歴を書き出します。シェル内容とログイン情報は含みません。',
+  'F5 AI 계정': 'F5 AIアカウント', 'F6 터미널': 'F6 ターミナル', 'F7 업데이트': 'F7 アップデート'
+});
 
 // Capture original static text once so repeated language changes do not translate user content.
 const staticText = [];
@@ -271,11 +282,14 @@ function setConnected(value) {
   $('#dispatch-submit').disabled = !value || dispatchPending;
   $('.stream-status').style.opacity = value ? '' : '.45';
   renderOrganization();
+  renderExtensions();
 }
 
 function receiveState(incoming) {
   if (!incoming || !Array.isArray(incoming.tasks) || !Array.isArray(incoming.departments)) return;
+  const memoryChanged = incoming.memoryUpdatedAt && incoming.memoryUpdatedAt !== state.memoryUpdatedAt;
   state = { ...state, ...incoming };
+  if (memoryChanged) window.dispatchEvent(new CustomEvent('imperium:memory-changed'));
   if (!loadedServerLanguage) {
     loadedServerLanguage = true;
     if (!hasLocalLanguage && ['ko', 'en', 'ja'].includes(state.settings.language)) {
@@ -312,6 +326,7 @@ async function connect() {
 }
 
 function render() {
+  renderExtensions();
   renderOrganization();
   renderMetrics();
   renderDepartmentOptions();
@@ -322,6 +337,7 @@ function render() {
   $('#clear-demo-button').hidden = !state.tasks.some(task => task.demo);
   $('#workspace-path').textContent = state.settings.workspace || 'WORKSPACE —';
   $('#workspace-path').title = state.settings.workspace || t('작업 폴더');
+  $('.sidebar-version b').textContent = `v${state.server.version || '1.2.0'}`;
   $('#permission-description').textContent = t($('#write-permission').checked ? '파일 수정이 가능한 작업으로 실행합니다.' : '기본: 읽기 및 분석만');
   $('#prompt-count').textContent = `${num($('#dispatch-prompt').value.length)} / 12,000`;
 }
@@ -391,15 +407,17 @@ function renderMetrics() {
   $('#metric-running').textContent = String(running).padStart(2, '0');
   $('#metric-queued').textContent = String(queued).padStart(2, '0');
   $('#metric-completed').textContent = String(completed).padStart(2, '0');
-  $('#metric-providers').replaceChildren(String(ready), node('span', { class: 'metric-fraction' }, '/2'));
-  $('#connection-count').textContent = `${ready}/2`;
+  const totalProviders = state.providers.length || 2;
+  $('#metric-providers').replaceChildren(String(ready), node('span', { class: 'metric-fraction' }, `/${totalProviders}`));
+  $('#connection-count').textContent = `${ready}/${totalProviders}`;
   $('#metric-running-detail').textContent = running ? t('실행 중인 에이전트 {count}개', { count: running }) : t('지시를 기다리고 있습니다');
   $('#metric-completed-detail').textContent = t('전체 {count}건 중', { count: state.tasks.length });
-  $('#metric-providers-detail').textContent = t('연결 {ready} · 확인 필요 {missing}', { ready, missing: Math.max(0, 2 - ready) });
+  $('#metric-providers-detail').textContent = t('연결 {ready} · 확인 필요 {missing}', { ready, missing: Math.max(0, totalProviders - ready) });
   $('.metric-graphic.green-text').textContent = running ? '▂▄▃▆▅▇▄▆' : '▁▁▁▁▁▁▁▁';
 }
 
 function renderDepartmentOptions() {
+  renderConnectionOptions();
   const select = $('#dispatch-department');
   const selected = select.value;
   const signature = `${language}:${state.departments.map(dept => `${dept.id}:${dept.name}`).join('|')}`;
@@ -407,6 +425,23 @@ function renderDepartmentOptions() {
   select.dataset.signature = signature;
   select.replaceChildren(...state.departments.map(dept => node('option', { value: dept.id }, departmentName(dept))));
   if (state.departments.some(dept => dept.id === selected)) select.value = selected;
+}
+
+function connectionChoices(defaultOption = false) {
+  return [ ...(defaultOption ? [node('option', { value: '' }, t('부서 기본 모델'))] : []),
+    ...state.providers.map(p => node('option', { value: p.id }, p.name || providerName(p.id))),
+    ...(state.connections || []).map(c => node('option', { value: `connection:${c.id}` }, `${c.label}${c.modelId ? ` · ${c.modelId}` : ''}`)) ];
+}
+function renderConnectionOptions() {
+  const signature = JSON.stringify([language, state.providers.map(p => [p.id, p.name]), state.connections]);
+  const select = $('#dispatch-provider');
+  if (select.dataset.signature === signature) return;
+  const selected = select.value; select.dataset.signature = signature;
+  select.replaceChildren(...connectionChoices(true)); if ([...select.options].some(o => o.value === selected)) select.value = selected;
+}
+function selectedConnection(value) {
+  if (value.startsWith('connection:')) return { connectionId: value.slice(11) };
+  return value ? { provider: value } : {};
 }
 
 function renderDepartments() {
@@ -530,6 +565,11 @@ function renderInspector() {
   else result.append(node('p', { class: 'waiting-output' }, t(ACTIVE.has(task.status) ? '결과를 기다리는 중입니다…' : task.status === 'cancelled' ? '작업이 취소되었습니다.' : '아직 결과가 없습니다.')));
   if (task.error) result.append(node('p', { class: 'inspector-error' }, task.error));
   const parts = [meta, prompt, result];
+  if (task.memoryUsage) {
+    const m = task.memoryUsage;
+    const words = language === 'ja' ? ['参照記憶', '文脈文字', '追加検索'] : language === 'en' ? ['Memories used', 'context chars', 'extra lookups'] : ['참조한 기억', '문맥 문자', '추가 검색'];
+    parts.push(node('div', { class: 'inspector-memory' }, `${words[0]} ${m.selectedIds?.length || 0} · ${num(m.contextChars)} ${words[1]} / ${num(m.totalMemoryChars)} · ${words[2]} ${m.retrievals || 0}`));
+  }
   if (task.usage && (task.usage.inputTokens || task.usage.outputTokens)) parts.push(node('div', { class: 'inspector-usage' }, node('span', {}, t('입력 {count} 토큰', { count: num(task.usage.inputTokens) })), node('span', {}, t('출력 {count} 토큰', { count: num(task.usage.outputTokens) }))));
   if (task.status === 'failed') parts.push(node('div', { class: 'inspector-links' }, node('button', { class: 'text-button', type: 'button', onclick: openSettings }, t('연결 상태 확인'), ' ↗')));
   container.replaceChildren(...parts);
@@ -537,18 +577,41 @@ function renderInspector() {
 }
 
 function updateView(next) {
-  view = ['overview', 'operations', 'departments', 'logs'].includes(next) ? next : 'overview';
+  view = ['overview', 'operations', 'departments', 'logs', 'accounts', 'terminal', 'updates'].includes(next) ? next : 'overview';
   $('.app-shell').dataset.view = view;
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const content = {
     overview: ['AI ORGANIZATION', 'AI 조직도', '모델과 부서를 연결하고, 당신의 AI 조직을 지휘하세요.'],
     operations: ['OPERATIONS', '작업 관리', '부서별 작업을 확인하고 실행 결과를 검토하세요.'],
     departments: ['ORGANIZATION', '부서 관리', '부서의 역할과 담당 모델을 구성하세요.'],
-    logs: ['ACTIVITY STREAM', '활동 로그', '모든 부서의 실행 기록을 실시간으로 확인하세요.']
+    logs: ['ACTIVITY STREAM', '활동 로그', '모든 부서의 실행 기록을 실시간으로 확인하세요.'],
+    accounts: ['AI CONNECTIONS', 'AI 계정', '각자의 계정으로 모델을 등록하고 연결하세요.'],
+    terminal: ['INTERACTIVE SHELL', '터미널', '프로젝트 폴더의 실제 셸을 사용합니다.'],
+    updates: ['RELEASE CHANNEL', '업데이트', '새 버전을 확인하고 설치하세요.']
   }[view];
   $('#breadcrumb').textContent = content[0];
   $('#page-title').replaceChildren(t(content[1]), node('span', { class: 'title-cursor' }, '_'));
   $('#page-description').textContent = t(content[2]);
+  renderExtensions();
+}
+
+function renderExtensions() {
+  window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor });
+  if (state.server.csrfToken && window.ImperiumAccounts) {
+    if (!accountsMounted) {
+      accountsMounted = true;
+      window.ImperiumAccounts.mount($('#accounts-section'), { getState: () => state, api, onChanged: async () => { receiveState(await api('/api/state')); } });
+    }
+    window.ImperiumAccounts.render(state);
+  }
+  if (view === 'terminal' && window.ImperiumTerminal && !terminalMounted) {
+    terminalMounted = true;
+    window.ImperiumTerminal.mount($('#terminal-section'), { api, getState: () => state, language, autoStart: false });
+  }
+  if (terminalMounted) window.ImperiumTerminal.render(state);
+  if (view === 'updates' && window.ImperiumUpdates && !updatesMounted) {
+    updatesMounted = true; window.ImperiumUpdates.mount($('#updates-section'));
+  }
 }
 
 function renderProviders() {
@@ -581,7 +644,8 @@ function openSettings() {
 function openDepartmentEditor(dept) {
   $('#edit-department-id').value = dept.id;
   $('#edit-department-name').value = dept.name;
-  $('#edit-department-provider').value = dept.provider;
+  $('#edit-department-provider').replaceChildren(...connectionChoices());
+  $('#edit-department-provider').value = dept.connectionId ? `connection:${dept.connectionId}` : dept.provider;
   $('#edit-department-role').value = dept.role;
   $('#department-error').hidden = true;
   $('#department-dialog').showModal();
@@ -613,7 +677,8 @@ function updateClock() {
 function bindEvents() {
   $$('.nav-button[data-view]').forEach(button => button.addEventListener('click', () => updateView(button.dataset.view)));
   $('.brand').addEventListener('click', event => { event.preventDefault(); updateView('overview'); });
-  for (const id of ['#connections-button', '#settings-top', '#nav-settings', '#subscription-info']) $(id).addEventListener('click', openSettings);
+  for (const id of ['#settings-top', '#nav-settings']) $(id).addEventListener('click', openSettings);
+  for (const id of ['#connections-button', '#subscription-info']) $(id).addEventListener('click', () => updateView('accounts'));
   $$('[data-close]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.close)?.close()));
   $$('dialog').forEach(dialog => dialog.addEventListener('click', event => { if (event.target === dialog) { const bounds = dialog.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close(); } }));
   $$('.filter-tab').forEach(button => button.addEventListener('click', () => { currentFilter = button.dataset.filter; $$('.filter-tab').forEach(item => item.classList.toggle('active', item === button)); renderMissions(); }));
@@ -633,14 +698,15 @@ function bindEvents() {
     const departmentId = $('#dispatch-department').value;
     const department = state.departments.find(dept => dept.id === departmentId);
     if (!department) { toast(t('담당 부서를 선택해주세요.'), true); return; }
-    const provider = $('#dispatch-provider').value || department.provider;
+    const choice = selectedConnection($('#dispatch-provider').value);
+    const provider = choice.connectionId ? state.connections.find(c => c.id === choice.connectionId)?.providerId : choice.provider || department.provider;
     if (state.providers.find(item => item.id === provider)?.status !== 'ready') { toast(t('모델 연결을 먼저 확인해주세요.'), true); openSettings(); return; }
     dispatchPending = true;
     $('#dispatch-submit').disabled = true;
     $('#dispatch-submit').textContent = t('전송 중…');
     $('#dispatch-error').hidden = true;
     try {
-      const result = await api('/api/tasks', { method: 'POST', body: { prompt, departmentId, provider, priority: $('#dispatch-priority').value, permission: $('#write-permission').checked ? 'workspace-write' : 'read-only' } });
+      const result = await api('/api/tasks', { method: 'POST', body: { prompt, departmentId, ...choice, priority: $('#dispatch-priority').value, permission: $('#write-permission').checked ? 'workspace-write' : 'read-only' } });
       if (result.task) { selectedTaskId = result.task.id; if (!state.tasks.some(task => task.id === result.task.id)) state.tasks.unshift(result.task); }
       $('#dispatch-prompt').value = '';
       render();
@@ -661,7 +727,7 @@ function bindEvents() {
     const id = $('#edit-department-id').value;
     const button = $('#department-form button[type=submit]'); button.disabled = true; $('#department-error').hidden = true;
     try {
-      const result = await api(`/api/departments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { name: $('#edit-department-name').value.trim(), provider: $('#edit-department-provider').value, role: $('#edit-department-role').value.trim() } });
+      const result = await api(`/api/departments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { name: $('#edit-department-name').value.trim(), ...selectedConnection($('#edit-department-provider').value), role: $('#edit-department-role').value.trim() } });
       if (result.department) { const index = state.departments.findIndex(dept => dept.id === id); if (index >= 0) state.departments[index] = result.department; }
       render(); $('#department-dialog').close(); toast(t('부서 설정을 저장했습니다.'));
     } catch (error) { showFormError('#department-error', error); }
@@ -695,7 +761,8 @@ function bindEvents() {
     if (!feedPaused) { lastFeedSignature = ''; renderFeed(); $('#activity-feed').scrollTop = $('#activity-feed').scrollHeight; }
   });
   $('#copy-output').addEventListener('click', () => { const task = state.tasks.find(item => item.id === selectedTaskId); if (task?.output) copyText(task.output); });
-  $('#export-button').addEventListener('click', async () => {
+  $('#export-button').addEventListener('click', () => $('#export-dialog').showModal());
+  $('#export-json').addEventListener('click', async () => {
     try {
       const data = await api('/api/export');
       // Exporting records never embeds the per-process request token in a downloaded file.
@@ -705,10 +772,21 @@ function bindEvents() {
       document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast(t('기록을 내보냈습니다.'));
     } catch (error) { toast(`${t('요청을 처리하지 못했습니다.')} ${error.message}`, true); }
   });
+  $('#export-excel').addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/export.xlsx');
+      if (!response.ok) throw new Error(t('요청을 처리하지 못했습니다.'));
+      const url = URL.createObjectURL(await response.blob());
+      const link = node('a', { href: url, download: `imperium-${new Date().toISOString().slice(0, 10)}.xlsx` });
+      document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      $('#export-dialog').close(); toast(t('기록을 내보냈습니다.'));
+    } catch (error) { toast(error.message, true); }
+  });
+  window.addEventListener('imperium:terminal-command', () => updateView('terminal'));
   document.addEventListener('keydown', event => {
     const dialogOpen = $$('dialog').some(dialog => dialog.open);
     if (event.key === 'F8') { event.preventDefault(); if (!dialogOpen) openSettings(); return; }
-    const shortcuts = { F1: 'overview', F2: 'operations', F3: 'departments', F4: 'logs' };
+    const shortcuts = { F1: 'overview', F2: 'operations', F3: 'departments', F4: 'logs', F5: 'accounts', F6: 'terminal', F7: 'updates' };
     if (shortcuts[event.key]) { event.preventDefault(); if (!dialogOpen) updateView(shortcuts[event.key]); return; }
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !dialogOpen && document.activeElement === $('#dispatch-prompt')) { event.preventDefault(); $('#dispatch-form').requestSubmit(); return; }
     const editing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);

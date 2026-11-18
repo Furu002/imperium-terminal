@@ -163,7 +163,7 @@ test('dispatch sends the state CSRF token and requires an explicit selection for
   assert.equal(submits[0].headers['x-hq-token'], 'test-csrf-token');
   assert.equal(submits[0].headers['content-type'], 'application/json');
   assert.deepEqual(submits[0].body, {
-    prompt: '프로젝트 구조와 보완 사항을 분석해줘.', departmentId: 'strategy', provider: 'codex', priority: 'high', permission: 'read-only',
+    prompt: '프로젝트 구조와 보완 사항을 분석해줘.', departmentId: 'strategy', priority: 'high', permission: 'read-only',
   });
   assert.equal(prompt.value, '', 'successful dispatch clears the composer');
   assert.equal(document.querySelectorAll('#mission-rows tr').length, 1);

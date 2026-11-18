@@ -1,9 +1,12 @@
-const { app, BrowserWindow, Menu, dialog, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, nativeTheme, shell, ipcMain } = require('electron');
+const { createUpdater, registerUpdateIpc, createStateSender } = require('./updater.cjs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { randomBytes } = require('node:crypto');
 
 app.setName('Imperium');
-app.setAppUserModelId('com.imperium.terminal');
+if (process.platform === 'win32') app.setAppUserModelId('com.imperium.terminal');
+const privateSessionToken = randomBytes(32).toString('hex');
 
 let mainWindow = null;
 let terminalServer = null;
@@ -12,6 +15,7 @@ let quitting = false;
 let shutdownComplete = false;
 let menuLanguage = null;
 let menuTimer = null;
+let updater = null, removeUpdateIpc = null;
 
 const messages = {
   ko: {
@@ -57,6 +61,7 @@ const officialOrigins = new Set([
   'https://www.anthropic.com',
   'https://docs.anthropic.com',
   'https://support.anthropic.com',
+  'https://geminicli.com', 'https://docs.github.com', 'https://ollama.com', 'https://docs.ollama.com', 'https://nodejs.org',
 ]);
 
 function isLocalPage(value) {
@@ -152,6 +157,7 @@ async function createWindow() {
       webSecurity: true,
       allowRunningInsecureContent: false,
       webviewTag: false,
+      preload: path.join(app.getAppPath(), 'desktop', 'preload.cjs'),
     },
   });
 
@@ -172,6 +178,11 @@ async function createWindow() {
     callback(permission === 'clipboard-sanitized-write');
   });
   mainWindow.webContents.session.setPermissionCheckHandler((_contents, permission) => permission === 'clipboard-sanitized-write');
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: [`${terminalURL}/*`] }, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    if (details.webContentsId === mainWindow?.webContents.id && isLocalPage(details.url)) headers['X-IMPERIUM-Session'] = privateSessionToken;
+    callback({ requestHeaders: headers });
+  });
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => { mainWindow = null; });
   await mainWindow.loadURL(terminalURL);
@@ -186,9 +197,12 @@ async function startApplication() {
     dataDir: path.join(app.getPath('userData'), 'hq-data'),
     workspace: path.join(app.getPath('documents'), 'Imperium Workspace'),
     port: 0,
+    privateSessionToken,
   });
   const { url } = await terminalServer.start();
   terminalURL = url;
+  updater = createUpdater({ app, sendState: createStateSender(() => mainWindow), channel: { owner: 'Furu002', repo: 'imperium-releases' } });
+  removeUpdateIpc = registerUpdateIpc({ ipcMain, updater, getMainWindow: () => mainWindow, isTrustedURL: isLocalPage });
   installMenu();
   menuTimer = setInterval(installMenu, 1000);
   menuTimer.unref();
@@ -216,6 +230,7 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     quitting = true;
     clearInterval(menuTimer);
+    removeUpdateIpc?.(); updater?.dispose();
     Promise.resolve(terminalServer?.close())
       .catch((error) => console.error('[IMPERIUM] Shutdown:', error.message))
       .finally(() => {

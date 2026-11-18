@@ -1,0 +1,150 @@
+/* IMPERIUM terminal pane — black charcoal + orange. Requires /vendor/xterm.css. */
+.imperium-terminal {
+  --it-bg: var(--bg, #0a0c0e);
+  --it-panel: var(--panel, #101316);
+  --it-raised: var(--panel-raised, #14181c);
+  --it-line: var(--line, #252b31);
+  --it-text: var(--text, #d6dce1);
+  --it-muted: var(--muted, #8a959f);
+  --it-orange: var(--orange, #ff7b35);
+  --it-green: var(--green, #75d5a0);
+  --it-red: var(--red, #f17b7b);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--it-bg);
+  color: var(--it-text);
+  border: 1px solid var(--it-line);
+  font-family: "Pretendard", "Pretendard Variable", var(--font-sans, "Segoe UI"), "Malgun Gothic", sans-serif;
+  font-size: 13px;
+}
+
+.imperium-terminal__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--it-panel);
+  border-bottom: 1px solid var(--it-line);
+  flex-wrap: wrap;
+}
+.imperium-terminal__title {
+  color: var(--it-orange);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-right: 4px;
+}
+.imperium-terminal__spacer { flex: 1 1 auto; }
+
+.imperium-terminal__select,
+.imperium-terminal__button,
+.imperium-terminal__draft-input {
+  font: inherit;
+  color: var(--it-text);
+  background: var(--it-raised);
+  border: 1px solid var(--it-line);
+  border-radius: 4px;
+  height: 28px;
+  padding: 0 10px;
+}
+.imperium-terminal__select { min-width: 150px; max-width: 260px; }
+.imperium-terminal__shell-select { min-width: 110px; }
+.imperium-terminal__button { cursor: pointer; white-space: nowrap; }
+.imperium-terminal__button:hover:not(:disabled) { border-color: var(--it-orange); color: #fff; }
+.imperium-terminal__button.is-primary { background: var(--it-orange); border-color: var(--it-orange); color: #140a04; font-weight: 600; }
+.imperium-terminal__button.is-primary:hover:not(:disabled) { background: #ff9259; color: #140a04; }
+.imperium-terminal__button.is-danger:hover:not(:disabled) { border-color: var(--it-red); color: var(--it-red); }
+.imperium-terminal__button:disabled,
+.imperium-terminal__select:disabled { opacity: 0.45; cursor: not-allowed; }
+.imperium-terminal__select:focus-visible,
+.imperium-terminal__button:focus-visible,
+.imperium-terminal__draft-input:focus-visible { outline: 2px solid var(--it-orange); outline-offset: 1px; }
+
+.imperium-terminal__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--it-bg);
+  border-bottom: 1px solid var(--it-line);
+  color: var(--it-muted);
+  font-size: 12px;
+  min-width: 0;
+}
+.imperium-terminal__meta-label { color: var(--it-muted); }
+.imperium-terminal__meta-label:not(:first-of-type) { margin-left: 10px; }
+.imperium-terminal__meta-value { color: var(--it-text); }
+.imperium-terminal__cwd {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.imperium-terminal__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4e5963;
+  flex: 0 0 auto;
+}
+.imperium-terminal__dot.is-running { background: var(--it-green); box-shadow: 0 0 6px rgba(117, 213, 160, 0.6); }
+.imperium-terminal__dot.is-closed { background: var(--it-red); }
+
+.imperium-terminal__draft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #1a130e;
+  border-bottom: 1px solid rgba(255, 123, 53, 0.45);
+  flex-wrap: wrap;
+}
+.imperium-terminal__draft[hidden] { display: none; }
+.imperium-terminal__draft-label { color: var(--it-orange); font-weight: 600; font-size: 12px; }
+.imperium-terminal__draft-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  background: var(--it-bg);
+}
+.imperium-terminal__draft-hint { color: var(--it-muted); font-size: 12px; }
+.imperium-terminal__draft-hint[hidden] { display: none; }
+
+.imperium-terminal__error {
+  padding: 6px 12px;
+  color: var(--it-red);
+  background: rgba(241, 123, 123, 0.08);
+  border-bottom: 1px solid rgba(241, 123, 123, 0.35);
+  font-size: 12px;
+}
+.imperium-terminal__error[hidden] { display: none; }
+
+.imperium-terminal__stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 160px;
+  background: var(--it-bg);
+}
+.imperium-terminal__host {
+  position: absolute;
+  inset: 8px 4px 4px 10px;
+}
+.imperium-terminal__host .xterm,
+.imperium-terminal__host .xterm-viewport { background-color: var(--it-bg) !important; }
+.imperium-terminal__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--it-muted);
+  background: var(--it-bg);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.imperium-terminal__empty[hidden] { display: none; }

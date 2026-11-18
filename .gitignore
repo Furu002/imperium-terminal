@@ -6,6 +6,7 @@ test-results/
 dist/
 dist-mac/
 workspace/
+.packaging-cache/
 *.zip
 *.dmg
 *.exe

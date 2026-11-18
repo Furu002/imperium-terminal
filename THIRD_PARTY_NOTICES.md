@@ -18,3 +18,7 @@ Original font files and license texts are included in `public/fonts/`.
 - File: `jetbrains-mono-variable.woff2`.
 
 Font filenames are normalized for local serving. Font data has not been modified.
+
+## Runtime libraries
+
+The desktop app also includes node-pty (the `@lydell/node-pty` distribution), xterm.js, the xterm fit addon, ExcelJS, and electron-updater with their dependencies. Their original license notices are retained in the packaged `node_modules` files. These libraries are used for the interactive shell, local terminal rendering, XLSX export, and desktop updates respectively.
