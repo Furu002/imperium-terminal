@@ -105,6 +105,8 @@ const TRANSLATIONS = {
 };
 
 Object.assign(TRANSLATIONS.en, {
+  'AI 계정에서 로그인 안내를 확인한 뒤 상태를 새로고침하세요.': 'Open AI accounts for sign-in guidance, then refresh the status.',
+  '이 컴퓨터의 Ollama 서비스에 설치된 로컬 모델을 사용합니다.': 'Uses local models installed in the Ollama service on this computer.',
   '노드 워크스페이스': 'Node workspace', '노드를 직접 추가하고 이름표와 연결을 구성하세요.': 'Add nodes and customize names, titles, and connections.', '프로젝트': 'Projects', '프로젝트별 폴더, 색상과 작업 환경을 관리하세요.': 'Manage project folders, colors, and workspaces.', '사용량과 성능': 'Usage & performance', '실제 실행 기록의 토큰, 작업 시간과 비교를 확인하세요.': 'Inspect reported tokens, task duration, and observed changes.', '프로젝트 기억': 'Project memory', '지식을 검토하고 연결하며 다음 작업에 재사용하세요.': 'Review, connect, and reuse project knowledge.',
   '프로필 · 이름표': 'Profile · nameplate', '표시 이름': 'Display name', '직함': 'Title', '로컬 전용 AI': 'Local-only AI', 'Ollama 로컬 모델만 사용하고 클라우드 실행·자동 업데이트 연결을 중지합니다. 터미널 명령과 OS 네트워크 설정은 사용자가 관리합니다.': 'Use local Ollama models and stop cloud execution and automatic update connections. Terminal commands and OS networking remain under your control.',
   'AI 조직도': 'AI Organization',
@@ -126,6 +128,8 @@ Object.assign(TRANSLATIONS.en, {
   '부서 편집에서 담당 모델을 변경할 수 있습니다.': 'Assign a model in the department editor.',
 });
 Object.assign(TRANSLATIONS.ja, {
+  'AI 계정에서 로그인 안내를 확인한 뒤 상태를 새로고침하세요.': 'AIアカウントでログイン手順を確認してから状態を更新してください。',
+  '이 컴퓨터의 Ollama 서비스에 설치된 로컬 모델을 사용합니다.': 'このコンピューターのOllamaサービスに導入済みのローカルモデルを使用します。',
   '노드 워크스페이스': 'ノードワークスペース', '노드를 직접 추가하고 이름표와 연결을 구성하세요.': 'ノードを追加し、名前・役職・接続を自由に設定します。', '프로젝트': 'プロジェクト', '프로젝트별 폴더, 색상과 작업 환경을 관리하세요.': 'プロジェクト別のフォルダー・色・作業環境を管理します。', '사용량과 성능': '使用量と性能', '실제 실행 기록의 토큰, 작업 시간과 비교를 확인하세요.': '実測トークン数、作業時間、観測された変化を確認します。', '프로젝트 기억': 'プロジェクトの記憶', '지식을 검토하고 연결하며 다음 작업에 재사용하세요.': '知識を確認・接続し、次の作業に再利用します。',
   '프로필 · 이름표': 'プロフィール・名札', '표시 이름': '表示名', '직함': '役職', '로컬 전용 AI': 'ローカル専用AI', 'Ollama 로컬 모델만 사용하고 클라우드 실행·자동 업데이트 연결을 중지합니다. 터미널 명령과 OS 네트워크 설정은 사용자가 관리합니다.': 'Ollamaのローカルモデルのみを使い、クラウド実行と自動更新接続を停止します。ターミナルコマンドとOSネットワークは利用者が管理します。',
   'AI 조직도': 'AI組織図',
@@ -729,10 +733,10 @@ function renderProviders() {
   const statusLabels = { ready: '연결됨', missing: '설치 필요', login_required: '로그인 필요', error: '확인 필요' };
   if (!state.providers.length) { $('#provider-cards').replaceChildren(node('p', { class: 'settings-description' }, t('연결 상태를 확인하고 있습니다.'))); return; }
   $('#provider-cards').replaceChildren(...state.providers.map(provider => {
-    const friendly = { ready: '구독 계정으로 연결되었습니다.', missing: 'CLI를 설치한 뒤 구독 계정으로 로그인하세요.', login_required: '터미널에서 아래 명령으로 로그인한 뒤 상태를 새로고침하세요.', error: '연결을 확인할 수 없습니다. 상태를 새로고침하세요.' }[provider.status] || '연결을 확인할 수 없습니다. 상태를 새로고침하세요.';
-    const card = node('div', { class: 'provider-card', 'data-provider': provider.id }, node('div', { class: 'provider-card-header' }, node('span', { class: 'provider-card-name' }, node('span', { class: 'provider-letter', 'aria-hidden': 'true' }, provider.id === 'claude' ? 'C' : 'G'), provider.name || providerName(provider.id)), node('span', { class: `provider-card-status ${provider.status}` }, `● ${t(statusLabels[provider.status] || '확인 필요')}`)), node('p', { class: 'provider-card-detail' }, t(friendly)));
+    const friendly = provider.id === 'ollama' ? '이 컴퓨터의 Ollama 서비스에 설치된 로컬 모델을 사용합니다.' : { ready: '구독 계정으로 연결되었습니다.', missing: 'CLI를 설치한 뒤 구독 계정으로 로그인하세요.', login_required: 'AI 계정에서 로그인 안내를 확인한 뒤 상태를 새로고침하세요.', error: '연결을 확인할 수 없습니다. 상태를 새로고침하세요.' }[provider.status] || '연결을 확인할 수 없습니다. 상태를 새로고침하세요.';
+    const card = node('div', { class: 'provider-card', 'data-provider': provider.id }, node('div', { class: 'provider-card-header' }, node('span', { class: 'provider-card-name' }, node('span', { class: 'provider-letter', 'aria-hidden': 'true' }, [...String(provider.name || provider.id || '?')][0].toUpperCase()), provider.name || providerName(provider.id)), node('span', { class: `provider-card-status ${provider.status}` }, `● ${t(statusLabels[provider.status] || '확인 필요')}`)), node('p', { class: 'provider-card-detail' }, t(friendly)));
     if (provider.version) card.append(node('div', { class: 'provider-version' }, `VERSION ${provider.version}`));
-    if (provider.status !== 'ready') card.append(node('button', { type: 'button', 'data-provider-setup': provider.id, onclick: () => { $('#settings-dialog').close(); updateView('accounts'); } }, t('AI 계정'), ' ↗'));
+    if (provider.status !== 'ready') card.append(node('button', { class: 'button button-quiet', type: 'button', 'data-provider-setup': provider.id, onclick: () => { $('#settings-dialog').close(); updateView('accounts'); } }, t('AI 계정'), ' ↗'));
     // Provider diagnostics are local tool output, not translated or interpreted as HTML.
     if (provider.detail && provider.status === 'error') card.append(node('p', { class: 'provider-card-detail muted-text' }, `${t('상세 정보')}: ${provider.detail}`));
     return card;
