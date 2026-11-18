@@ -6,21 +6,29 @@
 
 라틴어로 통솔권·지휘권을 뜻하는 **IMPERIUM**은 자신만의 AI 작업 공간을 구성하는 로컬 운영 터미널입니다. 빈 캔버스에 나, AI, 역할과 기억을 추가하고 Codex·Claude Code 등의 작업 대기열, 실행 상태, 도구 이벤트와 결과를 확인합니다. 회사 조직도는 선택 가능한 구성 방식이며 이름과 직함을 자유롭게 정할 수 있습니다.
 
-v1.4.0은 **내부 검증 대상 버전**입니다. 기능 범위가 확장되어 v1.2.0의 최종 외부 배포 없이 다음 버전을 준비합니다. 벤치마크와 배포 검증을 마치기 전에는 외부 사용자용 릴리스를 게시하지 않습니다. 아래 파일명과 업데이트 안내는 빌드·배포 대상이며, 공개 다운로드가 이미 제공된다는 뜻은 아닙니다.
+v1.5.0은 **내부 검증 대상 버전**입니다. 기능 범위가 확장되어 v1.2.0의 최종 외부 배포 없이 다음 버전을 준비합니다. 벤치마크와 배포 검증을 마치기 전에는 외부 사용자용 릴리스를 게시하지 않습니다. 아래 파일명과 업데이트 안내는 빌드·배포 대상이며, 공개 다운로드가 이미 제공된다는 뜻은 아닙니다.
 
 로컬 웹 서버를 데스크톱 창이나 브라우저에서 사용합니다. 여기서 시작한 작업을 추적하며, 기존 ChatGPT·Claude 앱의 대화나 다른 터미널의 세션을 관찰하지는 않습니다.
 
+## 터미널 화면과 지식 노트
+
+영상으로 지정한 [Bloomberg 터미널 화면](https://www.youtube.com/watch?v=BqgqwO11abk)을 참고해 검은 배경, 가는 패널 경계, 촘촘한 표, 황색 제목과 녹색 기능키를 사용합니다. 상단 기능키와 작업 탭에서 화면을 이동하고 `Ctrl/Cmd+K`로 기능 명령줄에 포커스합니다. `HELP`는 명령 목록, `MEMORY`는 프로젝트 지식, `TERM`은 실제 터미널, `FIND 검색어`는 기억 검색입니다. `TASK 지시문`은 지시 입력란만 준비합니다. 실제 AI 작업은 담당 에이전트와 실행 설정을 검토한 뒤 보냅니다.
+
+프로젝트 기억은 옵시디언의 [그래프](https://obsidian.md/help/plugins/graph)와 [내부 링크](https://obsidian.md/help/links)를 참고한 노트 탐색기·지식 그래프·편집기 구조입니다. `[[노트 제목]]`이나 `[[노트 제목|표시 이름]]`으로 기존 노트를 연결하고 링크와 역링크를 따라 이동할 수 있습니다. 전체 그래프와 선택 노트 주변 그래프를 전환하고 확대·이동합니다. 제목이 중복되거나 대상이 없는 링크는 임의의 노트에 연결하지 않습니다. 노트 원문과 검토·고정·수정 이력은 기존 프로젝트 저장소에 유지됩니다.
+
+이 기능은 저장된 지식과 연결을 검색해 다음 작업의 문맥으로 재사용합니다. 모델 가중치를 학습하는 신경망이나 옵시디언 파일 동기화 기능을 의미하지 않습니다. 처음에는 빈 기억 공간이며 사용자가 저장한 기록만 표시합니다.
+
 ## 데스크톱 실행
 
-Windows 내부 검증용 설치 파일은 **`Imperium-Setup-1.4.0-x64.exe`** 형식이며 설치 마법사를 포함합니다.
+Windows 내부 검증용 설치 파일은 **`Imperium-Setup-1.5.0-x64.exe`** 형식이며 설치 마법사를 포함합니다.
 
 1. 설치 파일을 실행하고 **다음(Next) → 설치(Install) → 마침(Finish)** 순서로 진행합니다. 설치 폴더를 변경할 수 있으며 현재 Windows 사용자용으로 설치됩니다.
 2. 바탕 화면이나 시작 메뉴의 **IMPERIUM** 바로가기로 앱을 엽니다.
 3. 제거할 때는 Windows 설정의 앱 목록에서 **IMPERIUM**을 선택합니다.
 
-설치 없이 실행하려면 포터블 파일 `Imperium-1.4.0-win-x64.exe`를 사용하세요. 두 방식 모두 자체 창에서 열리며, 모델 연결에는 아래의 Codex·Claude Code 설치 및 구독 로그인이 필요합니다.
+설치 없이 실행하려면 포터블 파일 `Imperium-1.5.0-win-x64.exe`를 사용하세요. 두 방식 모두 자체 창에서 열리며, 모델 연결에는 아래의 Codex·Claude Code 설치 및 구독 로그인이 필요합니다.
 
-비공개 소스 저장소에 접근할 수 있는 개발자는 Actions의 **Build Imperium desktop** 워크플로를 실행하고, 성공한 실행의 **Artifacts**에서 운영체제에 맞는 검증 파일을 받을 수 있습니다. Windows는 `imperium-windows-x64`, macOS는 `imperium-macos-intel-apple-silicon`, Linux는 `imperium-linux-x64`입니다. macOS용 DMG·ZIP은 macOS 러너의 빌드가 성공한 뒤 받을 수 있습니다. Apple Silicon 파일명은 `Imperium-1.4.0-mac-arm64.dmg`·`.zip`, Intel 파일명은 `Imperium-1.4.0-mac-x64.dmg`·`.zip`입니다.
+비공개 소스 저장소에 접근할 수 있는 개발자는 Actions의 **Build Imperium desktop** 워크플로를 실행하고, 성공한 실행의 **Artifacts**에서 운영체제에 맞는 검증 파일을 받을 수 있습니다. Windows는 `imperium-windows-x64`, macOS는 `imperium-macos-intel-apple-silicon`, Linux는 `imperium-linux-x64`입니다. macOS용 DMG·ZIP은 macOS 러너의 빌드가 성공한 뒤 받을 수 있습니다. Apple Silicon 파일명은 `Imperium-1.5.0-mac-arm64.dmg`·`.zip`, Intel 파일명은 `Imperium-1.5.0-mac-x64.dmg`·`.zip`입니다.
 
 제작자 메타데이터의 이름은 **Sato Junichiro**입니다. 이 이름을 넣는 것만으로 Windows가 게시자를 인증하지는 않습니다. 실제 Authenticode 인증서를 제공해 서명하기 전까지는 코드 서명이 없는 개발용 빌드이며, Windows에 확인되지 않은 게시자로 표시될 수 있습니다. Windows의 보안 안내에서는 출처를 확인한 앱만 개별 실행하세요. macOS에서 차단되면 시스템 설정의 개인정보 보호 및 보안에서 해당 앱에 한해 열기를 허용할 수 있습니다. 운영체제 전체의 보안 설정을 끌 필요는 없습니다.
 
@@ -28,19 +36,19 @@ Windows 내부 검증용 설치 파일은 **`Imperium-Setup-1.4.0-x64.exe`** 형
 
 ## Linux 설치
 
-Linux x64 빌드 대상은 Debian·Ubuntu용 `Imperium-1.4.0-linux-amd64.deb`와 직접 실행하는 `Imperium-1.4.0-linux-x86_64.AppImage`입니다. 검증용 패키지를 받은 경우 파일의 폴더에서 필요한 명령을 실행하세요.
+Linux x64 빌드 대상은 Debian·Ubuntu용 `Imperium-1.5.0-linux-amd64.deb`와 직접 실행하는 `Imperium-1.5.0-linux-x86_64.AppImage`입니다. 검증용 패키지를 받은 경우 파일의 폴더에서 필요한 명령을 실행하세요.
 
 Debian·Ubuntu에 설치하려면:
 
 ```sh
-sudo apt install ./Imperium-1.4.0-linux-amd64.deb
+sudo apt install ./Imperium-1.5.0-linux-amd64.deb
 ```
 
 설치 후 앱 메뉴의 **IMPERIUM** 항목으로 실행할 수 있습니다. AppImage를 사용하려면:
 
 ```sh
-chmod +x Imperium-1.4.0-linux-x86_64.AppImage
-./Imperium-1.4.0-linux-x86_64.AppImage
+chmod +x Imperium-1.5.0-linux-x86_64.AppImage
+./Imperium-1.5.0-linux-x86_64.AppImage
 ```
 
 AppImage는 앱 메뉴나 바탕 화면에 바로가기를 자동으로 만들지 않습니다. Linux에서도 Codex·Claude Code 설치와 구독 계정 로그인이 필요합니다. CI의 Linux 빌드 성공은 패키지 생성과 자동 검사 결과를 의미하며, Linux 데스크톱의 수동 실행 검증을 의미하지 않습니다.
@@ -88,7 +96,7 @@ Codex·Claude Code에서 구독 로그인을 선택한 경우 별도 API 키 없
 
 ## 모델·추론·속도 선택
 
-v1.4.0에서는 역할·에이전트 설정에 실행 모델, 추론 강도와 응답 속도의 기본값을 저장하고, **작업(F2)**의 **이번 작업 모델 설정**에서 해당 작업만 다르게 지정할 수 있습니다. **계정 모델 불러오기**는 Codex·Claude Code가 반환한 모델과 지원 옵션을 조회합니다. Claude의 별칭과 실제 모델 ID도 함께 식별합니다. 직접 입력한 모델 ID의 이용 권한과 모든 옵션의 지원 여부를 보장하지는 않습니다.
+v1.5.0에서는 역할·에이전트 설정에 실행 모델, 추론 강도와 응답 속도의 기본값을 저장하고, **작업(F2)**의 **이번 작업 모델 설정**에서 해당 작업만 다르게 지정할 수 있습니다. **계정 모델 불러오기**는 Codex·Claude Code가 반환한 모델과 지원 옵션을 조회합니다. Claude의 별칭과 실제 모델 ID도 함께 식별합니다. 직접 입력한 모델 ID의 이용 권한과 모든 옵션의 지원 여부를 보장하지는 않습니다.
 
 | 설정 | 동작 |
 | --- | --- |
@@ -202,7 +210,7 @@ Pretendard·Pretendard JP·JetBrains Mono 글꼴은 `public/fonts/`에 포함되
 
 ## 업데이트와 배포 상태
 
-소스는 비공개 저장소 `Furu002/imperium-terminal`에서 관리합니다. 외부 배포용 [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases)는 현재 비어 있으며, 벤치마크 완료 전 공개 릴리스를 게시하지 않습니다. v1.4.0은 내부 검증 대상입니다. **업데이트(F7)**는 패키징된 앱과 구성된 공개 채널, 실제 게시된 릴리스가 모두 준비되어야 새 버전을 확인할 수 있습니다. 로컬 전용 모드에서는 업데이트 네트워크 요청을 중단합니다. 다운로드·설치는 사용자가 명시적으로 선택합니다.
+소스는 비공개 저장소 `Furu002/imperium-terminal`에서 관리합니다. 외부 배포용 [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases)는 현재 비어 있으며, 벤치마크 완료 전 공개 릴리스를 게시하지 않습니다. v1.5.0은 내부 검증 대상입니다. **업데이트(F7)**는 패키징된 앱과 구성된 공개 채널, 실제 게시된 릴리스가 모두 준비되어야 새 버전을 확인할 수 있습니다. 로컬 전용 모드에서는 업데이트 네트워크 요청을 중단합니다. 다운로드·설치는 사용자가 명시적으로 선택합니다.
 
 Windows 설치본은 NSIS 업데이트 경로를 사용하고, Linux AppImage는 AppImage 업데이트 경로를 사용합니다. Linux DEB는 새 패키지를 받아 수동으로 설치합니다. macOS는 서명 인증서가 없는 현재 구성에서 수동 업데이트가 필요할 수 있습니다. 파일 해시 검증은 코드 서명을 대신하지 않으며 **Sato Junichiro** 제작자 메타데이터도 인증서 서명이 아닙니다. 방화벽이나 OS 보안 설정 전체를 끄는 절차는 제공하지 않습니다.
 

@@ -548,7 +548,7 @@ function renderDepartments() {
     const statusClass = active ? 'running' : ready ? '' : 'unavailable';
     const card = node('div', { class: `department-card${$('#dispatch-department').value === dept.id ? ' selected' : ''}`, tabindex: '0', role: 'button', 'aria-label': `${departmentName(dept)} · ${providerName(dept.provider)}` },
       node('div', { class: 'department-card-head' }, node('span', { class: 'department-code' }, `DPT. ${dept.code || dept.id.toUpperCase().slice(0, 3)}`), node('span', { class: `department-state ${statusClass}` }, node('span', { class: 'live-dot' }), label)),
-      node('div', { class: 'department-main' }, node('span', { class: 'department-icon', 'aria-hidden': 'true' }, icons[dept.id] || '◇'), node('div', {}, node('div', { class: 'department-name' }, departmentName(dept)), node('div', { class: 'department-model' }, dept.provider === 'claude' ? 'CLAUDE CODE' : 'CHATGPT / CODEX'))),
+      node('div', { class: 'department-main' }, node('span', { class: 'department-icon', 'aria-hidden': 'true' }, icons[dept.id] || '◇'), node('div', {}, node('div', { class: 'department-name' }, departmentName(dept)), node('div', { class: 'department-model' }, state.providers.find(provider => provider.id === dept.provider)?.name || providerName(dept.provider)))),
       node('p', { class: `department-description${active ? ' running-task' : ''}`, title: active?.title || departmentRole(dept) }, active?.title || departmentRole(dept)),
       node('button', { class: 'department-edit', type: 'button', title: t('부서 편집'), 'aria-label': `${departmentName(dept)} · ${t('부서 편집')}`, onclick: event => { event.stopPropagation(); openDepartmentEditor(dept); } }, '↗'));
     const choose = () => { $('#dispatch-department').value = dept.id; $('#dispatch-provider').value = ''; renderDepartments(); if (view !== 'departments') $('#dispatch-prompt').focus({ preventScroll: true }); };
@@ -731,6 +731,7 @@ function updateView(next) {
 }
 
 function renderExtensions() {
+  window.ImperiumTerminalShell?.render(state, { language, view, connected, onNavigate: updateView, onSettings: openSettings, onPrepareTask: text => { const prompt = $('#dispatch-prompt'); if (prompt.value.trim() && prompt.value.trim() !== text.trim()) return false; if (!prompt.value.trim()) { prompt.value = text; prompt.dispatchEvent(new Event('input')); } prompt.focus(); return true; } });
   if (state.server.csrfToken && window.ImperiumQuotas) {
     if (!quotasMounted) { quotasMounted = true; quotaStamp = state.server.quotaUpdatedAt; window.ImperiumQuotas.mount($('#quotas-section'), { getState: () => state, api, compact: true }); }
     window.ImperiumQuotas.render(state);

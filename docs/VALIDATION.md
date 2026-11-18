@@ -1,4 +1,4 @@
-# IMPERIUM 1.4.0 — internal validation
+# IMPERIUM 1.5.0 — internal validation
 
 This is an internal prototype. Publishing this source commit does not publish an external application release.
 
@@ -10,7 +10,15 @@ Automated tests use mock providers and temporary workspaces. Coverage includes l
 
 Separate live checks previously confirmed subscription login for Codex and Claude, one task-scoped memory MCP lookup by each provider, and a real PowerShell PTY under Electron. Packaged installer and platform build results are checked separately from source tests.
 
-## 1.4.0 account allowance and execution settings
+## Dense terminal and linked knowledge workspace
+
+The user-selected Bloomberg tutorial was inspected directly in the browser. The application now uses black panels, compact tables and forms, amber labels, green function keys, a function command line, and workspace tabs. Navigation and prepared commands are separate from model or shell execution. Terminal command tests cover navigation, task preparation, unknown commands, keyboard history, localization, and real task counts without executing a model or a shell.
+
+Project knowledge uses an Obsidian-inspired explorer, graph, and note editor. Wikilinks are resolved by an exact normalized title inside one project; absent and ambiguous titles remain unresolved. Derived relationships are bounded and never written as fabricated notes. Search can add at most two explicitly linked one-hop neighbors of a genuine keyword match while preserving the existing context budget and pinned-constraint priority. The app does not train neural weights or synchronize an Obsidian vault.
+
+Claude's knowledge review reproduced an unrecoverable revision-conflict flow. The final UI preserves drafts while loading the latest record, displays its actual title, content, classification and pin state, and provides explicit discard or rebase actions without writing to the server. Deleted or archived notes retain reachable, copyable recovery drafts; creating a replacement requires an explicit create action. A follow-up read failure never labels cached text as current. Regression coverage also prevents duplicate saves during conflict refresh and handles same-revision 409 responses without trapping the editor. Integrated tests verify the existing F-key handlers and first-use FIND query after delayed loading.
+
+## Account allowance and execution settings
 
 The final integration review also reproduced deleted-connection draft restoration across projects and guarded new-agent creation with its captured workspace. The XLSX regression revealed JSZip 3.10's UTF-16 chunk boundary issue when new headers shifted a long emoji-containing shared string. This workbook alone pre-encodes its shared-string XML as UTF-8 bytes before compression; dependency files and global prototypes are untouched. A 200,000-character Unicode export round-trips exactly, including formula-like literal content.
 
