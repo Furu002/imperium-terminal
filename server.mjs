@@ -128,7 +128,9 @@ export function createHQServer({
       const pending = state.tasks.filter(t => t.status === 'queued').sort((a, b) => PRIORITY[a.priority] - PRIORITY[b.priority] || a.createdAt.localeCompare(b.createdAt));
       for (const task of pending) {
         if (active.size >= state.settings.maxConcurrent) break;
-        const running = state.tasks.filter(t => t.status === 'running');
+        // A cancellation is visible immediately, but the process can still be
+        // shutting down. Keep its provider and workspace locked until onExit.
+        const running = state.tasks.filter(t => active.has(t.id));
         if (running.some(t => t.permission === 'workspace-write')) break;
         if (task.permission === 'workspace-write' && running.length) continue;
         if (running.some(t => t.provider === task.provider || t.departmentId === task.departmentId)) continue;

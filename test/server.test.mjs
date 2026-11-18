@@ -324,6 +324,29 @@ test('the SSE stream publishes real task state changes', async (t) => {
   assert.ok(observed, 'a dispatched task must appear in the event stream');
 });
 
+test('cancelling a writer holds the workspace lock until its process exits', async (t) => {
+  const control = controlledProviders();
+  const originalStart = control.providers.startProvider;
+  control.providers.startProvider = async options => {
+    await originalStart(options);
+    const call = control.calls.at(-1);
+    return { cancel() { call.cancelled += 1; } };
+  };
+  const f = await fixture(t, { control });
+  const first = await f.submit({ permission: 'workspace-write' });
+  await eventually(() => f.calls.length === 1);
+  await f.submit({ departmentId: 'engineering', permission: 'workspace-write' });
+  const cancelled = await f.request(`/api/tasks/${first.id}/cancel`);
+  assert.equal(cancelled.status, 200);
+  await delay(80);
+  assert.equal(f.calls.length, 1, 'a second writer must wait for the cancelled process to stop');
+  assert.equal(f.calls[0].cancelled, 1);
+  f.calls[0].finish('ignored cancelled output');
+  await eventually(() => f.calls.length === 2);
+  assert.equal((await f.state()).tasks.find(item => item.id === first.id).status, 'cancelled');
+  f.calls[1].finish();
+});
+
 test('export contains persisted results and department routing', async (t) => {
   const f = await fixture(t);
   const task = await f.submit();
