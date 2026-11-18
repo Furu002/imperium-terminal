@@ -18,6 +18,10 @@
       '워크플로 지시': 'ワークフローへの指示', '연결된 흐름 실행': '接続したフローを実行', '파일 수정 허용': 'ファイル編集を許可', '연결된 부서에 순서대로 전달할 목표를 작성하세요.': '接続した部署に順番に引き継ぐ目標を記入してください。', '업무 내용을 입력하세요.': '業務内容を入力してください。', '워크플로를 시작했습니다.': 'ワークフローを開始しました。', '요청을 처리하지 못했습니다.': 'リクエストを処理できませんでした。', '선택한 부서가 없습니다.': '部署を選択してください。', '프로젝트별로 노드 위치와 연결을 저장합니다.': 'ノードの位置と接続はプロジェクトごとに保存されます。', '기억을 문맥으로 전달': '記憶を文脈として渡す', '다음 부서로 업무 전달': '次の部署に引き継ぐ', '부서 입력 포트': '部署の入力ポート', '현재 업무': '現在の業務', '구독 로그인': 'サブスクリプションログイン',
     },
   };
+  Object.assign(WORDS.en, { '노드 추가': 'Add nodes', '빈 워크스페이스': 'Empty workspace', '필요한 에이전트와 기억을 직접 추가하세요.': 'Add only the agents and memories you need.', '노드를 클릭하거나 캔버스로 끌어 추가합니다.': 'Click a node or drag it onto the canvas.', '회사 조직도 템플릿 불러오기': 'Load organization template', '사용자 노드': 'Your identity', '모델 제공자': 'Model providers', '에이전트/역할': 'Agents / roles', '새 에이전트 등록': 'Create an agent', '에이전트 이름': 'Agent name', '직함': 'Title', '이름': 'Name', '역할과 지침': 'Role and instructions', '등록하고 노드 추가': 'Create and add node', '기본 연결': 'Default connection', '등록된 연결': 'Registered connection', '로컬 전용 모드': 'Local-only mode', '클라우드 제공자를 숨겼습니다.': 'Cloud providers are hidden.', '로컬 전용 모드에서 비활성화됨': 'Disabled in local-only mode', '노드만 제거하며 실제 에이전트·연결·기억은 삭제하지 않습니다.': 'Removes only the node. Agents, connections, and memories are retained.', '이 제공자는 AI 연결 화면에서 먼저 설치하거나 등록하세요.': 'Install or register this provider in AI connections first.', '추가할 항목이 없습니다.': 'No items available.', '캔버스에 있음': 'On canvas', '나': 'Me', '워크스페이스 소유자': 'Workspace owner', '이름표 저장': 'Save identity', '이름표를 저장했습니다.': 'Identity saved.', '제공자 변경은 에이전트 편집에서 설정합니다.': 'Change the assigned provider in the agent editor.', '에이전트를 등록했습니다.': 'Agent created.', '역할을 입력하세요.': 'Describe the role.', '제공자': 'Provider', '템플릿은 현재 캔버스에 없는 조직 노드만 추가합니다.': 'The template adds organization nodes that are not already on the canvas.' });
+  Object.assign(WORDS.ja, { '노드 추가': 'ノードを追加', '빈 워크스페이스': '空のワークスペース', '필요한 에이전트와 기억을 직접 추가하세요.': '必要なエージェントと記憶だけを追加してください。', '노드를 클릭하거나 캔버스로 끌어 추가합니다.': 'クリック、またはキャンバスにドラッグして追加します。', '회사 조직도 템플릿 불러오기': '組織図テンプレートを読み込む', '사용자 노드': '自分のノード', '모델 제공자': 'モデルプロバイダー', '에이전트/역할': 'エージェント / 役割', '새 에이전트 등록': 'エージェントを登録', '에이전트 이름': 'エージェント名', '직함': '役職', '이름': '名前', '역할과 지침': '役割と指示', '등록하고 노드 추가': '登録してノードを追加', '기본 연결': '既定の接続', '등록된 연결': '登録済み接続', '로컬 전용 모드': 'ローカル専用モード', '클라우드 제공자를 숨겼습니다.': 'クラウドプロバイダーを非表示にしています。', '로컬 전용 모드에서 비활성화됨': 'ローカル専用モードでは無効', '노드만 제거하며 실제 에이전트·연결·기억은 삭제하지 않습니다.': 'ノードのみを除外し、エージェント・接続・記憶自体は削除しません。', '이 제공자는 AI 연결 화면에서 먼저 설치하거나 등록하세요.': '先にAI接続画面でインストールまたは登録してください。', '추가할 항목이 없습니다.': '追加できる項目がありません。', '캔버스에 있음': '追加済み', '나': '自分', '워크스페이스 소유자': 'ワークスペース所有者', '이름표 저장': '名前・役職を保存', '이름표를 저장했습니다.': '名前・役職を保存しました。', '제공자 변경은 에이전트 편집에서 설정합니다.': '担当モデルはエージェント編集で変更します。', '에이전트를 등록했습니다.': 'エージェントを登録しました。', '역할을 입력하세요.': '役割を記入してください。', '제공자': 'プロバイダー', '템플릿은 현재 캔버스에 없는 조직 노드만 추가합니다.': 'テンプレートは未追加の組織ノードのみ追加します。' });
+  Object.assign(WORDS.en, { 'AI 자체 추정': 'AI self-estimate', 'AI 추정 대기': 'Awaiting AI estimate', '실제 완료': 'Process completed', '진행률 보고 없음': 'No progress report', 'AI 예상 약 {minutes}분': 'AI ETA ~{minutes} min', '예상범위 초과·재추정 대기': 'Estimate exceeded · awaiting update', '과거 {samples}건 기준 약 {minutes}분 (p90 {p90}분)': 'History {samples} runs: ~{minutes} min (p90 {p90} min)', '과거 {samples}건 기준·재추정 대기 (p90 {p90}분)': 'History {samples} runs: awaiting update (p90 {p90} min)', 'AI 보고 작업 단계': 'AI-reported work stage', '최근 작업': 'Latest operation', '실패': 'Failed', '취소됨': 'Cancelled', '중단됨': 'Interrupted' });
+  Object.assign(WORDS.ja, { 'AI 자체 추정': 'AI自身の推定', 'AI 추정 대기': 'AI推定待ち', '실제 완료': '実際に完了', '진행률 보고 없음': '進捗報告なし', 'AI 예상 약 {minutes}분': 'AI予測 約{minutes}分', '예상범위 초과·재추정 대기': '予測時間超過・再推定待ち', '과거 {samples}건 기준 약 {minutes}분 (p90 {p90}분)': '過去{samples}件基準 約{minutes}分（p90 {p90}分）', '과거 {samples}건 기준·재추정 대기 (p90 {p90}분)': '過去{samples}件基準・再推定待ち（p90 {p90}分）', 'AI 보고 작업 단계': 'AI報告の作業段階', '최근 작업': '最近のタスク', '실패': '失敗', '취소됨': '中止', '중단됨': '中断' });
   const h = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
     for (const [key, value] of Object.entries(attrs)) {
@@ -32,9 +36,9 @@
   const uid = prefix => `${prefix}:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   const dimensions = type => type === 'memory' ? { width: 236, height: 160 } : type === 'department' ? { width: 230, height: 162 } : { width: 230, height: 112 };
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-  let state = {}, options = {}, host, stage, world, edgesLayer, inspector, label, toolbar, footer, memoryDialog;
-  let graph = { nodes: [], edges: [] }, memories = [], project = null, loaded = false, loading = false, dirty = false, saving = false, errorMessage = '';
-  let selected = null, pendingSource = null, drag = null, zoom = 1, pan = { x: 0, y: 0 }, saveTimer, requestGeneration = 0, inspectorSignature = '', loadedGraphHash = '', savingPromise = Promise.resolve(true);
+  let state = {}, options = {}, host, stage, world, edgesLayer, inspector, label, toolbar, footer, memoryDialog, emptyOverlay, libraryPanel;
+  let graph = { nodes: [], edges: [] }, memories = [], memoryLoaded = false, project = null, loaded = false, loading = false, dirty = false, saving = false, errorMessage = '';
+  let selected = null, pendingSource = null, drag = null, zoom = 1, pan = { x: 0, y: 0 }, saveTimer, progressTimer, requestGeneration = 0, inspectorSignature = '', loadedGraphHash = '', savingPromise = Promise.resolve(true);
   const tr = key => WORDS[options.language]?.[key] ?? key;
   const common = key => options.t?.(key) ?? tr(key);
   const online = () => options.connected !== false;
@@ -44,8 +48,49 @@
   const defaultNames = { strategy: '전략기획실', engineering: '개발본부', research: '리서치센터', quality: '품질관리실' };
   const deptName = dept => dept?.name === defaultNames[dept?.id] ? common(dept.name) : dept?.name || '—';
   const allProviders = () => [...new Set([...(state.providers || []).filter(provider => provider.installed || provider.status === 'ready').map(provider => provider.id), ...(state.departments || []).map(dept => dept.provider), ...(state.connections || []).map(connection => connection.providerId)])];
+  const identity = () => ({ name: state.settings?.identity?.name || tr('나'), title: state.settings?.identity?.title || tr('워크스페이스 소유자') });
+  const isLocalProvider = id => id === 'ollama' || state.providers?.find(provider => provider.id === id)?.kind === 'local';
+  const isDisabled = item => Boolean(state.settings?.localOnly && (item.type === 'provider' && !isLocalProvider(item.referenceId) || item.type === 'department' && !isLocalProvider(deptFor(item)?.provider)));
+  const availableProviders = () => [...new Set([...(state.providers || []).filter(provider => provider.installed || provider.status === 'ready').map(provider => provider.id), ...(state.connections || []).map(connection => connection.providerId)])].filter(id => !state.settings?.localOnly || isLocalProvider(id));
+  const visibleDepartments = () => (state.departments || []).filter(dept => !state.settings?.localOnly || isLocalProvider(dept.provider));
   const currentTask = deptId => (state.tasks || []).find(task => task.departmentId === deptId && task.status === 'running') || (state.tasks || []).find(task => task.departmentId === deptId && task.status === 'queued');
+  const progressTask = deptId => currentTask(deptId) || [...(state.tasks || [])].filter(task => task.departmentId === deptId).sort((a, b) => new Date(b.finishedAt || b.startedAt || b.createdAt) - new Date(a.finishedAt || a.startedAt || a.createdAt))[0];
+  const progressText = (key, values = {}) => tr(key).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
+  function renderTaskProgress(task, compact = false) {
+    const completed = task.status === 'completed';
+    const modelReport = task.progress?.source === 'model-estimate' && typeof task.progress.percent === 'number' && Number.isFinite(task.progress.percent) && task.progress.percent >= 0;
+    const percent = completed ? 100 : modelReport ? Math.min(99, Math.max(0, Math.round(task.progress.percent))) : null;
+    const source = completed ? 'process' : modelReport ? 'model-estimate' : 'none';
+    const terminal = ['failed', 'cancelled', 'interrupted'].includes(task.status), statusLabel = { failed: '실패', cancelled: '취소됨', interrupted: '중단됨' }[task.status];
+    const labelText = `${terminal ? `${tr(statusLabel)} · ` : ''}${tr(completed ? '실제 완료' : modelReport ? 'AI 자체 추정' : terminal ? '진행률 보고 없음' : 'AI 추정 대기')}`;
+    const wrapper = h('div', { class: compact ? 'iw-node-progress' : 'iw-task-progress', 'data-progress-task-id': task.id, 'data-progress-source': source, 'data-task-status': task.status, 'data-compact': compact ? 'true' : 'false' });
+    wrapper.append(h('div', { class: 'iw-progress-line' }, h('span', { class: 'iw-progress-label', title: labelText }, labelText), ...(percent === null ? [] : [h('strong', { class: 'iw-progress-percent' }, `${percent}%`)])));
+    if (percent !== null) {
+      const fill = h('span', { class: 'iw-progress-fill' }); fill.style.width = `${percent}%`;
+      wrapper.append(h('div', { class: 'iw-progress-track', role: 'progressbar', 'aria-label': labelText, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': percent }, fill));
+    }
+    if (!completed && !terminal && modelReport && typeof task.progress.etaMinutes === 'number' && Number.isFinite(task.progress.etaMinutes) && task.progress.etaMinutes >= 0 && task.progress.etaMinutes <= 1440) {
+      const reportedAt = new Date(task.progress.updatedAt).getTime();
+      if (Number.isFinite(reportedAt)) {
+        const remaining = task.progress.etaMinutes - Math.max(0, Date.now() - reportedAt) / 60000;
+        const eta = remaining > 0 ? progressText('AI 예상 약 {minutes}분', { minutes: Math.ceil(remaining) }) : tr('예상범위 초과·재추정 대기');
+        wrapper.append(h('div', { class: 'iw-progress-eta', title: eta }, eta));
+      }
+    }
+    const history = task.historicalETA;
+    if (!completed && !terminal && history?.source === 'history' && Number.isInteger(history.sampleCount) && history.sampleCount > 0 && Number.isFinite(history.remainingSeconds) && history.remainingSeconds >= 0 && Number.isFinite(history.p90Seconds) && history.p90Seconds >= 0) {
+      const text = progressText(history.remainingSeconds > 0 ? '과거 {samples}건 기준 약 {minutes}분 (p90 {p90}분)' : '과거 {samples}건 기준·재추정 대기 (p90 {p90}분)', { samples: history.sampleCount, minutes: Math.ceil(history.remainingSeconds / 60), p90: Math.ceil(history.p90Seconds / 60) });
+      wrapper.append(h('div', { class: 'iw-progress-history', 'data-estimate-source': 'history', title: text }, text));
+    }
+    if (!compact && task.progress?.source === 'model-estimate' && typeof task.progress.stage === 'string' && task.progress.stage.trim()) wrapper.append(h('p', { class: 'iw-progress-stage' }, h('span', {}, tr('AI 보고 작업 단계')), h('strong', {}, task.progress.stage.trim().slice(0, 160))));
+    return wrapper;
+  }
+  function updateProgressDisplays() {
+    if (!host) return;
+    host.querySelectorAll('[data-progress-task-id]').forEach(element => { const task = (state.tasks || []).find(item => item.id === element.dataset.progressTaskId); if (task) element.replaceWith(renderTaskProgress(task, element.dataset.compact === 'true')); });
+  }
   function statusFor(item) {
+    if (isDisabled(item)) return { key: 'disabled', text: tr('로컬 전용 모드에서 비활성화됨') };
     if (!online()) return { key: 'offline', text: tr('오프라인') };
     if (item.type === 'provider') {
       const provider = state.providers?.find(value => value.id === item.referenceId);
@@ -57,7 +102,7 @@
       if (task) return { key: task.status, text: `${task.demo ? 'DEMO · ' : ''}${tr(task.status === 'running' ? '실행 중' : '대기 중')}` };
       return state.providers?.some(provider => provider.id === dept?.provider && provider.status === 'ready') ? { key: 'idle', text: tr('지시 대기') } : { key: 'unavailable', text: tr('연결 필요') };
     }
-    return { key: item.type === 'memory' ? 'memory' : 'commander', text: item.type === 'memory' ? `${memoryFor(item)?.pinned ? 'PINNED · ' : ''}r${memoryFor(item)?.revision || 1}` : 'COMMAND AUTHORITY' };
+    return { key: item.type === 'memory' ? 'memory' : 'commander', text: item.type === 'memory' ? `${memoryFor(item)?.pinned ? 'PINNED · ' : ''}r${memoryFor(item)?.revision || 1}` : 'WORKSPACE IDENTITY' };
   }
   async function request(url, method = 'GET', body, workspaceKey = project) {
     const scoped = url === '/api/graph' || url === '/api/memory' || url.startsWith('/api/memory/') || url === '/api/workflows/run';
@@ -75,23 +120,14 @@
     errorMessage = failed ? text : '';
   }
   function findNode(type, referenceId) { return graph.nodes.find(item => item.type === type && (referenceId === undefined || item.referenceId === referenceId)); }
-  function ensureOrganization(reset = false) {
-    const providers = allProviders();
-    const definitions = [{ id: 'commander', type: 'commander', referenceId: 'commander', x: Math.max(0, (providers.length - 1) * 280 + 150), y: 35 }];
-    providers.forEach((providerId, index) => {
-      const base = index * 560;
-      definitions.push({ id: `provider:${providerId}`, type: 'provider', referenceId: providerId, x: base + 150, y: 225 });
-      (state.departments || []).filter(dept => dept.provider === providerId).forEach((dept, number) => definitions.push({ id: `department:${dept.id}`, type: 'department', referenceId: dept.id, x: base + (number % 2) * 270, y: 435 + Math.floor(number / 2) * 215 }));
-    });
-    const allowed = new Set(definitions.map(item => `${item.type}:${item.referenceId}`));
-    graph.nodes = graph.nodes.filter(item => item.type === 'memory' || allowed.has(`${item.type}:${item.referenceId}`));
-    for (const definition of definitions) {
-      const existing = findNode(definition.type, definition.referenceId);
-      if (!existing) graph.nodes.push(definition);
-      else if (reset) { existing.x = definition.x; existing.y = definition.y; }
-    }
+  function ensureOrganization() {
+    // A saved empty graph is intentional. Only prune references; never seed nodes.
+    const providerIds = new Set([...(state.providers || []).map(provider => provider.id), ...allProviders()]);
+    const departmentIds = new Set((state.departments || []).map(dept => dept.id));
+    graph.nodes = graph.nodes.filter(item => item.type === 'commander' || item.type === 'provider' && providerIds.has(item.referenceId) || item.type === 'department' && departmentIds.has(item.referenceId) || item.type === 'memory' && (!memoryLoaded || memories.some(memory => memory.id === item.referenceId && !memory.archived)));
     const nodeIds = new Set(graph.nodes.map(item => item.id));
     graph.edges = graph.edges.filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target) && ['memory_context', 'handoff'].includes(edge.type));
+    if (selected?.kind === 'node' && !nodeIds.has(selected.id)) selected = null;
   }
   function sanitize(incoming) {
     return {
@@ -107,7 +143,7 @@
     if (generation !== requestGeneration) return;
     loading = false;
     if (results[0].status === 'fulfilled') { graph = sanitize(results[0].value.graph || results[0].value); loadedGraphHash = JSON.stringify(graph); }
-    if (results[1].status === 'fulfilled') memories = results[1].value.nodes || results[1].value.memory?.nodes || [];
+    if (results[1].status === 'fulfilled') { memories = results[1].value.nodes || results[1].value.memory?.nodes || []; memoryLoaded = true; }
     ensureOrganization(); loaded = true;
     if (results.some(result => result.status === 'rejected')) announce(results.filter(result => result.status === 'rejected').map(result => result.reason.message).join(' · '), true);
     else announce(tr('저장됨'));
@@ -137,7 +173,8 @@
     stage = h('div', { class: 'iw-stage', tabindex: '0', 'aria-label': tr('노드 워크스페이스') });
     world = h('div', { class: 'iw-world' });
     edgesLayer = svg('svg', { class: 'iw-edges', width: '8000', height: '8000', 'aria-hidden': 'true' });
-    world.append(edgesLayer); stage.append(world);
+    emptyOverlay = h('div', { class: 'iw-empty-canvas' });
+    world.append(edgesLayer); stage.append(world, emptyOverlay);
     inspector = h('aside', { class: 'iw-inspector', 'aria-label': tr('노드 검사기') });
     label = h('span', { class: 'iw-save-status', role: 'status', 'aria-live': 'polite' });
     footer = h('div', { class: 'iw-footer' });
@@ -146,13 +183,16 @@
     stage.addEventListener('pointerdown', beginPan);
     stage.addEventListener('keydown', event => {
       if (event.key === 'Escape') { pendingSource = null; drawEdges(); announce(tr('저장됨')); }
-      if (['Delete', 'Backspace'].includes(event.key) && selected?.kind === 'edge' && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) { event.preventDefault(); removeEdge(selected.id); }
+      if (['Delete', 'Backspace'].includes(event.key) && selected && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) { event.preventDefault(); if (selected.kind === 'edge') removeEdge(selected.id); else removeNode(selected.id); }
       if ((event.ctrlKey || event.metaKey) && event.key === '0') { event.preventDefault(); fit(); }
     });
     window.addEventListener('pointermove', movePointer);
     window.addEventListener('pointerup', endPointer);
     window.addEventListener('pointercancel', endPointer);
+    stage.addEventListener('dragover', event => { if (event.dataTransfer?.types?.includes('application/x-imperium-node')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } });
+    stage.addEventListener('drop', event => { event.preventDefault(); try { const value = JSON.parse(event.dataTransfer.getData('application/x-imperium-node')); addLibraryNode(value.type, value.referenceId, toWorld(event.clientX, event.clientY)); } catch { /* Ignore unrelated external drag data. */ } });
     window.addEventListener('resize', () => { if (loaded && !drag) renderScene(); });
+    if (!progressTimer) progressTimer = setInterval(updateProgressDisplays, 15000);
     inspector.addEventListener('focusout', () => setTimeout(() => { if (!inspector.contains(document.activeElement)) renderInspector(true); }, 0));
     return true;
   }
@@ -163,9 +203,10 @@
         h('button', { type: 'button', 'data-iw-action': 'zoom-out', 'aria-label': 'Zoom out', onclick: () => setZoom(zoom / 1.18) }, '−'),
         h('span', { class: 'iw-zoom-value' }, `${Math.round(zoom * 100)}%`),
         h('button', { type: 'button', 'data-iw-action': 'zoom-in', 'aria-label': 'Zoom in', onclick: () => setZoom(zoom * 1.18) }, '+'),
-        h('button', { type: 'button', 'data-iw-action': 'arrange', onclick: () => { ensureOrganization(true); renderScene(); fit(); scheduleSave(); } }, tr('자동 배치')),
+        h('button', { type: 'button', 'data-iw-action': 'arrange', onclick: arrangeCurrent }, tr('자동 배치')),
+        h('button', { type: 'button', 'data-iw-action': 'add-node', class: 'iw-accent-button', onclick: openNodeLibrary }, '+ ', tr('노드 추가')),
         h('button', { type: 'button', 'data-iw-action': 'add-memory', class: 'iw-accent-button', onclick: openMemoryDialog }, '+ ', tr('기억 추가')),
-        h('button', { type: 'button', 'data-iw-action': 'assign', onclick: () => { const item = graph.nodes.find(value => value.id === selected?.id); if (item?.type === 'department') options.onAssignDepartment?.(item.referenceId); else announce(tr('선택한 부서가 없습니다.'), true); } }, tr('선택 부서 지시'))));
+        h('button', { type: 'button', 'data-iw-action': 'assign', onclick: () => { const item = graph.nodes.find(value => value.id === selected?.id); if (item?.type === 'department' && !isDisabled(item)) options.onAssignDepartment?.(item.referenceId); else announce(tr(item && isDisabled(item) ? '로컬 전용 모드에서 비활성화됨' : '선택한 부서가 없습니다.'), true); } }, tr('선택 부서 지시'))));
     const ready = online() ? (state.providers || []).filter(provider => provider.status === 'ready').length : 0;
     footer.replaceChildren(h('span', { class: 'iw-hint' }, tr('휠: 이동 · Ctrl+휠: 확대 · 빈 공간 드래그: 이동')), h('span', { class: 'iw-counts' }, `${ready}/${allProviders().length} ${tr('모델')} · ${(state.departments || []).length} ${tr('부서 역할')} · ${graph.edges.length} ${tr('연결')}`), label);
     if (!errorMessage && !saving && !dirty && loaded) announce(tr('저장됨'));
@@ -173,26 +214,29 @@
   function renderScene() {
     if (!host) return;
     renderToolbar();
+    emptyOverlay.hidden = graph.nodes.length > 0 || !loaded;
+    emptyOverlay.replaceChildren(h('span', { class: 'iw-empty-symbol', 'aria-hidden': 'true' }, '⌘'), h('h3', {}, tr('빈 워크스페이스')), h('p', {}, tr('필요한 에이전트와 기억을 직접 추가하세요.')), h('div', {}, h('button', { type: 'button', 'data-iw-action': 'empty-add', class: 'iw-accent-button', onclick: openNodeLibrary }, '+ ', tr('노드 추가')), h('button', { type: 'button', 'data-iw-action': 'template', onclick: loadTemplate }, tr('회사 조직도 템플릿 불러오기'))));
     if (!drag) {
       world.querySelectorAll('.iw-node').forEach(item => item.remove());
       for (const item of graph.nodes) world.append(renderNode(item));
       drawEdges(); transform();
     }
     renderInspector();
+    updateProgressDisplays();
   }
   function renderNode(item) {
     const status = statusFor(item), dept = deptFor(item), memory = memoryFor(item), size = dimensions(item.type);
     let title, subtitle, description;
-    if (item.type === 'commander') { title = tr('본부장'); subtitle = 'YOU / COMMANDER'; description = tr('지휘 · 최종 의사결정'); }
+    if (item.type === 'commander') { title = identity().name; subtitle = 'IDENTITY / YOU'; description = identity().title; }
     else if (item.type === 'provider') { title = providerLabel(item.referenceId); subtitle = 'PROVIDER / CLI'; description = tr('구독 로그인'); }
-    else if (item.type === 'department') { title = deptName(dept); subtitle = `${dept?.code || 'DPT'} / ${providerLabel(dept?.provider)}`; description = common(dept?.role || ''); }
+    else if (item.type === 'department') { title = deptName(dept); subtitle = dept?.title || `AGENT / ${providerLabel(dept?.provider)}`; description = common(dept?.role || ''); }
     else { title = memory?.title || tr('기억'); subtitle = `MEMORY / ${memory?.kind || 'note'}`; description = memory?.content || '—'; }
     const card = h('article', { class: `iw-node iw-node-${item.type}${selected?.kind === 'node' && selected.id === item.id ? ' iw-selected' : ''}`, 'data-node-id': item.id, 'data-node-type': item.type, 'data-status': status.key, tabindex: '0', 'aria-label': `${title} · ${status.text}` });
     card.style.left = `${item.x}px`; card.style.top = `${item.y}px`; card.style.width = `${size.width}px`; card.style.height = `${size.height}px`;
     const head = h('div', { class: 'iw-node-heading', 'data-drag-node': item.id }, h('span', { class: 'iw-node-kind' }, subtitle), h('span', { class: 'iw-drag-grip', 'aria-hidden': 'true' }, '⠿'));
     card.append(head, h('h3', { class: 'iw-node-title', title }, title), h('p', { class: 'iw-node-description', title: description }, description), h('span', { class: 'iw-node-status', 'data-status': status.key }, status.text));
-    const task = item.type === 'department' && currentTask(item.referenceId);
-    if (task) card.append(h('p', { class: 'iw-node-task', title: task.title }, `${task.demo ? '[DEMO] ' : ''}${task.title}`));
+    const task = item.type === 'department' && progressTask(item.referenceId);
+    if (task) { card.classList.add('iw-node-has-progress'); card.append(renderTaskProgress(task, true), h('p', { class: 'iw-node-task', title: task.title }, `${task.demo ? '[DEMO] ' : ''}${currentTask(item.referenceId) ? '' : `${tr('최근 작업')} · `}${task.title}`)); }
     if (item.type === 'department') card.append(h('button', { class: 'iw-port iw-port-in', type: 'button', 'data-input-node': item.id, 'aria-label': `${title} · ${tr('부서 입력 포트')}`, title: tr('부서 입력 포트'), onclick: event => { event.stopPropagation(); if (pendingSource) connectNodes(pendingSource, item.id); } }));
     if (['department', 'memory'].includes(item.type)) {
       const port = h('button', { class: 'iw-port iw-port-out', type: 'button', 'data-output-node': item.id, 'aria-label': item.type === 'memory' ? tr('기억을 문맥으로 전달') : tr('다음 부서로 업무 전달'), title: item.type === 'memory' ? tr('기억을 문맥으로 전달') : tr('다음 부서로 업무 전달') });
@@ -229,7 +273,7 @@
   }
   function onWheel(event) { event.preventDefault(); if (event.ctrlKey || event.metaKey) { const bounds = stage.getBoundingClientRect(); setZoom(zoom * Math.exp(-event.deltaY * .003), { x: event.clientX - bounds.left, y: event.clientY - bounds.top }); } else { pan.x -= event.deltaX; pan.y -= event.deltaY; transform(); } }
   function beginPan(event) {
-    if (event.button !== 0 || event.target.closest('.iw-node') || event.target.closest('.iw-edge-hit')) return;
+    if (event.button !== 0 || event.target.closest('.iw-node') || event.target.closest('.iw-edge-hit') || event.target.closest('button,input,textarea,select,.iw-empty-canvas')) return;
     if (pendingSource) { pendingSource = null; drawEdges(); }
     drag = { type: 'pan', pointerId: event.pointerId, start: { x: event.clientX, y: event.clientY }, initial: { ...pan } };
     stage.classList.add('iw-panning'); event.preventDefault();
@@ -285,13 +329,112 @@
     const edge = { id: uid('edge'), source: sourceId, target: targetId, type }; graph.edges.push(edge); selected = { kind: 'edge', id: edge.id }; inspectorSignature = ''; renderScene(); scheduleSave();
   }
   function removeEdge(id) { graph.edges = graph.edges.filter(edge => edge.id !== id); selected = null; inspectorSignature = ''; renderScene(); scheduleSave(); }
+  function removeNode(id) {
+    graph.nodes = graph.nodes.filter(item => item.id !== id);
+    graph.edges = graph.edges.filter(edge => edge.source !== id && edge.target !== id);
+    if (pendingSource === id) pendingSource = null;
+    selected = null; inspectorSignature = ''; renderScene(); scheduleSave();
+  }
+  function arrangeCurrent(save = true) {
+    const providers = graph.nodes.filter(item => item.type === 'provider');
+    providers.forEach((item, index) => { item.x = index * 560 + 150; item.y = 210; });
+    let independent = 0;
+    for (const item of graph.nodes.filter(value => value.type === 'department')) {
+      const providerIndex = providers.findIndex(provider => provider.referenceId === deptFor(item)?.provider);
+      const peers = graph.nodes.filter(value => value.type === 'department' && deptFor(value)?.provider === deptFor(item)?.provider);
+      const index = peers.indexOf(item);
+      item.x = providerIndex >= 0 ? providerIndex * 560 + index % 2 * 270 : independent++ % 3 * 270;
+      item.y = providerIndex >= 0 ? 420 + Math.floor(index / 2) * 205 : 210 + Math.floor((independent - 1) / 3) * 205;
+    }
+    for (const item of graph.nodes.filter(value => value.type === 'commander')) { item.x = providers.length ? (providers.length - 1) * 280 + 150 : 150; item.y = 25; }
+    const right = Math.max(400, ...graph.nodes.filter(item => item.type !== 'memory').map(item => item.x + dimensions(item.type).width));
+    graph.nodes.filter(item => item.type === 'memory').forEach((item, index) => { item.x = right + 100 + index % 2 * 270; item.y = 40 + Math.floor(index / 2) * 205; });
+    renderScene(); fit(); if (save && graph.nodes.length) scheduleSave();
+  }
+  function addLibraryNode(type, referenceId, position, save = true) {
+    if (!loaded) { announce(tr('불러오는 중…')); return; }
+    if (type === 'provider' && !availableProviders().includes(referenceId) || type === 'department' && !visibleDepartments().some(dept => dept.id === referenceId) || type === 'memory' && !memories.some(memory => memory.id === referenceId && !memory.archived) || !['commander', 'provider', 'department', 'memory'].includes(type)) return;
+    let item = findNode(type, type === 'commander' ? undefined : referenceId);
+    if (!item) {
+      const bounds = stage.getBoundingClientRect(), center = toWorld(bounds.left + (bounds.width || 900) / 2 - 90, bounds.top + (bounds.height || 600) / 2 - 60);
+      item = { id: type === 'commander' ? 'commander' : `${type}:${referenceId}`, type, referenceId: type === 'commander' ? 'commander' : referenceId, x: position?.x ?? center.x + graph.nodes.length % 4 * 20, y: position?.y ?? center.y + graph.nodes.length % 4 * 20 };
+      graph.nodes.push(item);
+    } else if (position) { item.x = position.x; item.y = position.y; }
+    selected = { kind: 'node', id: item.id }; inspectorSignature = ''; renderScene();
+    if (save) scheduleSave();
+    return item;
+  }
+  function loadTemplate() {
+    if (!loaded) return;
+    const existing = new Set(graph.nodes.map(item => item.id)), positions = new Map(graph.nodes.map(item => [item.id, { x: item.x, y: item.y }]));
+    addLibraryNode('commander', 'commander', undefined, false);
+    availableProviders().forEach(id => addLibraryNode('provider', id, undefined, false));
+    visibleDepartments().forEach(dept => addLibraryNode('department', dept.id, undefined, false));
+    arrangeCurrent(false);
+    for (const item of graph.nodes) if (existing.has(item.id)) Object.assign(item, positions.get(item.id));
+    libraryPanel?.remove(); libraryPanel = null; renderScene(); fit(); scheduleSave();
+  }
+  function libraryEntry(type, referenceId, name, detail) {
+    const exists = findNode(type, type === 'commander' ? undefined : referenceId);
+    const entry = h('button', { type: 'button', class: 'iw-library-entry', draggable: 'true', 'data-library-type': type, 'data-library-reference': referenceId, onclick: () => addLibraryNode(type, referenceId) }, h('span', { class: 'iw-library-entry-copy' }, h('strong', {}, name), h('small', {}, detail || '')), h('span', { class: 'iw-library-entry-action' }, exists ? '✓' : '+'));
+    if (exists) entry.title = tr('캔버스에 있음');
+    entry.addEventListener('dragstart', event => { event.dataTransfer?.setData('application/x-imperium-node', JSON.stringify({ type, referenceId })); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'; });
+    return entry;
+  }
+  async function openNodeLibrary() {
+    libraryPanel?.remove(); libraryPanel = h('section', { class: 'iw-node-library', role: 'dialog', 'aria-label': tr('노드 추가') }); host.append(libraryPanel); renderNodeLibrary();
+    const key = project;
+    try { const result = await request('/api/memory'); if (key !== project || !libraryPanel) return; memories = result.nodes || result.memory?.nodes || []; memoryLoaded = true; renderNodeLibrary(); } catch (error) { announce(error.message, true); }
+  }
+  function renderNodeLibrary() {
+    if (!libraryPanel) return;
+    const heading = h('div', { class: 'iw-library-heading' }, h('div', {}, h('h2', {}, tr('노드 추가')), h('p', {}, tr('노드를 클릭하거나 캔버스로 끌어 추가합니다.'))), h('button', { type: 'button', 'aria-label': tr('닫기'), onclick: () => { libraryPanel.remove(); libraryPanel = null; } }, '×'));
+    const body = h('div', { class: 'iw-library-body' });
+    if (state.settings?.localOnly) body.append(h('p', { class: 'iw-local-notice' }, tr('로컬 전용 모드'), ' · ', tr('클라우드 제공자를 숨겼습니다.')));
+    const group = (title, entries) => h('section', { class: 'iw-library-group' }, h('h3', {}, tr(title)), ...(entries.length ? entries : [h('p', {}, tr('추가할 항목이 없습니다.'))]));
+    body.append(group('사용자 노드', [libraryEntry('commander', 'commander', identity().name, identity().title)]));
+    body.append(group('모델 제공자', availableProviders().map(id => libraryEntry('provider', id, providerLabel(id), statusFor({ type: 'provider', referenceId: id }).text))));
+    body.append(group('에이전트/역할', visibleDepartments().map(dept => libraryEntry('department', dept.id, deptName(dept), dept.title || providerLabel(dept.provider)))));
+    body.append(group('기억', memories.filter(memory => !memory.archived).map(memory => libraryEntry('memory', memory.id, memory.title, (memory.content || '').slice(0, 100)))));
+    body.append(h('button', { type: 'button', class: 'iw-library-memory-create', onclick: openMemoryDialog }, '+ ', tr('새 기억 만들기')));
+    body.append(createAgentForm());
+    body.append(h('div', { class: 'iw-library-template' }, h('button', { type: 'button', 'data-iw-action': 'template', onclick: loadTemplate }, tr('회사 조직도 템플릿 불러오기')), h('p', {}, tr('템플릿은 현재 캔버스에 없는 조직 노드만 추가합니다.'))));
+    libraryPanel.replaceChildren(heading, body);
+  }
+  function createAgentForm() {
+    const name = h('input', { required: '', maxlength: '24', 'aria-label': tr('에이전트 이름') });
+    const title = h('input', { maxlength: '80', 'aria-label': tr('직함') });
+    const role = h('textarea', { required: '', rows: '3', maxlength: '1500', placeholder: tr('역할을 입력하세요.'), 'aria-label': tr('역할과 지침') });
+    const provider = h('select', { required: '', 'aria-label': tr('제공자') }, ...availableProviders().map(id => h('option', { value: id }, providerLabel(id))));
+    const connection = h('select', { 'aria-label': tr('등록된 연결') });
+    const updateConnections = () => connection.replaceChildren(h('option', { value: '' }, tr('기본 연결')), ...(state.connections || []).filter(item => item.providerId === provider.value).map(item => h('option', { value: item.id }, item.label)));
+    updateConnections(); provider.addEventListener('change', updateConnections);
+    const submit = h('button', { class: 'iw-accent-button', type: 'submit', disabled: !availableProviders().length }, tr('등록하고 노드 추가'));
+    const form = h('form', { class: 'iw-agent-create-form' }, h('h3', {}, tr('새 에이전트 등록')), field(tr('에이전트 이름'), name), field(tr('직함'), title), field(tr('역할과 지침'), role), field(tr('제공자'), provider), field(tr('등록된 연결'), connection), submit);
+    if (!availableProviders().length) form.append(h('p', {}, tr('이 제공자는 AI 연결 화면에서 먼저 설치하거나 등록하세요.')));
+    const key = project;
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); submit.disabled = true;
+      try {
+        const result = await request('/api/departments', 'POST', { name: name.value.trim(), title: title.value.trim(), role: role.value.trim(), provider: provider.value, ...(connection.value ? { connectionId: connection.value } : {}) });
+        if (key !== project) return;
+        const dept = result.department;
+        if (!dept?.id) throw new Error(tr('요청을 처리하지 못했습니다.'));
+        if (!(state.departments || []).some(item => item.id === dept.id)) state.departments = [...(state.departments || []), dept];
+        addLibraryNode('department', dept.id); renderNodeLibrary(); announce(tr('에이전트를 등록했습니다.'));
+        window.dispatchEvent(new CustomEvent('imperium:departments-changed'));
+      } catch (error) { announce(error.message, true); }
+      finally { submit.disabled = false; }
+    });
+    return form;
+  }
   function field(labelText, input) { return h('label', { class: 'iw-field' }, h('span', {}, labelText), input); }
   function renderInspector(force = false) {
     if (!inspector) return;
     if (!force && inspector.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const item = selected?.kind === 'node' ? graph.nodes.find(value => value.id === selected.id) : null;
     const edge = selected?.kind === 'edge' ? graph.edges.find(value => value.id === selected.id) : null;
-    const signature = JSON.stringify([selected, options.language, item && statusFor(item), item?.type === 'department' && deptFor(item), item?.type === 'memory' && memoryFor(item), edge]);
+    const signature = JSON.stringify([selected, options.language, item && statusFor(item), item?.type === 'commander' && identity(), item?.type === 'department' && [deptFor(item), progressTask(item.referenceId)], item?.type === 'memory' && memoryFor(item), edge]);
     if (!force && signature === inspectorSignature) return;
     inspectorSignature = signature;
     inspector.replaceChildren(h('div', { class: 'iw-inspector-heading' }, tr('노드 검사기')));
@@ -304,26 +447,33 @@
     const body = h('div', { class: 'iw-inspector-content' }); inspector.append(body);
     if (item.type === 'department') {
       const dept = deptFor(item); if (!dept) return;
-      body.append(h('span', { class: 'iw-inspector-kind' }, `DEPARTMENT / ${dept.code || dept.id}`), h('h3', {}, deptName(dept)), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, common(dept.role)), h('p', { class: 'iw-inspector-note' }, tr('구성된 역할입니다. 업무를 지시할 때 모델이 실행됩니다.')), h('div', { class: 'iw-inspector-buttons' }, h('button', { class: 'iw-accent-button', type: 'button', onclick: () => options.onAssignDepartment?.(dept.id) }, tr('업무 지시'), ' ↗'), h('button', { type: 'button', onclick: () => options.onEditDepartment?.(dept) }, tr('부서 편집'))));
+      body.append(h('span', { class: 'iw-inspector-kind' }, `AGENT / ${dept.code || dept.id}`), h('h3', {}, deptName(dept)), ...(dept.title ? [h('span', { class: 'iw-role-badge' }, dept.title)] : []), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, common(dept.role)), h('p', { class: 'iw-inspector-note' }, tr('제공자 변경은 에이전트 편집에서 설정합니다.')), h('div', { class: 'iw-inspector-buttons' }, h('button', { class: 'iw-accent-button', type: 'button', disabled: isDisabled(item), onclick: () => options.onAssignDepartment?.(dept.id) }, tr('업무 지시'), ' ↗'), h('button', { type: 'button', onclick: () => options.onEditDepartment?.(dept) }, tr('부서 편집'))));
+      const task = progressTask(item.referenceId); if (task) body.append(renderTaskProgress(task, false));
       const formWorkspace = project;
-      const form = h('form', { class: 'iw-workflow-form' }), prompt = h('textarea', { rows: '4', maxlength: '12000', placeholder: tr('연결된 부서에 순서대로 전달할 목표를 작성하세요.'), required: '', 'aria-label': tr('워크플로 지시') }), permission = h('input', { type: 'checkbox' }), submit = h('button', { type: 'submit', class: 'iw-workflow-run' }, tr('연결된 흐름 실행'));
+      const form = h('form', { class: 'iw-workflow-form' }), prompt = h('textarea', { rows: '4', maxlength: '12000', placeholder: tr('연결된 부서에 순서대로 전달할 목표를 작성하세요.'), required: '', 'aria-label': tr('워크플로 지시') }), permission = h('input', { type: 'checkbox' }), submit = h('button', { type: 'submit', class: 'iw-workflow-run', disabled: isDisabled(item) }, tr('연결된 흐름 실행'));
       form.append(field(tr('워크플로 지시'), prompt), h('label', { class: 'iw-checkbox' }, permission, tr('파일 수정 허용')), h('p', { class: 'iw-inspector-note' }, tr('연결만으로 작업이 실행되지는 않습니다.')), submit);
-      form.addEventListener('submit', async event => { event.preventDefault(); if (!prompt.value.trim()) return; submit.disabled = true; try { if (!await persist()) throw new Error(errorMessage || tr('저장 실패')); if (formWorkspace !== project) return; await request('/api/workflows/run', 'POST', { departmentId: dept.id, prompt: prompt.value.trim(), permission: permission.checked ? 'workspace-write' : 'read-only', priority: 'normal' }, formWorkspace); if (formWorkspace !== project) return; prompt.value = ''; announce(tr('워크플로를 시작했습니다.')); } catch (error) { announce(error.message, true); } finally { submit.disabled = false; } });
+      form.addEventListener('submit', async event => { event.preventDefault(); if (!prompt.value.trim() || isDisabled(item)) return; submit.disabled = true; try { if (!await persist()) throw new Error(errorMessage || tr('저장 실패')); if (formWorkspace !== project) return; await request('/api/workflows/run', 'POST', { departmentId: dept.id, prompt: prompt.value.trim(), permission: permission.checked ? 'workspace-write' : 'read-only', priority: 'normal' }, formWorkspace); if (formWorkspace !== project) return; prompt.value = ''; announce(tr('워크플로를 시작했습니다.')); } catch (error) { announce(error.message, true); } finally { submit.disabled = isDisabled(item); } });
       body.append(form);
     } else if (item.type === 'provider') body.append(h('span', { class: 'iw-inspector-kind' }, 'PROVIDER / OFFICIAL CLI'), h('h3', {}, providerLabel(item.referenceId)), h('span', { class: 'iw-inspector-status', 'data-status': statusFor(item).key }, statusFor(item).text), h('p', {}, tr('모델은 각 운영체제 사용자 계정의 공식 CLI 로그인을 사용합니다.')), h('button', { type: 'button', class: 'iw-accent-button', onclick: () => options.onOpenSettings?.() }, tr('연결 관리')));
-    else if (item.type === 'commander') body.append(h('span', { class: 'iw-inspector-kind' }, 'YOU / COMMANDER'), h('h3', {}, tr('본부장')), h('p', {}, tr('지휘 · 최종 의사결정')), h('p', { class: 'iw-inspector-note' }, tr('연결만으로 작업이 실행되지는 않습니다.')));
+    else if (item.type === 'commander') {
+      const current = identity(), name = h('input', { value: current.name, maxlength: '60', required: '', 'aria-label': tr('이름') }), title = h('input', { value: current.title, maxlength: '80', required: '', 'aria-label': tr('직함') }), submit = h('button', { type: 'submit', class: 'iw-accent-button' }, tr('이름표 저장'));
+      const form = h('form', { class: 'iw-identity-form' }, field(tr('이름'), name), field(tr('직함'), title), submit);
+      form.addEventListener('submit', async event => { event.preventDefault(); submit.disabled = true; try { const result = await request('/api/settings', 'POST', { identity: { name: name.value.trim(), title: title.value.trim() } }); state.settings = result.settings || { ...state.settings, identity: { name: name.value.trim(), title: title.value.trim() } }; inspectorSignature = ''; renderScene(); renderInspector(true); announce(tr('이름표를 저장했습니다.')); } catch (error) { announce(error.message, true); } finally { submit.disabled = false; } });
+      body.append(h('span', { class: 'iw-inspector-kind' }, 'WORKSPACE / IDENTITY'), h('h3', {}, current.name), h('span', { class: 'iw-role-badge' }, current.title), form);
+    }
     else renderMemoryInspector(body, item);
+    body.append(h('button', { type: 'button', class: 'iw-danger-button', 'data-iw-action': 'remove-node', onclick: () => removeNode(item.id) }, tr('캔버스에서 제거')), h('p', { class: 'iw-inspector-note' }, tr('노드만 제거하며 실제 에이전트·연결·기억은 삭제하지 않습니다.')));
   }
   function renderMemoryInspector(body, item) {
     const memory = memoryFor(item);
     if (!memory) { body.append(h('h3', {}, tr('기억')), h('p', {}, '—')); return; }
-    const title = h('input', { value: memory.title || '', maxlength: '200', required: '' }), content = h('textarea', { rows: '9', maxlength: '24000', required: '' }); content.value = memory.content || '';
+    const title = h('input', { value: memory.title || '', maxlength: '160', required: '' }), content = h('textarea', { rows: '9', maxlength: '24000', required: '' }); content.value = memory.content || '';
     const pinned = h('input', { type: 'checkbox' }); pinned.checked = Boolean(memory.pinned);
     const submit = h('button', { type: 'submit', class: 'iw-accent-button' }, tr('기억 저장'));
     const form = h('form', { class: 'iw-memory-form' }, field(tr('제목'), title), field(tr('기억 내용'), content), h('label', { class: 'iw-checkbox' }, pinned, tr('고정 기억')), h('small', { class: 'iw-inspector-note' }, `${tr('수정 이력')} ${memory.revision || 1}`), submit);
     const memoryWorkspace = project;
     form.addEventListener('submit', async event => { event.preventDefault(); submit.disabled = true; try { const result = await request(`/api/memory/${encodeURIComponent(memory.id)}`, 'PATCH', { title: title.value.trim(), content: content.value.trim(), pinned: pinned.checked, expectedRevision: memory.revision }, memoryWorkspace); if (memoryWorkspace !== project) return; const updated = result.node || result.memory || { ...memory, title: title.value.trim(), content: content.value.trim(), pinned: pinned.checked, revision: (memory.revision || 1) + 1 }; memories = memories.map(value => value.id === memory.id ? updated : value); inspectorSignature = ''; renderScene(); announce(tr('기억을 저장했습니다.')); window.dispatchEvent(new CustomEvent('imperium:memory-changed')); } catch (error) { announce(error.message, true); } finally { submit.disabled = false; } });
-    body.append(h('span', { class: 'iw-inspector-kind' }, 'MEMORY / CONTEXT'), h('h3', {}, memory.title), form, h('button', { type: 'button', class: 'iw-danger-button', onclick: () => { graph.nodes = graph.nodes.filter(value => value.id !== item.id); graph.edges = graph.edges.filter(edge => edge.source !== item.id && edge.target !== item.id); selected = null; inspectorSignature = ''; renderScene(); scheduleSave(); } }, tr('캔버스에서 제거')), h('p', { class: 'iw-inspector-note' }, tr('기억 자체는 삭제되지 않습니다.')));
+    body.append(h('span', { class: 'iw-inspector-kind' }, 'MEMORY / CONTEXT'), h('h3', {}, memory.title), form);
   }
   function addMemory(memory) {
     const existing = findNode('memory', memory.id); if (existing) { selectNode(existing.id); announce(tr('이 기억은 이미 캔버스에 있습니다.')); memoryDialog?.close(); return; }
@@ -333,14 +483,14 @@
   }
   async function openMemoryDialog() {
     const key = project;
-    try { const result = await request('/api/memory'); if (key !== project) return; memories = result.nodes || result.memory?.nodes || []; } catch (error) { announce(error.message, true); return; }
+    try { const result = await request('/api/memory'); if (key !== project) return; memories = result.nodes || result.memory?.nodes || []; memoryLoaded = true; } catch (error) { announce(error.message, true); return; }
     memoryDialog?.remove();
     memoryDialog = h('dialog', { class: 'iw-memory-dialog' });
     const close = h('button', { type: 'button', 'aria-label': tr('닫기'), onclick: () => memoryDialog.close() }, '×');
     const list = h('div', { class: 'iw-memory-list' });
     if (!memories.length) list.append(h('p', {}, tr('아직 저장한 기억이 없습니다.')));
     for (const memory of memories) list.append(h('button', { type: 'button', onclick: () => addMemory(memory) }, h('strong', {}, memory.title), h('span', {}, (memory.content || '').slice(0, 95)), h('small', {}, `${memory.pinned ? 'PINNED · ' : ''}r${memory.revision || 1} +`)));
-    const title = h('input', { maxlength: '200', required: '', placeholder: tr('제목'), 'aria-label': tr('제목') }), content = h('textarea', { rows: '4', maxlength: '24000', required: '', placeholder: tr('기억 내용'), 'aria-label': tr('기억 내용') }), create = h('button', { type: 'submit', class: 'iw-accent-button' }, tr('새 기억 만들기'));
+    const title = h('input', { maxlength: '160', required: '', placeholder: tr('제목'), 'aria-label': tr('제목') }), content = h('textarea', { rows: '4', maxlength: '24000', required: '', placeholder: tr('기억 내용'), 'aria-label': tr('기억 내용') }), create = h('button', { type: 'submit', class: 'iw-accent-button' }, tr('새 기억 만들기'));
     const form = h('form', { class: 'iw-new-memory' }, title, content, create);
     form.addEventListener('submit', async event => { event.preventDefault(); create.disabled = true; try { const result = await request('/api/memory', 'POST', { title: title.value.trim(), content: content.value.trim(), kind: 'note', tags: [], pinned: false }, key); if (key !== project) return; const memory = result.node || result.memory; if (!memory?.id) throw new Error(tr('요청을 처리하지 못했습니다.')); memories.push(memory); addMemory(memory); window.dispatchEvent(new CustomEvent('imperium:memory-changed')); } catch (error) { announce(error.message, true); } finally { create.disabled = false; } });
     memoryDialog.append(h('div', { class: 'iw-memory-dialog-heading' }, h('div', {}, h('h2', {}, tr('기억 선택')), h('p', {}, tr('기억을 선택하거나 새로 작성하세요.'))), close), list, form); document.body.append(memoryDialog); memoryDialog.showModal();
@@ -350,11 +500,11 @@
     if (!host && !mount()) return;
     const key = state.settings?.workspace;
     if (!key) { renderScene(); announce(tr('불러오는 중…')); return; }
-    if (project !== key) { project = key; memoryDialog?.close(); graph = { nodes: [], edges: [] }; loaded = false; loading = false; dirty = false; selected = null; inspectorSignature = ''; requestGeneration++; clearTimeout(saveTimer); memories = []; ensureOrganization(); renderScene(); load(); return; }
+    if (project !== key) { project = key; memoryDialog?.close(); libraryPanel?.remove(); libraryPanel = null; graph = { nodes: [], edges: [] }; loaded = false; loading = false; dirty = false; selected = null; inspectorSignature = ''; requestGeneration++; clearTimeout(saveTimer); memories = []; memoryLoaded = false; ensureOrganization(); renderScene(); load(); return; }
     ensureOrganization();
     if (state.graph && loaded && !dirty && !saving && !drag) { const hash = JSON.stringify(sanitize(state.graph)); if (hash !== loadedGraphHash) { graph = sanitize(state.graph); loadedGraphHash = hash; ensureOrganization(); } }
     renderScene();
   }
   window.ImperiumWorkspace = { render, reload: async () => { if (!host || !project) return; loading = false; await load(); }, fit, getGraph: () => JSON.parse(JSON.stringify(graph)) };
-  window.addEventListener('imperium:memory-changed', () => { const key = project; request('/api/memory').then(result => { if (key !== project) return; memories = result.nodes || result.memory?.nodes || []; inspectorSignature = ''; renderScene(); }).catch(error => announce(error.message, true)); });
+  window.addEventListener('imperium:memory-changed', () => { const key = project; request('/api/memory').then(result => { if (key !== project) return; memories = result.nodes || result.memory?.nodes || []; memoryLoaded = true; ensureOrganization(); inspectorSignature = ''; renderScene(); }).catch(error => announce(error.message, true)); });
 })();

@@ -24,6 +24,7 @@
       status: {
         setup_required: '업데이트 채널이 아직 설정되지 않았습니다. 공개 배포 저장소가 정해지면 확인할 수 있습니다.',
         development: '개발 모드로 실행 중이라 업데이트를 확인하지 않습니다.',
+        offline: '로컬 전용 모드 · 외부 업데이트 연결 중지',
         checking: '새 버전을 확인하는 중…',
         available: '새 버전을 사용할 수 있습니다.',
         current: '최신 버전을 사용 중입니다.',
@@ -72,6 +73,7 @@
       status: {
         setup_required: 'No update channel is configured yet. Checking becomes available once the public release repository is set.',
         development: 'Running in development mode, so updates are not checked.',
+        offline: 'Local-only mode · external update connections stopped',
         checking: 'Checking for a new version…',
         available: 'A new version is available.',
         current: 'You are on the latest version.',
@@ -120,6 +122,7 @@
       status: {
         setup_required: 'アップデートチャネルがまだ設定されていません。公開リリースのリポジトリが決まると確認できるようになります。',
         development: '開発モードで実行中のため、アップデートを確認しません。',
+        offline: 'ローカル専用モード · 外部への更新接続を停止',
         checking: '新しいバージョンを確認しています…',
         available: '新しいバージョンがあります。',
         current: '最新バージョンを使用しています。',

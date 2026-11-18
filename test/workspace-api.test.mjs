@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import { createHQServer } from '../server.mjs';
@@ -13,7 +14,7 @@ async function eventually(check, message = 'Expected state was not reached') {
   assert.fail(message);
 }
 
-function fakeProviders() {
+function fakeProviders({ deferCancel = false } = {}) {
   const calls = [];
   return {
     calls,
@@ -23,11 +24,11 @@ function fakeProviders() {
         let ended = false;
         const call = {
           ...options,
-          complete(output = '실제 프로세스를 실행하지 않은 테스트 결과') { if (ended) return; ended = true; options.onExit({ code: 0, output, usage: { inputTokens: 3, outputTokens: 5 } }); },
+          complete(output = '실제 프로세스를 실행하지 않은 테스트 결과', usage = { inputTokens: 3, outputTokens: 5 }) { if (ended) return; ended = true; options.onExit({ code: 0, output, usage }); },
           fail(message = 'Upstream failure') { if (ended) return; ended = true; options.onExit({ code: 1, error: message }); },
         };
         calls.push(call);
-        return { cancel() { if (!ended) { ended = true; options.onExit({ code: 130, error: 'Cancelled' }); } } };
+        return { cancel() { if (!ended) { call.cancelRequested = true; if (!deferCancel) { ended = true; options.onExit({ code: 130, error: 'Cancelled' }); } } } };
       },
     },
   };
@@ -62,7 +63,7 @@ async function fixture(t, options = {}) {
   const workspace = path.join(directory, 'project-one');
   const other = path.join(directory, 'project-two');
   await mkdir(workspace, { recursive: true }); await mkdir(other, { recursive: true });
-  const control = fakeProviders();
+  const control = fakeProviders(options);
   const terminal = fakeTerminal();
   const modelCalls = [];
   const app = createHQServer({
@@ -75,7 +76,14 @@ async function fixture(t, options = {}) {
   const state = async () => (await fetch(`${url}/api/state`, { headers: sessionHeaders })).json();
   const initial = await state();
   let closed = false;
-  const close = async () => { if (!closed) { closed = true; await app.close(); } };
+  const close = async () => {
+    if (!closed) {
+      closed = true;
+      // Test assertions may fail with a streaming client still connected.
+      app.server.closeAllConnections();
+      await app.close();
+    }
+  };
   t.after(async () => { await close(); if (!options.keepData) await rm(directory, { recursive: true, force: true }); });
   const request = (route, body, method = 'POST', headers = {}) => fetch(`${url}${route}`, {
     method, headers: { 'content-type': 'application/json', 'x-hq-token': initial.server.csrfToken, ...sessionHeaders, ...headers },
@@ -96,6 +104,120 @@ async function fixture(t, options = {}) {
 const departmentNode = id => ({ id: `department:${id}`, type: 'department', referenceId: id, x: 200, y: 300 });
 const memoryNode = id => ({ id: `memory:${id}`, type: 'memory', referenceId: id, x: 0, y: 300 });
 const handoff = (source, target) => ({ id: `handoff-${source}-${target}`, source: `department:${source}`, target: `department:${target}`, type: 'handoff' });
+
+test('model progress markers update a labeled estimate without entering result text and only process success reaches 100', async t => {
+  const f = await fixture(t);
+  const task = await f.submit();
+  await eventually(() => f.calls.length === 1);
+  f.calls[0].onEvent({ type: 'text', text: '시작\n[[IMPERIUM_PRO' });
+  f.calls[0].onEvent({ type: 'text', text: 'GRESS {"percent":42,"etaMinutes":3,"stage":"검토 중"}]]\n결과' });
+  let current = (await f.state()).tasks.find(value => value.id === task.id);
+  assert.equal(current.progress.percent, 42);
+  assert.equal(current.progress.source, 'model-estimate');
+  assert.equal(current.progress.etaMinutes, 3);
+  assert.equal(current.output, '시작\n\n결과');
+  assert.ok(current.firstOutputAt);
+  assert.ok(!JSON.stringify(current.logs).includes('IMPERIUM_PROGRESS'));
+  f.calls[0].complete();
+  await eventually(async () => (await f.state()).tasks.find(value => value.id === task.id).status === 'completed');
+  current = (await f.state()).tasks.find(value => value.id === task.id);
+  assert.equal(current.progress.percent, 100);
+  assert.equal(current.progress.source, 'process');
+});
+
+test('completed task snapshots stay compact while scoped details and exports retain the full result and logs', async t => {
+  const f = await fixture(t);
+  const homeId = (await f.get('/api/projects')).currentProjectId;
+  const task = await f.submit();
+  await eventually(() => f.calls.length === 1);
+  const output = '한'.repeat(1999) + '😀' + 'FULL_DETAIL_TAIL'.repeat(300);
+  f.calls[0].onEvent({ type: 'status', text: 'FULL_DETAIL_LOG_MARKER' });
+  f.calls[0].onEvent({ type: 'text', text: output });
+  f.calls[0].complete();
+  const compact = await eventually(async () => {
+    const value = (await f.state()).tasks.find(value => value.id === task.id);
+    return value?.status === 'completed' ? value : false;
+  });
+  assert.equal(compact.output, '한'.repeat(1999), 'the 2000-unit preview must not split an emoji surrogate pair');
+  assert.equal(compact.outputChars, output.length);
+  assert.equal(compact.detailsTruncated, true);
+  assert.deepEqual(compact.logs, []);
+  const details = (await f.get(`/api/tasks/${task.id}`)).task;
+  assert.equal(details.output, output);
+  assert.ok(details.logs.some(value => value.text === 'FULL_DETAIL_LOG_MARKER'));
+  const exported = (await f.get('/api/export')).tasks.find(value => value.id === task.id);
+  assert.equal(exported.output, output);
+  assert.deepEqual(exported.logs, details.logs);
+  const project = (await f.successful('/api/projects', { name: '다른 프로젝트', color: '#123456', parentDir: f.directory })).project;
+  await f.successful(`/api/projects/${project.id}/select`, {});
+  const denied = await fetch(`${f.url}/api/tasks/${task.id}`);
+  assert.equal(denied.status, 404);
+  assert.ok(!(await denied.text()).includes('FULL_DETAIL_TAIL'));
+  assert.ok(!(await f.state()).tasks.some(value => value.id === task.id));
+  await f.successful(`/api/projects/${homeId}/select`, {});
+  assert.equal((await f.get(`/api/tasks/${task.id}`)).task.output, output);
+});
+
+test('a cancelled task retains usage arriving at final process exit and publishes the update to UI subscribers', async t => {
+  const f = await fixture(t, { deferCancel: true });
+  let eventRequest, eventResponse, timer;
+  try {
+    const task = await f.submit();
+    await eventually(() => f.calls.length === 1);
+    f.calls[0].onEvent({ type: 'text', text: 'VISIBLE[[IMPERIUM_PRO' });
+    const cancelled = (await f.successful(`/api/tasks/${task.id}/cancel`, {})).task;
+    assert.equal(cancelled.status, 'cancelled');
+    assert.equal(f.calls[0].cancelRequested, true);
+    // Own a single unpooled TCP connection so failed SSE assertions cannot
+    // leave an undici fetch/body cancellation or keep-alive handle pending.
+    timer = setTimeout(() => eventRequest?.destroy(new Error('Timed out awaiting final usage state')), 3000);
+    eventResponse = await new Promise((resolve, reject) => {
+      eventRequest = http.get(`${f.url}/api/events`, { agent: false }, resolve);
+      eventRequest.once('error', reject);
+    });
+    assert.equal(eventResponse.statusCode, 200);
+    assert.match(eventResponse.headers['content-type'], /text\/event-stream/);
+    const reader = eventResponse[Symbol.asyncIterator](), decoder = new TextDecoder();
+    let buffer = '';
+    const nextState = async check => {
+      for (;;) {
+        let boundary;
+        while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+          const frame = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
+          const data = frame.split('\n').find(line => line.startsWith('data: '));
+          if (frame.includes('event: state') && data) {
+            const value = JSON.parse(data.slice(6));
+            if (check(value)) return value;
+          }
+        }
+        const chunk = await reader.next();
+        assert.equal(chunk.done, false, 'the state event stream ended before the final usage update');
+        buffer += decoder.decode(chunk.value, { stream: true });
+      }
+    };
+    await nextState(state => state.tasks.some(value => value.id === task.id && value.status === 'cancelled'));
+    const usage = { inputTokens: 17, outputTokens: 23, cachedInputTokens: 5 };
+    f.calls[0].complete('late process result', usage);
+    const pushed = await nextState(state => state.tasks.some(value => value.id === task.id && value.usage?.inputTokens === 17));
+    const updated = pushed.tasks.find(value => value.id === task.id);
+    assert.equal(updated.status, 'cancelled', 'late successful exit must never revive a cancelled task');
+    assert.deepEqual(updated.usage, usage);
+    assert.equal(updated.usageReported, true);
+    const fullTask = (await f.get(`/api/tasks/${task.id}`)).task;
+    assert.deepEqual(fullTask.usage, usage);
+    assert.equal(fullTask.output, 'VISIBLE[[IMPERIUM_PRO', 'cancellation must flush a partial progress marker as literal result text');
+    const persisted = await eventually(async () => {
+      const state = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+      return state.tasks.find(value => value.id === task.id && value.usage?.inputTokens === 17);
+    }, 'final cancelled-task usage was not persisted');
+    assert.equal(persisted.status, 'cancelled');
+    assert.deepEqual(persisted.usage, usage);
+  } finally {
+    clearTimeout(timer);
+    eventResponse?.destroy(); eventRequest?.destroy();
+    f.calls[0]?.complete();
+  }
+});
 
 test('memory HTTP CRUD enforces revisions and prevents cross-workspace modification', async t => {
   const f = await fixture(t);
@@ -164,6 +286,20 @@ test('a failed upstream task stops its workflow descendants instead of leaving q
   });
   assert.equal(failed.find(task => task.id === result.tasks[0].id).status, 'failed');
   assert.equal(f.calls.length, 1);
+});
+
+test('an unsupported downstream permission rejects the whole workflow before any job is saved or launched', async t => {
+  const f = await fixture(t);
+  await f.successful('/api/departments/engineering', { provider: 'gemini' }, 'PATCH');
+  await f.successful('/api/graph', { nodes: ['strategy', 'engineering'].map(departmentNode), edges: [handoff('strategy', 'engineering')] }, 'PUT');
+  const response = await f.request('/api/workflows/run', {
+    departmentId: 'strategy', prompt: 'A rejected workflow must never partially modify project files.', permission: 'workspace-write',
+  });
+  assert.equal(response.status, 400);
+  await response.json();
+  await delay(30);
+  assert.equal((await f.state()).tasks.length, 0, 'a later validation error must not leave an earlier Codex job in the queue');
+  assert.equal(f.calls.length, 0, 'no provider may start after the request was rejected');
 });
 
 test('selected memory enters the actual prompt while task capabilities remain private and are revoked', async t => {
@@ -275,6 +411,18 @@ test('registered provider connections carry the assigned model ID into the real 
   assert.equal(active.connectionId, connection.id);
   assert.equal(active.modelId, 'offline-model');
   assert.equal((await f.request(`/api/providers/connections/${connection.id}`, undefined, 'DELETE')).status, 409);
+  f.calls[0].complete();
+});
+
+test('a provider override does not inherit another provider connection model', async t => {
+  const f = await fixture(t);
+  const connection = (await f.successful('/api/providers/register', { providerId: 'codex', label: 'Assigned Codex model', modelId: 'gpt-codex-only-test' })).connection;
+  await f.successful('/api/departments/strategy', { connectionId: connection.id, provider: 'codex' }, 'PATCH');
+  const task = await f.submit({ provider: 'claude' });
+  await eventually(() => f.calls.length === 1);
+  assert.equal(f.calls[0].provider, 'claude');
+  assert.equal(f.calls[0].modelId, '', 'the Codex model ID must not reach the Claude CLI');
+  assert.equal((await f.state()).tasks.find(item => item.id === task.id).connectionId, null);
   f.calls[0].complete();
 });
 

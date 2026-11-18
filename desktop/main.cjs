@@ -198,10 +198,11 @@ async function startApplication() {
     workspace: path.join(app.getPath('documents'), 'Imperium Workspace'),
     port: 0,
     privateSessionToken,
+    onSettingsChange: settings => updater?.setOffline(settings.localOnly === true),
   });
   const { url } = await terminalServer.start();
   terminalURL = url;
-  updater = createUpdater({ app, sendState: createStateSender(() => mainWindow), channel: { owner: 'Furu002', repo: 'imperium-releases' } });
+  updater = createUpdater({ app, sendState: createStateSender(() => mainWindow), offline: terminalServer.store.state.settings.localOnly === true, channel: { owner: 'Furu002', repo: 'imperium-releases' } });
   removeUpdateIpc = registerUpdateIpc({ ipcMain, updater, getMainWindow: () => mainWindow, isTrustedURL: isLocalPage });
   installMenu();
   menuTimer = setInterval(installMenu, 1000);

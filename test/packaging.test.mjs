@@ -19,7 +19,9 @@ const native = arch => {
 };
 
 async function fixture(t) {
-  const root = await mkdtemp(path.join(tmpdir(), 'imperium-pack-test-'));
+  // macOS commonly resolves /var/folders through /private/var/folders. Use the
+  // same canonical root as the production hook for all containment assertions.
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'imperium-pack-test-')));
   t.after(async () => {
     const resolved = await realpath(root);
     assert.equal(path.dirname(resolved), await realpath(tmpdir()));

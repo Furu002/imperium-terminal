@@ -4,10 +4,11 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { mkdtemp, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import {
   additionalEnvironment, additionalProviderArguments, createAdditionalDetector,
   createAdditionalEventParser, createAdditionalProviderRunner, prepareGeminiContext, probeCopilotAuth,
+  windowsCommandLineLength,
 } from '../lib/additional-providers.mjs';
 
 const settle = async () => { for (let turn = 0; turn < 5; turn++) await new Promise(resolve => setImmediate(resolve)); };
@@ -26,7 +27,11 @@ const jsonResponse = value => new Response(JSON.stringify(value), { status: 200,
 test('additional provider environment preserves account login and removes API/token overrides', () => {
   const original = { PATH: '/bin', GEMINI_API_KEY: 'hidden', GOOGLE_API_KEY: 'hidden', GOOGLE_GENAI_USE_VERTEXAI: 'true', GOOGLE_APPLICATION_CREDENTIALS: 'hidden', COPILOT_GITHUB_TOKEN: 'hidden', GITHUB_TOKEN: 'hidden', GH_TOKEN: 'hidden', OPENAI_API_KEY: 'hidden', GEMINI_CLI_SYSTEM_SETTINGS_PATH: '/old/settings.json', KEEP: 'yes' };
   const result = additionalEnvironment(original);
-  assert.equal(result.KEEP, 'yes'); assert.equal(result.PATH, '/bin');
+  assert.equal(result.KEEP, 'yes');
+  const directories = result.PATH.split(path.delimiter);
+  assert.equal(directories[0], '/bin', 'the caller path retains its original precedence');
+  const additions = process.platform === 'darwin' ? ['/opt/homebrew/bin', '/usr/local/bin', path.join(homedir(), '.local', 'bin')] : [];
+  assert.deepEqual(directories, [...new Set(['/bin', ...additions])], 'only the documented macOS CLI search locations are appended');
   for (const key of ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_APPLICATION_CREDENTIALS', 'COPILOT_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN', 'OPENAI_API_KEY', 'GEMINI_CLI_SYSTEM_SETTINGS_PATH']) assert.equal(result[key], undefined);
   assert.equal(original.GEMINI_API_KEY, 'hidden', 'parent environment is never mutated');
 });
@@ -152,6 +157,78 @@ test('shell characters remain exact prompt data for Copilot; cancellation exits 
   assert.equal(exits.length, 1); assert.equal(exits[0].code, 130); assert.equal(child.kills, 1);
 });
 
+test('Windows command length counts executable, separators, exact libuv escaping and UTF-16 units', () => {
+  // Expected serialized strings include argv0, spaces and the terminating NUL.
+  const examples = [
+    [[], 'cli.exe'],
+    [[''], 'cli.exe ""'],
+    [['plain', '한글😀'], 'cli.exe plain 한글😀'],
+    [['hello world'], 'cli.exe "hello world"'],
+    [['hello\tworld'], 'cli.exe "hello\tworld"'],
+    [['hello\nworld'], 'cli.exe hello\nworld'],
+    [['hello"world'], String.raw`cli.exe "hello\"world"`],
+    [[String.raw`hello\world`], String.raw`cli.exe hello\world`],
+    [[String.raw`hello\"world`], String.raw`cli.exe "hello\\\"world"`],
+    [[String.raw`hello\\"world`], String.raw`cli.exe "hello\\\\\"world"`],
+    [['hello world\\'], String.raw`cli.exe "hello world\\"`],
+  ];
+  for (const [args, serialized] of examples) assert.equal(windowsCommandLineLength('cli.exe', args), serialized.length + 1, JSON.stringify(args));
+  assert.equal(windowsCommandLineLength('C:\\Program Files\\node.exe', ['C:\\한글 CLI\\entry.js', '-p', '😀']), '"C:\\Program Files\\node.exe" "C:\\한글 CLI\\entry.js" -p 😀'.length + 1);
+});
+
+test('Copilot refuses oversized Windows command lines before any probe/spawn without truncating the prompt', async () => {
+  let probes = 0, spawned = 0;
+  const run = createAdditionalProviderRunner({
+    locate: async () => target, platform: 'win32',
+    probe: async () => { probes++; return { code: 0, stdout: help, stderr: '' }; },
+    spawnProcess: () => { spawned++; return childProcess(); },
+  });
+  for (const prompt of ['a'.repeat(30000), '"'.repeat(15000), String.raw` \"`.repeat(7500), '😀'.repeat(15000)]) {
+    const args = additionalProviderArguments('copilot', { prompt });
+    const expectedLength = windowsCommandLineLength(target.command, [...target.prefix, ...args]);
+    assert.ok(expectedLength > 30000);
+    const original = prompt;
+    await assert.rejects(run({ provider: 'copilot', prompt }), error => {
+      assert.match(error.message, /Windows.*30,000/);
+      assert.ok(error.message.includes(expectedLength.toLocaleString('ko-KR')));
+      assert.match(error.message, /작업 지시/);
+      assert.match(error.message, /기억·선행 부서 출력을 줄여/);
+      return true;
+    });
+    assert.equal(prompt, original);
+  }
+  assert.equal(probes, 0);
+  assert.equal(spawned, 0);
+});
+
+test('Copilot accepts the exact Windows budget and retains its original prompt argument and empty stdin', async () => {
+  const seed = '한글 😀 "검토" & $(whoami) \tC:\\폴더\\';
+  const ordinaryArgs = additionalProviderArguments('copilot', { prompt: seed, modelId: 'model-test' });
+  const allowance = 30000 - windowsCommandLineLength(target.command, [...target.prefix, ...ordinaryArgs]);
+  const prompt = seed.slice(0, -1) + 'a'.repeat(allowance) + seed.slice(-1);
+  const child = childProcess(), calls = [], exits = [];
+  let stdin = '';
+  child.stdin.on('data', chunk => { stdin += chunk.toString('utf8'); });
+  const run = createAdditionalProviderRunner({
+    locate: async () => target, platform: 'win32',
+    probe: async () => ({ code: 0, stdout: help, stderr: '' }),
+    spawnProcess: (...args) => { calls.push(args); return child; },
+  });
+  await run({ provider: 'copilot', prompt, modelId: 'model-test', onExit: value => exits.push(value) });
+  assert.equal(calls.length, 1);
+  assert.equal(windowsCommandLineLength(calls[0][0], calls[0][1]), 30000);
+  assert.equal(calls[0][1].at(-2), '-p');
+  assert.equal(calls[0][1].at(-1), prompt);
+  assert.equal(calls[0][2].shell, false);
+  assert.equal(calls[0][2].windowsVerbatimArguments, undefined);
+  assert.equal(child.stdin.writableEnded, true);
+  assert.equal(stdin, '');
+  child.emit('close', 0);
+  assert.equal(exits[0].code, 0);
+  await assert.rejects(run({ provider: 'copilot', prompt: `a${prompt}`, modelId: 'model-test' }), /30,000/);
+  assert.equal(calls.length, 1);
+});
+
 test('Gemini sends its prompt through stdin and cleans its process-only policy after completion', async () => {
   const child = childProcess(); let input = '', cleaned = 0; const exits = [];
   child.stdin.on('data', chunk => { input += chunk.toString('utf8'); });
@@ -193,8 +270,10 @@ test('Ollama streams an installed local model through fixed loopback and records
 
 test('Ollama refuses cloud aliases and models that were not returned by the local service', async () => {
   let generations = 0;
-  const run = createAdditionalProviderRunner({ fetchImpl: async url => { if (url.endsWith('/api/generate')) generations++; return jsonResponse({ models: [{ name: 'remote:cloud' }, { name: 'safe:8b' }] }); } });
+  const run = createAdditionalProviderRunner({ fetchImpl: async url => { assert.ok(url.startsWith('http://127.0.0.1:11434/')); if (url.endsWith('/api/generate')) generations++; return jsonResponse({ models: [{ name: 'remote:cloud' }, { name: 'gpt-oss:120b-cloud' }, { name: 'remote-alias', remote_model: 'private-proxy' }, { name: 'safe:8b' }] }); } });
   await assert.rejects(run({ provider: 'ollama', prompt: '읽기', modelId: 'remote:cloud' }), /설치된 로컬 모델/);
+  await assert.rejects(run({ provider: 'ollama', prompt: '읽기', modelId: 'gpt-oss:120b-cloud' }), /설치된 로컬 모델/);
+  await assert.rejects(run({ provider: 'ollama', prompt: '읽기', modelId: 'remote-alias' }), /설치된 로컬 모델/);
   await assert.rejects(run({ provider: 'ollama', prompt: '읽기', modelId: 'not-installed:8b' }), /설치된 로컬 모델/);
   assert.equal(generations, 0);
 });

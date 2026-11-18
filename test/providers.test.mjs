@@ -1,4 +1,13 @@
 import test from 'node:test';
+
+test('Claude input totals include reported cache reads and writes while Codex totals do not count cache twice', () => {
+  const claude = createEventParser('claude');
+  claude.consume({ type: 'result', subtype: 'success', usage: { input_tokens: 7, cache_read_input_tokens: 100, cache_creation_input_tokens: 20, output_tokens: 5 } });
+  assert.deepEqual(claude.state().usage, { inputTokens: 127, outputTokens: 5, cachedInputTokens: 100, cacheWriteInputTokens: 20 });
+  const codex = createEventParser('codex');
+  codex.consume({ type: 'turn.completed', usage: { input_tokens: 127, cached_input_tokens: 100, output_tokens: 5 } });
+  assert.deepEqual(codex.state().usage, { inputTokens: 127, outputTokens: 5, cachedInputTokens: 100 });
+});
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
@@ -76,6 +85,54 @@ test('Claude result-only response is displayed and failures remain failures', ()
   assert.equal(events[0].type, 'text');
 });
 
+test('Claude repeated content blocks count the same assistant message once without a final result', () => {
+  const events = [];
+  const parser = createEventParser('claude', event => events.push(event));
+  for (const content of [[{ type: 'tool_use', name: 'Read' }], [{ type: 'text', text: '검토했습니다.' }]]) {
+    parser.consume({ type: 'assistant', message: { id: 'msg-one', content, usage: { input_tokens: 5000, output_tokens: 10 } } });
+  }
+  assert.deepEqual(parser.state().usage, { inputTokens: 5000, outputTokens: 10 });
+  const reports = events.filter(event => event.type === 'usage');
+  assert.deepEqual(reports.map(event => event.inputTokens + event.outputTokens), [5010, 5010]);
+});
+
+test('Claude cumulative message usage uses the latest report and adds distinct message IDs with cache totals', () => {
+  const events = [];
+  const parser = createEventParser('claude', event => events.push(event));
+  const first = { input_tokens: 7, cache_read_input_tokens: 100, cache_creation_input_tokens: 20, output_tokens: 20 };
+  parser.consume({ type: 'assistant', message: { id: 'msg-one', content: [], usage: first } });
+  parser.consume({ type: 'assistant', message: { id: 'msg-one', content: [], usage: { ...first, output_tokens: 30 } } });
+  assert.deepEqual(parser.state().usage, { inputTokens: 127, outputTokens: 30, cachedInputTokens: 100, cacheWriteInputTokens: 20 });
+  parser.consume({ type: 'assistant', message: { id: 'msg-two', content: [], usage: { input_tokens: 50, output_tokens: 8 } } });
+  assert.deepEqual(parser.state().usage, { inputTokens: 177, outputTokens: 38, cachedInputTokens: 100, cacheWriteInputTokens: 20 });
+  const reports = events.filter(event => event.type === 'usage');
+  assert.deepEqual(reports.map(event => [event.inputTokens, event.outputTokens]), [[127, 20], [127, 30], [177, 38]]);
+});
+
+test('Claude final result usage replaces message totals and remains authoritative for late assistant reports', () => {
+  const events = [];
+  const parser = createEventParser('claude', event => events.push(event));
+  for (const id of ['msg-one', 'msg-two']) parser.consume({ type: 'assistant', message: { id, content: [], usage: { input_tokens: 5000, output_tokens: 10 } } });
+  parser.consume({ type: 'result', subtype: 'success', usage: { input_tokens: 9000, cache_read_input_tokens: 200, cache_creation_input_tokens: 30, output_tokens: 25 } });
+  const expected = { inputTokens: 9230, outputTokens: 25, cachedInputTokens: 200, cacheWriteInputTokens: 30 };
+  assert.deepEqual(parser.state().usage, expected);
+  parser.consume({ type: 'assistant', message: { id: 'msg-two', content: [], usage: { input_tokens: 5000, output_tokens: 99 } } });
+  assert.deepEqual(parser.state().usage, expected);
+  const finalEvent = events.filter(event => event.type === 'usage').at(-1);
+  for (const [key, value] of Object.entries(expected)) assert.equal(finalEvent[key], value);
+});
+
+test('Claude older messages without IDs remain additive alongside deduplicated messages', () => {
+  const parser = createEventParser('claude');
+  const keyed = { id: 'msg-one', content: [], usage: { input_tokens: 20, output_tokens: 3 } };
+  parser.consume({ type: 'assistant', message: keyed });
+  parser.consume({ type: 'assistant', message: { content: [], usage: { input_tokens: 4, cache_read_input_tokens: 10, output_tokens: 2 } } });
+  parser.consume({ type: 'assistant', message: { content: [], usage: { input_tokens: 5, output_tokens: 1 } } });
+  parser.consume({ type: 'assistant', message: keyed });
+  parser.consume({ type: 'result', subtype: 'error_max_turns', is_error: true });
+  assert.deepEqual(parser.state().usage, { inputTokens: 39, outputTokens: 6, cachedInputTokens: 10 });
+});
+
 test('permissions restrict available Claude tools and never bypass Codex sandbox', () => {
   const readOnly = providerArguments('claude', 'read-only');
   assert.equal(readOnly[readOnly.indexOf('--tools') + 1], 'Read,Glob,Grep');
@@ -97,6 +154,23 @@ function fakeChild() {
   child.kill = () => { child.killCalls += 1; child.emit('close', null); return true; };
   return child;
 }
+
+test('Claude cancellation and crashes retain deduplicated latest usage when no final result arrives', async () => {
+  for (const cancel of [true, false]) {
+    const child = fakeChild(), exits = [];
+    const run = createProviderRunner({ locate: async () => ({ command: '/mock/claude', prefix: [] }), spawnProcess: () => child, platform: 'linux' });
+    const handle = await run({ provider: 'claude', prompt: '독립 검토', onExit: event => exits.push(event) });
+    for (const output_tokens of [20, 30]) {
+      child.stdout.write(JSON.stringify({ type: 'assistant', message: { id: 'msg-one', content: [], usage: { input_tokens: 5000, output_tokens } } }) + '\n');
+    }
+    if (cancel) handle.cancel();
+    else child.emit('error', Object.assign(new Error('mock crash'), { code: 'ECONNRESET' }));
+    child.emit('close', 1);
+    assert.equal(exits.length, 1);
+    assert.equal(exits[0].code, cancel ? 130 : 1);
+    assert.deepEqual(exits[0].usage, { inputTokens: 5000, outputTokens: 30 });
+  }
+});
 
 test('prompts with shell characters and Hangul spaces go through stdin with shell disabled', async () => {
   const child = fakeChild();

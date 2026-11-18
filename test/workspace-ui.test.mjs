@@ -16,12 +16,13 @@ function initialState() {
     departments: [{ id: 'strategy', code: 'STR', name: 'Strategy', provider: 'codex', role: 'Plan the implementation.' }, { id: 'quality', code: 'QAT', name: 'Quality', provider: 'claude', role: 'Review the implementation.' }], tasks: [],
   };
 }
-async function setup(t, { graphDelay, startOnboarded = true } = {}) {
+async function setup(t, { graphDelay, startOnboarded = true, initialGraph } = {}) {
   const virtualConsole = new VirtualConsole(), errors = [];
   virtualConsole.on('jsdomError', error => errors.push(error.message));
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div class="app-shell" data-view="overview"><div id="node-workspace"></div><div id="accounts"></div></div></body></html>', { url: 'http://127.0.0.1:4310', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
   const { window } = dom; const state = initialState(); state.settings.onboarded = startOnboarded;
   const calls = [], graphByProject = new Map(), memories = [{ id: 'memory-1', title: '<img src=x onerror="window.bad=1">', content: '<script>window.bad=2</script>Verified source facts.', kind: 'note', revision: 2, pinned: true }];
+  if (initialGraph) graphByProject.set(state.settings.workspace, copy(initialGraph));
   let sequence = 0;
   window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
@@ -37,6 +38,7 @@ async function setup(t, { graphDelay, startOnboarded = true } = {}) {
     else if (path === '/api/memory' && method === 'POST') { const node = { ...body, id: `memory-new-${++sequence}`, revision: 1 }; memories.push(node); value = { node }; }
     else if (path.startsWith('/api/memory/') && method === 'PATCH') { const index = memories.findIndex(memory => memory.id === path.split('/').at(-1)); memories[index] = { ...memories[index], ...body, revision: memories[index].revision + 1 }; value = { node: memories[index] }; }
     else if (path === '/api/workflows/run') value = { workflow: { id: 'workflow-1' } };
+    else if (path === '/api/departments' && method === 'POST') value = { department: { ...body, id: `custom-agent-${++sequence}`, code: 'NEW' } };
     else if (path === '/api/providers/catalog') value = { catalog: [{ id: 'codex', name: 'Codex', requiresNode: true, installCommand: 'npm install -g @openai/codex', loginCommand: 'codex login' }, { id: 'claude', name: 'Claude', installCommand: 'npm install -g @anthropic-ai/claude-code', loginCommand: 'claude auth login' }], connections: [] };
     else if (path === '/api/providers/codex/models') value = { models: [{ id: 'actual-account-model', name: 'Account Model', source: 'account' }], detail: 'Reported by the account.' };
     else if (path === '/api/providers/claude/models') value = { models: [], detail: 'No account catalog is available.' };
@@ -55,11 +57,16 @@ async function setup(t, { graphDelay, startOnboarded = true } = {}) {
 }
 function connect(document, source, target) { document.querySelector(`[data-node-id="${source}"] .iw-port-out`).click(); document.querySelector(`[data-input-node="${target}"]`).click(); }
 function select(window, document, id) { document.querySelector(`[data-node-id="${id}"]`).dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }
+async function addFromLibrary(document, type, referenceId) { document.querySelector('[data-iw-action="add-node"]').click(); await settle(); const item = document.querySelector(`[data-library-type="${type}"][data-library-reference="${referenceId}"]`); assert.ok(item, `library should contain ${type}:${referenceId}`); item.click(); }
 
-test('node workspace renders real organization state and does not execute while arranging or connecting', async t => {
+test('node workspace starts empty and shows actual status only after the user adds nodes', async t => {
   const { window, document, state, options, calls, errors } = await setup(t);
-  assert.equal(document.querySelectorAll('.iw-node').length, 5); assert.equal(document.querySelectorAll('.iw-edge-organization').length, 4);
-  assert.equal(document.querySelector('[data-node-id="provider:claude"]').dataset.status, 'missing');
+  assert.equal(document.querySelectorAll('.iw-node').length, 0); assert.equal(document.querySelectorAll('.iw-edge-organization').length, 0);
+  assert.equal(document.querySelector('.iw-empty-canvas').hidden, false); assert.match(document.querySelector('.iw-empty-canvas').textContent, /Empty workspace/);
+  assert.equal(calls.filter(call => call.method !== 'GET').length, 0, 'loading an empty canvas does not populate or save a template');
+  await addFromLibrary(document, 'commander', 'commander'); await addFromLibrary(document, 'provider', 'codex'); await addFromLibrary(document, 'department', 'strategy'); await addFromLibrary(document, 'department', 'quality');
+  assert.equal(document.querySelectorAll('.iw-node').length, 4); assert.equal(document.querySelectorAll('.iw-edge-organization').length, 2);
+  assert.equal(document.querySelector('[data-library-type="provider"][data-library-reference="claude"]'), null, 'uninstalled, unregistered providers are not offered as installed nodes');
   assert.equal(document.querySelector('[data-node-id="department:quality"]').dataset.status, 'unavailable');
   const card = document.querySelector('[data-node-id="department:strategy"]'); const before = window.ImperiumWorkspace.getGraph().nodes.find(node => node.id === card.dataset.nodeId).x;
   card.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 }));
@@ -78,6 +85,7 @@ test('node workspace renders real organization state and does not execute while 
 
 test('memory context is persisted, editable, safe as text and used only by an explicit workflow action', async t => {
   const { window, document, state, calls, errors } = await setup(t);
+  await addFromLibrary(document, 'department', 'strategy');
   document.querySelector('[data-iw-action="add-memory"]').click(); await settle(); document.querySelector('.iw-memory-list button').click();
   assert.equal(document.querySelectorAll('.iw-node-memory').length, 1); assert.equal(document.querySelector('img[src="x"]'), null); assert.equal(window.bad, undefined);
   assert.equal(document.querySelector('.iw-memory-form textarea').maxLength, 24000);
@@ -92,6 +100,90 @@ test('memory context is persisted, editable, safe as text and used only by an ex
   const contextSaveIndex = calls.findLastIndex(call => call.path === '/api/graph' && call.method === 'PUT'); assert.ok(contextSaveIndex < calls.indexOf(run), 'graph persistence precedes workflow execution');
   assert.ok(calls.filter(call => ['/api/graph', '/api/memory'].includes(call.path) && call.method === 'GET').every(call => call.workspace === state.settings.workspace));
   assert.deepEqual(errors, []);
+});
+
+test('templates are explicit, auto arrangement never creates nodes, and removing nodes preserves underlying records', async t => {
+  const initialGraph = { nodes: [{ id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 87, y: 91 }, { id: 'department:deleted', type: 'department', referenceId: 'deleted', x: 900, y: 900 }], edges: [] };
+  const { window, document, state, options, graphByProject } = await setup(t, { initialGraph });
+  assert.equal(document.querySelectorAll('.iw-node').length, 1, 'saved nodes are preserved and only stale references are removed');
+  assert.equal(window.ImperiumWorkspace.getGraph().nodes[0].x, 87);
+  document.querySelector('[data-iw-action="arrange"]').click(); assert.equal(document.querySelectorAll('.iw-node').length, 1);
+  const position = { ...window.ImperiumWorkspace.getGraph().nodes[0] };
+  document.querySelector('[data-iw-action="add-node"]').click(); await settle(); document.querySelector('.iw-node-library [data-iw-action="template"]').click();
+  assert.equal(document.querySelectorAll('.iw-node').length, 4);
+  assert.equal(window.ImperiumWorkspace.getGraph().nodes.find(node => node.id === position.id).x, position.x, 'loading a template does not move an existing custom node');
+  for (const item of [...window.ImperiumWorkspace.getGraph().nodes]) { select(window, document, item.id); document.querySelector('[data-iw-action="remove-node"]').click(); }
+  assert.equal(document.querySelectorAll('.iw-node').length, 0); assert.equal(state.departments.length, 2); assert.equal(state.providers.length, 2);
+  await settle(420); assert.equal(graphByProject.get(state.settings.workspace).nodes.length, 0);
+  window.ImperiumWorkspace.render(state, options); await window.ImperiumWorkspace.reload();
+  assert.equal(document.querySelectorAll('.iw-node').length, 0, 'a persisted empty graph stays empty after reload');
+});
+
+test('the library supports drag and drop and creates custom agents with free names and titles', async t => {
+  const { window, document, calls } = await setup(t);
+  document.querySelector('[data-iw-action="add-node"]').click(); await settle();
+  const entry = document.querySelector('[data-library-type="provider"][data-library-reference="codex"]');
+  const values = new Map(), transfer = { types: ['application/x-imperium-node'], setData: (key, value) => values.set(key, value), getData: key => values.get(key) };
+  const start = new window.Event('dragstart', { bubbles: true }); Object.defineProperty(start, 'dataTransfer', { value: transfer }); entry.dispatchEvent(start);
+  const drop = new window.MouseEvent('drop', { bubbles: true, clientX: 350, clientY: 240 }); Object.defineProperty(drop, 'dataTransfer', { value: transfer }); document.querySelector('.iw-stage').dispatchEvent(drop);
+  const provider = window.ImperiumWorkspace.getGraph().nodes.find(node => node.id === 'provider:codex'); assert.equal(provider.x, 350); assert.equal(provider.y, 240);
+  const form = document.querySelector('.iw-agent-create-form');
+  assert.equal(form.querySelector('input[aria-label="Agent name"]').maxLength, 24); assert.equal(form.querySelector('input[aria-label="Title"]').maxLength, 80); assert.equal(form.querySelector('textarea').maxLength, 1500);
+  form.querySelector('input[aria-label="Agent name"]').value = 'Aster'; form.querySelector('input[aria-label="Title"]').value = 'Systems analyst'; form.querySelector('textarea').value = 'Review system assumptions.';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  const create = calls.find(call => call.path === '/api/departments'); assert.deepEqual(create.body, { name: 'Aster', title: 'Systems analyst', role: 'Review system assumptions.', provider: 'codex' });
+  const card = document.querySelector('[data-node-id="department:custom-agent-1"]'); assert.ok(card); assert.equal(card.querySelector('.iw-node-title').textContent, 'Aster'); assert.equal(card.querySelector('.iw-node-kind').textContent, 'Systems analyst');
+  await addFromLibrary(document, 'commander', 'commander'); select(window, document, 'commander');
+  const identity = document.querySelector('.iw-identity-form'); identity.querySelector('input[aria-label="Name"]').value = 'Sato'; identity.querySelector('input[aria-label="Title"]').value = 'Technical director'; identity.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(calls.find(call => call.path === '/api/settings').body.identity, { name: 'Sato', title: 'Technical director' });
+  assert.equal(document.querySelector('[data-node-id="commander"] .iw-node-title').textContent, 'Sato'); assert.equal(document.querySelector('[data-node-id="commander"] .iw-node-description').textContent, 'Technical director');
+});
+
+test('local-only mode hides cloud library choices without deleting saved cloud nodes', async t => {
+  const initialGraph = { nodes: [{ id: 'provider:codex', type: 'provider', referenceId: 'codex', x: 100, y: 80 }, { id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 100, y: 290 }], edges: [] };
+  const { window, document, state, options } = await setup(t, { initialGraph });
+  state.providers.push({ id: 'ollama', name: 'Ollama', installed: true, status: 'ready', kind: 'local' }); state.departments.push({ id: 'local-agent', name: 'Local analyst', title: 'Offline reviewer', role: 'Review local files.', provider: 'ollama' }); state.settings.localOnly = true;
+  window.ImperiumWorkspace.render(state, options);
+  assert.equal(document.querySelectorAll('.iw-node').length, 2); assert.equal(document.querySelector('[data-node-id="provider:codex"]').dataset.status, 'disabled');
+  document.querySelector('[data-iw-action="add-node"]').click(); await settle();
+  assert.equal(document.querySelector('[data-library-type="provider"][data-library-reference="codex"]'), null); assert.ok(document.querySelector('[data-library-type="provider"][data-library-reference="ollama"]'));
+  assert.equal(document.querySelector('[data-library-type="department"][data-library-reference="strategy"]'), null); assert.ok(document.querySelector('[data-library-type="department"][data-library-reference="local-agent"]'));
+  assert.match(document.querySelector('.iw-local-notice').textContent, /Cloud providers are hidden/);
+  select(window, document, 'department:strategy'); assert.equal(document.querySelector('.iw-workflow-run').disabled, true);
+});
+
+test('node progress labels model estimates separately from historical estimates and expires ETA without completing', async t => {
+  const { window, document, state, options } = await setup(t);
+  let now = Date.UTC(2026, 10, 18, 9, 30); window.Date.now = () => now;
+  state.tasks = [{ id: 'task-estimate', departmentId: 'strategy', title: 'Analyze the project', status: 'running', createdAt: new Date(now - 180000).toISOString(), progress: { percent: 42, etaMinutes: 12, stage: '<img src=x>Reviewing requirements', source: 'model-estimate', updatedAt: new Date(now - 120000).toISOString() }, historicalETA: { source: 'history', sampleCount: 8, medianSeconds: 600, p90Seconds: 900, remainingSeconds: 300 } }];
+  window.ImperiumWorkspace.render(state, options); await addFromLibrary(document, 'department', 'strategy');
+  let progress = document.querySelector('.iw-node-progress');
+  assert.equal(progress.dataset.progressSource, 'model-estimate'); assert.equal(progress.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'), '42'); assert.match(progress.textContent, /AI self-estimate/); assert.match(progress.textContent, /AI ETA ~10 min/); assert.match(progress.querySelector('[data-estimate-source="history"]').textContent, /History 8 runs: ~5 min.*p90 15 min/);
+  select(window, document, 'department:strategy'); assert.match(document.querySelector('.iw-progress-stage').textContent, /AI-reported work stage/); assert.match(document.querySelector('.iw-progress-stage').textContent, /<img src=x>Reviewing requirements/); assert.equal(document.querySelector('img[src="x"]'), null);
+  now += 13 * 60000; window.ImperiumWorkspace.render(state, options); progress = document.querySelector('.iw-node-progress');
+  assert.match(progress.textContent, /Estimate exceeded.*awaiting update/); assert.match(document.querySelector('.iw-task-progress').textContent, /Estimate exceeded/); assert.equal(progress.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'), '42'); assert.equal(state.tasks[0].status, 'running');
+});
+
+test('missing model progress has no invented percentage and only completed processes show 100 percent', async t => {
+  const { window, document, state, options } = await setup(t);
+  state.tasks = [{ id: 'task-no-model-report', departmentId: 'strategy', title: 'Review work', status: 'running', createdAt: new Date().toISOString(), historicalETA: { source: 'history', sampleCount: 3, medianSeconds: 180, p90Seconds: 300, remainingSeconds: 120 } }];
+  window.ImperiumWorkspace.render(state, options); await addFromLibrary(document, 'department', 'strategy');
+  let progress = document.querySelector('.iw-node-progress');
+  assert.match(progress.textContent, /Awaiting AI estimate/); assert.equal(progress.querySelector('[role="progressbar"]'), null); assert.equal(progress.querySelector('.iw-progress-percent'), null); assert.match(progress.textContent, /History 3 runs: ~2 min/);
+  state.tasks[0].status = 'failed'; state.tasks[0].progress = { source: 'model-estimate', percent: 100, etaMinutes: 0, updatedAt: new Date().toISOString() }; window.ImperiumWorkspace.render(state, options);
+  progress = document.querySelector('.iw-node-progress'); assert.match(progress.textContent, /Failed/); assert.equal(progress.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'), '99'); assert.ok(!progress.textContent.includes('100%'));
+  state.tasks[0].status = 'cancelled'; state.tasks[0].progress = { source: 'process', percent: 100 }; window.ImperiumWorkspace.render(state, options);
+  progress = document.querySelector('.iw-node-progress'); assert.match(progress.textContent, /Cancelled/); assert.equal(progress.querySelector('[role="progressbar"]'), null); assert.ok(!progress.textContent.includes('100%'));
+  state.tasks[0].status = 'completed'; window.ImperiumWorkspace.render(state, options);
+  progress = document.querySelector('.iw-node-progress'); assert.equal(progress.dataset.progressSource, 'process'); assert.equal(progress.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'), '100'); assert.match(progress.textContent, /Process completed.*100%/);
+});
+
+test('progress labels translate and a zero-minute estimate waits for re-estimation instead of claiming completion', async t => {
+  const { window, document, state, options } = await setup(t);
+  state.tasks = [{ id: 'task-zero-eta', departmentId: 'strategy', title: '작업 검토', status: 'running', createdAt: new Date().toISOString(), progress: { source: 'model-estimate', percent: 90, etaMinutes: 0, updatedAt: new Date().toISOString() } }];
+  window.ImperiumWorkspace.render(state, options); await addFromLibrary(document, 'department', 'strategy');
+  window.ImperiumWorkspace.render(state, { ...options, language: 'ko' }); assert.match(document.querySelector('.iw-node-progress').textContent, /AI 자체 추정.*90%.*재추정 대기/);
+  window.ImperiumWorkspace.render(state, { ...options, language: 'ja' }); assert.match(document.querySelector('.iw-node-progress').textContent, /AI自身の推定.*90%.*再推定待ち/); assert.equal(state.tasks[0].status, 'running');
 });
 
 test('a delayed graph response from a previous project cannot overwrite the current project', async t => {

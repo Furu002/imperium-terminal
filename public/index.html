@@ -14,12 +14,18 @@
   <link rel="stylesheet" href="/vendor/xterm.css">
   <link rel="stylesheet" href="/terminal-pane.css">
   <link rel="stylesheet" href="/updates.css">
+  <link rel="stylesheet" href="/projects.css">
+  <link rel="stylesheet" href="/analytics.css">
+  <link rel="stylesheet" href="/knowledge.css">
   <script src="/vendor/xterm.js" defer></script>
   <script src="/vendor/xterm-addon-fit.js" defer></script>
   <script src="/workspace.js" defer></script>
   <script src="/accounts.js" defer></script>
   <script src="/terminal-pane.js" defer></script>
   <script src="/updates.js" defer></script>
+  <script src="/projects.js" defer></script>
+  <script src="/analytics.js" defer></script>
+  <script src="/knowledge.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -35,15 +41,18 @@
 
     <aside class="sidebar" aria-label="주 메뉴">
       <div class="sidebar-top"><span class="sidebar-label">WORKSPACE</span>
-        <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>ORG CHART</span><kbd>F1</kbd></button>
+        <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>NODES</span><kbd>F1</kbd></button>
         <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>OPERATIONS</span><kbd>F2</kbd></button>
         <button class="nav-button" data-view="departments" aria-label="F3 부서 관리"><span class="nav-icon">⌘</span><span>DEPARTMENTS</span><kbd>F3</kbd></button>
         <button class="nav-button" data-view="logs" aria-label="F4 활동 로그"><span class="nav-icon">›_</span><span>ACTIVITY</span><kbd>F4</kbd></button>
         <button class="nav-button" data-view="accounts" aria-label="F5 AI 계정"><span class="nav-icon">⌁</span><span>AI ACCOUNTS</span><kbd>F5</kbd></button>
         <button class="nav-button" data-view="terminal" aria-label="F6 터미널"><span class="nav-icon">▸_</span><span>TERMINAL</span><kbd>F6</kbd></button>
         <button class="nav-button" data-view="updates" aria-label="F7 업데이트"><span class="nav-icon">↻</span><span>UPDATES</span><kbd>F7</kbd></button>
+        <button class="nav-button" data-view="projects" aria-label="F9 프로젝트"><span class="nav-icon">▱</span><span>PROJECTS</span><kbd>F9</kbd></button>
+        <button class="nav-button" data-view="analytics" aria-label="F10 사용량과 성능"><span class="nav-icon">▥</span><span>ANALYTICS</span><kbd>F10</kbd></button>
+        <button class="nav-button" data-view="knowledge" aria-label="F11 프로젝트 기억"><span class="nav-icon">⟐</span><span>KNOWLEDGE</span><kbd>F11</kbd></button>
       </div>
-      <div class="sidebar-bottom"><button class="nav-button" id="nav-settings" aria-label="F8 연결 및 설정"><span class="nav-icon">⚙</span><span>SETTINGS</span><kbd>F8</kbd></button><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.1</b></span></div>
+      <div class="sidebar-bottom"><button class="nav-button" id="nav-settings" aria-label="F8 연결 및 설정"><span class="nav-icon">⚙</span><span>SETTINGS</span><kbd>F8</kbd></button><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.3.0</b></span></div>
     </aside>
 
     <main class="main-content" id="main-content">
@@ -62,6 +71,9 @@
       <section id="accounts-section" class="extension-section"></section>
       <section id="terminal-section" class="extension-section"></section>
       <section id="updates-section" class="extension-section"></section>
+      <section id="projects-section" class="extension-section"></section>
+      <section id="analytics-section" class="extension-section"></section>
+      <section id="knowledge-section" class="extension-section"></section>
       <section class="organization-panel" id="organization-section" aria-labelledby="organization-title">
         <div class="org-toolbar"><div class="org-heading-copy"><h2 class="org-title" id="organization-title">조직 연결 현황</h2><p class="org-subtitle">본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.</p></div><div class="org-summary" id="org-summary" aria-label="조직 현황 요약"></div></div>
         <div class="org-chart-root" id="org-chart-root"></div>
@@ -94,7 +106,7 @@
       </div>
     </main>
 
-    <footer class="statusbar"><div><span class="live-dot" id="footer-dot"></span><span id="footer-status">INITIALIZING</span><span class="statusbar-separator">│</span><span id="workspace-path" title="작업 폴더">WORKSPACE —</span></div><div><span id="statusbar-hint">F1–F4 NAVIGATE</span><span class="statusbar-separator">│</span><span class="orange-text">YOU ARE IN COMMAND.</span></div></footer>
+    <footer class="statusbar"><div><span class="live-dot" id="footer-dot"></span><span id="footer-status">INITIALIZING</span><span class="statusbar-separator">│</span><span id="workspace-path" title="작업 폴더">WORKSPACE —</span></div><div><span id="statusbar-hint">F1–F11 NAVIGATE</span><span class="statusbar-separator">│</span><span class="orange-text">YOU ARE IN COMMAND.</span></div></footer>
   </div>
 
   <dialog id="settings-dialog" class="settings-dialog"><div class="dialog-heading"><div><span class="eyebrow">SYSTEM CONFIGURATION</span><h2>연결 및 설정</h2></div><button class="icon-button dialog-close" data-close="settings-dialog" aria-label="설정 닫기">×</button></div><div class="dialog-body"><div class="settings-section-heading"><h3>모델 연결</h3><button class="text-button" id="refresh-providers">↻ 상태 새로고침</button></div><p class="settings-description">각 CLI에 기존 구독 계정으로 로그인하세요. 로그인 토큰과 API 키는 이 화면에서 수집하지 않습니다.</p><div id="provider-cards" class="provider-cards"></div><div class="settings-divider"></div><form id="settings-form"><h3>작업 환경</h3><label class="settings-label" for="settings-workspace">프로젝트 폴더</label><input id="settings-workspace" type="text" class="text-input" placeholder="C:\프로젝트\폴더" required><p class="field-help">새 작업을 실행할 실제 로컬 폴더입니다. 진행 중인 작업에는 영향을 주지 않습니다.</p><label class="settings-label" for="settings-concurrency">동시 실행 수</label><select id="settings-concurrency" class="text-input"><option value="1">1 — 한 번에 하나씩</option><option value="2">2 — 모델을 병렬로 운영</option></select><p class="field-help">같은 부서는 한 번에 하나의 작업을 실행합니다. 병렬 실행은 구독 한도를 더 빠르게 사용합니다.</p><p id="settings-error" class="form-error" role="alert" hidden></p><div class="settings-actions"><button class="button button-quiet" type="button" id="demo-button">샘플 작업 체험</button><button class="button button-primary" type="submit" id="save-settings">설정 저장</button></div><p class="demo-help">샘플은 실제 모델을 호출하지 않으며 모든 항목에 DEMO로 표시됩니다.</p></form></div></dialog>

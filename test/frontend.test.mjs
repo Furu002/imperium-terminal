@@ -34,7 +34,7 @@ function sampleState(overrides = {}) {
   };
 }
 
-async function loadUI(t, initial = sampleState(), savedLanguage) {
+async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {} } = {}) {
   const virtualConsole = new VirtualConsole();
   const runtimeErrors = [];
   virtualConsole.on('jsdomError', error => runtimeErrors.push(error));
@@ -42,6 +42,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage) {
   const { window } = dom;
   const calls = [];
   const streams = [];
+  const clipboardWrites = [];
   const backend = clone(initial);
   window.addEventListener('error', event => runtimeErrors.push(event.error || new Error(event.message)));
   window.Element.prototype.scrollIntoView = () => {};
@@ -49,7 +50,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage) {
   window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   window.URL.createObjectURL = () => 'blob:mock-export';
   window.URL.revokeObjectURL = () => {};
-  Object.defineProperty(window.navigator, 'clipboard', { value: { writeText: async () => {} }, configurable: true });
+  Object.defineProperty(window.navigator, 'clipboard', { value: { writeText: async value => { clipboardWrites.push(value); } }, configurable: true });
   if (savedLanguage) window.localStorage.setItem('hq.language', savedLanguage);
   window.EventSource = class {
     listeners = new Map();
@@ -63,7 +64,14 @@ async function loadUI(t, initial = sampleState(), savedLanguage) {
     const body = options.body === undefined ? undefined : JSON.parse(options.body);
     calls.push({ url, method, body, headers: { ...options.headers } });
     let data;
-    if (url === '/api/state' && method === 'GET') data = backend;
+    const detailMatch = /^\/api\/tasks\/([^/?]+)$/.exec(url);
+    if (url === '/api/state' && method === 'GET') data = { ...backend, ...stateSnapshots[backend.settings.workspace], settings: backend.settings };
+    else if (detailMatch && method === 'GET') {
+      const id = decodeURIComponent(detailMatch[1]);
+      const task = fetchTaskDetail ? await fetchTaskDetail(id, { backend, url }) : taskDetails[id];
+      if (!task) throw new Error(`No mocked task detail for ${id}`);
+      data = { task };
+    }
     else if (url === '/api/settings' && method === 'POST') {
       Object.assign(backend.settings, body);
       data = { settings: backend.settings };
@@ -82,13 +90,122 @@ async function loadUI(t, initial = sampleState(), savedLanguage) {
   await settle();
   assert.deepEqual(runtimeErrors.map(error => error.message), [], 'the app should initialize without runtime errors');
   t.after(() => { dom.window.close(); });
-  return { window, document: window.document, backend, calls, streams, runtimeErrors };
+  return { window, document: window.document, backend, calls, streams, runtimeErrors, clipboardWrites };
 }
 
 function change(window, element, value) {
   element.value = value;
   element.dispatchEvent(new window.Event('change', { bubbles: true }));
 }
+
+function completedTask(id, title, output, extra = {}) {
+  return { id, title, prompt: `Instruction for ${title}`, departmentId: 'strategy', provider: 'codex', status: 'completed', priority: 'normal', permission: 'read-only', createdAt: '2026-11-18T03:00:00.000Z', startedAt: '2026-11-18T03:00:01.000Z', finishedAt: '2026-11-18T03:00:30.000Z', output, error: null, logs: [], usage: { inputTokens: 12, outputTokens: 34 }, demo: false, ...extra };
+}
+const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+
+test('a selected truncated task loads its complete output once and copies the full result across repeated metadata snapshots', async t => {
+  const full = 'Complete task result 한글🙂\n'.repeat(10000).slice(0, 200000), preview = full.slice(0, 2000), detail = deferred();
+  const short = completedTask('short-task', 'Short operation', 'A short complete result.');
+  const long = completedTask('long-task', 'Long operation', preview, { detailsTruncated: true, outputChars: full.length });
+  const initial = sampleState({ tasks: [short, long] });
+  const { document, calls, streams, clipboardWrites } = await loadUI(t, initial, undefined, { fetchTaskDetail: id => { assert.equal(id, long.id); return detail.promise; } });
+  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 0, 'unselected summaries should not fetch large details');
+  document.querySelector('#mission-rows tr[aria-label^="Long operation"]').click();
+  await settle();
+  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1); assert.equal(document.querySelector('.inspector-result pre').textContent, preview); assert.equal(document.querySelector('#copy-output').disabled, true);
+  document.querySelector('#copy-output').click(); assert.deepEqual(clipboardWrites, []);
+  streams[0].state(clone(initial)); streams[0].state(clone(initial)); await settle();
+  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1, 'metadata rerenders should share the pending detail request');
+  detail.resolve({ ...long, output: full, logs: [{ id: 'full-log', type: 'text', text: full }], detailsTruncated: false }); await settle();
+  assert.equal(document.querySelector('.inspector-result pre').textContent, full); assert.equal(document.querySelector('#copy-output').disabled, false);
+  document.querySelector('#copy-output').click(); await settle(); assert.deepEqual(clipboardWrites, [full]);
+  streams[0].state(clone(initial)); streams[0].state(clone(initial)); await settle();
+  assert.equal(calls.filter(call => call.url === '/api/tasks/long-task').length, 1); assert.equal(document.querySelector('.inspector-result pre').textContent, full);
+});
+
+test('a delayed full-output response from the old project cannot replace the current inspector or copied output', async t => {
+  const oldDetail = deferred(), oldTask = completedTask('project-a-task', 'Project A result', 'A preview', { detailsTruncated: true, outputChars: 50000 });
+  const initial = sampleState({ tasks: [oldTask] });
+  const { document, streams, clipboardWrites, calls } = await loadUI(t, initial, undefined, { fetchTaskDetail: () => oldDetail.promise });
+  assert.equal(calls.filter(call => call.url === '/api/tasks/project-a-task').length, 1);
+  const projectB = sampleState({ settings: { ...initial.settings, workspace: 'C:\\Project B' }, tasks: [completedTask('project-b-task', 'Project B result', 'Only the current project B result.')] });
+  streams[0].state(projectB); await settle();
+  oldDetail.resolve({ ...oldTask, output: 'OLD PROJECT A FULL OUTPUT'.repeat(2000), detailsTruncated: false }); await settle();
+  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Project B result'); assert.equal(document.querySelector('.inspector-result pre').textContent, 'Only the current project B result.');
+  document.querySelector('#copy-output').click(); await settle(); assert.deepEqual(clipboardWrites, ['Only the current project B result.']);
+});
+
+test('returning to a project retries a full detail response that was discarded while another project was active', async t => {
+  const firstDetail = deferred(), task = completedTask('return-to-a-task', 'Project A long result', 'A preview', { detailsTruncated: true, outputChars: 40000 });
+  const full = { ...task, output: 'Project A complete output\n'.repeat(1600), detailsTruncated: false };
+  let requests = 0;
+  const initial = sampleState({ tasks: [task] });
+  const { document, streams, calls } = await loadUI(t, initial, undefined, { fetchTaskDetail: () => ++requests === 1 ? firstDetail.promise : Promise.resolve(full) });
+  const projectB = sampleState({ settings: { ...initial.settings, workspace: 'C:\\Project B' } });
+  streams[0].state(projectB); firstDetail.resolve(full); await settle();
+  streams[0].state(clone(initial)); await settle();
+  assert.equal(calls.filter(call => call.url === '/api/tasks/return-to-a-task').length, 2, 'a finished but discarded request must not remain marked in flight');
+  assert.equal(document.querySelector('.inspector-result pre').textContent, full.output); assert.equal(document.querySelector('#copy-output').disabled, false);
+});
+
+test('project switching isolates composer drafts and restores each project draft on return', async t => {
+  const initial = sampleState();
+  const { window, document, streams, calls } = await loadUI(t, initial);
+  const prompt = document.querySelector('#dispatch-prompt'); prompt.value = 'Only project A draft'; change(window, document.querySelector('#dispatch-provider'), 'codex');
+  const projectB = sampleState({ settings: { ...initial.settings, workspace: 'C:\\Project B' } });
+  streams[0].state(projectB); await settle(); assert.equal(prompt.value, ''); assert.equal(document.querySelector('#dispatch-provider').value, '');
+  prompt.value = 'Only project B draft'; change(window, document.querySelector('#dispatch-provider'), 'claude');
+  streams[0].state(clone(initial)); await settle(); assert.equal(prompt.value, 'Only project A draft'); assert.equal(document.querySelector('#dispatch-provider').value, 'codex');
+  streams[0].state(clone(projectB)); await settle(); assert.equal(prompt.value, 'Only project B draft'); assert.equal(document.querySelector('#dispatch-provider').value, 'claude');
+  assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0, 'switching projects must not dispatch or persist a draft as a task');
+});
+
+test('settings workspace changes clear the previous project draft and select the new project task', async t => {
+  const initial = sampleState({ tasks: [completedTask('settings-project-a-task', 'Settings project A result', 'Project A output.')] });
+  initial.settings.localOnly = false; initial.settings.identity = { name: 'Sato', title: 'Workspace owner' };
+  const projectB = 'C:\\Settings Project B';
+  const snapshots = { [projectB]: { departments: clone(initial.departments), tasks: [completedTask('settings-project-b-task', 'Settings project B result', 'Project B output.')] } };
+  const { window, document, calls } = await loadUI(t, initial, undefined, { stateSnapshots: snapshots });
+  change(window, document.querySelector('#dispatch-department'), 'research');
+  document.querySelector('#dispatch-prompt').value = 'A research draft must remain in project A';
+  change(window, document.querySelector('#dispatch-provider'), 'codex');
+  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Settings project A result');
+  document.querySelector('#settings-top').click(); document.querySelector('#settings-workspace').value = projectB;
+  document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.deepEqual(calls.find(call => call.url === '/api/settings' && call.method === 'POST').body, { workspace: projectB });
+  assert.equal(document.querySelector('#dispatch-prompt').value, ''); assert.equal(document.querySelector('#dispatch-provider').value, '');
+  assert.equal(document.querySelector('.inspector-meta h3').textContent, 'Settings project B result'); assert.equal(document.querySelector('.inspector-result pre').textContent, 'Project B output.');
+  assert.equal(document.querySelector('#settings-dialog').open, false); assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
+});
+
+test('settings workspace round trips restore the research department prompt and provider even when projects share department IDs', async t => {
+  const initial = sampleState(); initial.settings.localOnly = false; initial.settings.identity = { name: 'Sato', title: 'Workspace owner' };
+  const projectA = initial.settings.workspace, projectB = 'C:\\Settings Project B';
+  const { window, document, calls } = await loadUI(t, initial, undefined, { stateSnapshots: { [projectB]: { departments: clone(initial.departments), tasks: [] } } });
+  change(window, document.querySelector('#dispatch-department'), 'research'); change(window, document.querySelector('#dispatch-provider'), 'codex'); document.querySelector('#dispatch-prompt').value = 'Restore this research instruction for A';
+  document.querySelector('#settings-top').click(); document.querySelector('#settings-workspace').value = projectB; document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  change(window, document.querySelector('#dispatch-department'), 'engineering'); change(window, document.querySelector('#dispatch-provider'), 'claude'); document.querySelector('#dispatch-prompt').value = 'A different engineering draft for B';
+  document.querySelector('#settings-top').click(); document.querySelector('#settings-workspace').value = projectA; document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.equal(document.querySelector('#dispatch-prompt').value, 'Restore this research instruction for A'); assert.equal(document.querySelector('#dispatch-provider').value, 'codex'); assert.equal(document.querySelector('#dispatch-department').value, 'research');
+  assert.deepEqual(calls.filter(call => call.url === '/api/settings' && call.method === 'POST').map(call => call.body), [{ workspace: projectB }, { workspace: projectA }]);
+  assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
+});
+
+test('settings saves send only changed fields and preserve task scheduling settings for identity-only edits', async t => {
+  const initial = sampleState(); initial.settings.localOnly = false; initial.settings.identity = { name: 'Sato', title: 'Workspace owner' };
+  initial.tasks = [{ ...completedTask('active-task', 'Active operation', ''), status: 'running', finishedAt: null }];
+  const { window, document, calls, backend } = await loadUI(t, initial);
+  document.querySelector('#settings-top').click(); document.querySelector('#settings-name').value = 'Rin';
+  document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  let saves = calls.filter(call => call.url === '/api/settings' && call.method === 'POST');
+  assert.deepEqual(saves.map(call => call.body), [{ identity: { name: 'Rin', title: 'Workspace owner' } }]); assert.equal(saves[0].headers['x-hq-token'], 'test-csrf-token'); assert.equal(backend.settings.workspace, initial.settings.workspace); assert.equal(backend.settings.maxConcurrent, 2);
+  document.querySelector('#settings-top').click(); document.querySelector('#settings-local-only').checked = true;
+  document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  saves = calls.filter(call => call.url === '/api/settings' && call.method === 'POST'); assert.deepEqual(saves.at(-1).body, { localOnly: true });
+  document.querySelector('#settings-top').click();
+  document.querySelector('#settings-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  saves = calls.filter(call => call.url === '/api/settings' && call.method === 'POST'); assert.deepEqual(saves.at(-1).body, {});
+});
 
 test('frontend renders truthful connection state and does not dispatch to a missing CLI', async t => {
   const { window, document, calls, streams } = await loadUI(t);
@@ -122,7 +239,7 @@ test('frontend restores the saved server language and persists Korean, English a
   const { window, document, backend, calls } = await loadUI(t, initial);
   const picker = document.querySelector('#language-select');
   assert.equal(document.documentElement.lang, 'ja');
-  assert.match(document.querySelector('#page-title').textContent, /AI組織図/);
+  assert.match(document.querySelector('#page-title').textContent, /ノードワークスペース/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /どのような作業/);
   assert.match(document.querySelector('#department-grid').textContent, /戦略企画室/);
   assert.match(document.querySelector('#department-grid').textContent, /My custom research team/);
@@ -130,7 +247,7 @@ test('frontend restores the saved server language and persists Korean, English a
   change(window, picker, 'en');
   await settle();
   assert.equal(document.documentElement.lang, 'en');
-  assert.match(document.querySelector('#page-title').textContent, /AI Organization/);
+  assert.match(document.querySelector('#page-title').textContent, /Node workspace/);
   assert.match(document.querySelector('#department-grid').textContent, /Strategy/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /What needs to be done/);
   assert.equal(window.localStorage.getItem('hq.language'), 'en');
@@ -139,7 +256,7 @@ test('frontend restores the saved server language and persists Korean, English a
   change(window, picker, 'ko');
   await settle();
   assert.equal(document.documentElement.lang, 'ko');
-  assert.match(document.querySelector('#page-title').textContent, /AI 조직도/);
+  assert.match(document.querySelector('#page-title').textContent, /노드 워크스페이스/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /어떤 일을 맡길까요/);
   assert.equal(backend.settings.language, 'ko');
   const saves = calls.filter(call => call.url === '/api/settings');
@@ -149,7 +266,7 @@ test('frontend restores the saved server language and persists Korean, English a
 });
 
 test('dispatch sends the state CSRF token and requires an explicit selection for file edits', async t => {
-  const { window, document, calls } = await loadUI(t);
+  const { window, document, calls, backend } = await loadUI(t);
   const prompt = document.querySelector('#dispatch-prompt');
   const form = document.querySelector('#dispatch-form');
   const permission = document.querySelector('#write-permission');
@@ -163,7 +280,7 @@ test('dispatch sends the state CSRF token and requires an explicit selection for
   assert.equal(submits[0].headers['x-hq-token'], 'test-csrf-token');
   assert.equal(submits[0].headers['content-type'], 'application/json');
   assert.deepEqual(submits[0].body, {
-    prompt: '프로젝트 구조와 보완 사항을 분석해줘.', departmentId: 'strategy', priority: 'high', permission: 'read-only',
+    prompt: '프로젝트 구조와 보완 사항을 분석해줘.', departmentId: 'strategy', workspace: backend.settings.workspace, priority: 'high', permission: 'read-only',
   });
   assert.equal(prompt.value, '', 'successful dispatch clears the composer');
   assert.equal(document.querySelectorAll('#mission-rows tr').length, 1);
@@ -223,7 +340,7 @@ test('organization is the first view and reflects the commander, real providers,
   const initial = sampleState();
   const { document, calls } = await loadUI(t, initial);
   assert.equal(document.querySelector('.app-shell').dataset.view, 'overview');
-  assert.match(document.querySelector('#page-title').textContent, /AI 조직도/);
+  assert.match(document.querySelector('#page-title').textContent, /노드 워크스페이스/);
   assert.equal(document.querySelectorAll('#org-chart-root > .org-commander-node').length, 1);
   assert.equal(document.querySelector('.org-commander-name').textContent, '본부장');
   assert.equal(document.querySelectorAll('#org-model-branches > .org-model-branch').length, 2);
@@ -332,7 +449,7 @@ test('organization translates its own labels while custom names and roles remain
   initial.departments[0].name = name;
   initial.departments[0].role = role;
   const { window, document, calls } = await loadUI(t, initial);
-  assert.match(document.querySelector('#page-title').textContent, /AI Organization/);
+  assert.match(document.querySelector('#page-title').textContent, /Node workspace/);
   assert.equal(document.querySelector('.org-commander-name').textContent, 'Commander');
   assert.match(document.querySelector('.org-agent-card[data-department-id="engineering"] .org-agent-name').textContent, /Engineering/);
   assert.match(document.querySelector('.org-agent-dispatch').textContent, /Assign work/);
@@ -345,7 +462,7 @@ test('organization translates its own labels while custom names and roles remain
     assert.equal(card.querySelector('script'), null);
     assert.equal(window.ORG_XSS, undefined);
   }
-  assert.match(document.querySelector('#page-title').textContent, /AI組織図/);
+  assert.match(document.querySelector('#page-title').textContent, /ノードワークスペース/);
   assert.equal(document.querySelector('.org-commander-name').textContent, '本部長');
   assert.match(document.querySelector('.org-agent-card[data-department-id="engineering"] .org-agent-name').textContent, /開発本部/);
   assert.match(document.querySelector('.org-agent-dispatch').textContent, /業務を指示/);

@@ -6,6 +6,7 @@ test-results/
 dist/
 dist-mac/
 workspace/
+Imperium Projects/
 .packaging-cache/
 *.zip
 *.dmg

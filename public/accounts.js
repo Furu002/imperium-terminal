@@ -23,7 +23,7 @@
   const tr = key => TEXT[language()]?.[key] ?? key;
   const sourceLabel = source => tr({ account: '계정에서 확인', alias: 'CLI 별칭', local: '로컬 모델', manual: '직접 입력' }[source] || '직접 입력');
   const providerState = id => state.providers?.find(provider => provider.id === id);
-  const statusText = provider => tr({ ready: '연결됨', login_required: '로그인 필요', missing: '설치 필요', error: '확인 필요' }[provider?.status] || '연결 상태 확인 중');
+  const statusText = provider => provider?.status === 'disabled' ? ({ ko: '로컬 모드에서 비활성', en: 'Disabled in local mode', ja: 'ローカルモードで無効' }[language()] || 'Disabled') : tr({ ready: '연결됨', login_required: '로그인 필요', missing: '설치 필요', error: '확인 필요' }[provider?.status] || '연결 상태 확인 중');
   function announce(text, failed = false) { if (message) { message.textContent = text; message.classList.toggle('ia-error', failed); } }
   async function request(path, method = 'GET', body) {
     if (callbacks.api) return callbacks.api(path, method === 'GET' ? {} : { method, body });
@@ -127,9 +127,16 @@
     selector.addEventListener('change', () => { wizardProvider = selector.value; renderWizard(); });
     if (wizardStep < 3) body.append(field('제공자', selector));
     if (wizardStep === 0) {
+      const modeCopy = { ko: '로컬 전용 AI · Ollama 모델만 사용', en: 'Local-only AI · use Ollama models', ja: 'ローカル専用AI · Ollamaモデルを使用' }[language()];
+      const mode = h('input', { type: 'checkbox' }); mode.checked = state.settings?.localOnly === true;
+      mode.addEventListener('change', async () => { mode.disabled = true; try { const result = await request('/api/settings', 'POST', { localOnly: mode.checked }); if (result.settings) state.settings = result.settings; if (mode.checked) wizardProvider = 'ollama'; await callbacks.onChanged?.(); renderWizard(); } catch (error) { mode.checked = !mode.checked; announce(error.message, true); } finally { mode.disabled = false; } });
+      body.append(h('label', { class: 'ia-mode-choice' }, mode, modeCopy));
       body.append(h('h3', {}, tr('공식 CLI 설치 명령을 확인하세요.')));
       if (provider.requiresNode) body.append(h('p', {}, tr('이 제공자는 CLI 설치 전에 Node.js가 필요합니다.')), h('a', { href: 'https://nodejs.org/en/download', target: '_blank', rel: 'noreferrer' }, tr('Node.js 설치 안내'), ' ↗'));
       if (provider.installCommand) body.append(commandBox(provider.installCommand, '설치'));
+      if (provider.id === 'ollama') {
+        body.append(h('p', {}, { ko: 'Ollama 설치 후 사용할 모델을 내려받으세요. 모델 다운로드가 끝나면 인터넷 없이 실행할 수 있습니다. 모델 크기는 Ollama 공식 모델 목록에서 확인하세요.', en: 'After installing Ollama, download a model. Once downloaded, it can run offline. Check model sizes in the official Ollama catalog.', ja: 'Ollamaのインストール後にモデルを取得すると、オフラインで実行できます。サイズは公式モデル一覧で確認してください。' }[language()]), h('a', { href: 'https://ollama.com/library', target: '_blank', rel: 'noreferrer' }, 'Ollama models ↗'), commandBox('ollama pull <model-name>', '설치'));
+      }
       body.append(h('p', { class: 'ia-wizard-note' }, tr('명령은 터미널에 입력만 되며 자동 실행되지 않습니다.')));
     } else if (wizardStep === 1) {
       body.append(h('h3', {}, tr('공식 CLI의 로그인 화면에서 구독 계정으로 로그인하세요.')));

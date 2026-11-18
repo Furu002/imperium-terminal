@@ -38,7 +38,7 @@ class FakeUpdater extends EventEmitter {
   async downloadUpdate(...args) {
     this.downloads += 1;
     this.downloadArgs = args;
-    return this.onDownload ? this.onDownload(this) : [];
+    return this.onDownload ? this.onDownload(this, ...args) : [];
   }
   quitAndInstall(...args) { this.installs.push(args); }
 }
@@ -240,7 +240,8 @@ test('available -> downloading -> downloaded -> install, only on explicit action
   const result = await pending;
   assert.equal(result.ok, true);
   assert.equal(fake.downloads, 1);
-  assert.deepEqual(fake.downloadArgs, []);
+  assert.equal(fake.downloadArgs.length, 1, 'downloads receive a cancellable token, never renderer arguments');
+  assert.equal(typeof fake.downloadArgs[0].cancel, 'function');
   state = updater.getState();
   assert.equal(state.status, 'downloaded');
   assert.equal(state.progress.percent, 100);
@@ -410,6 +411,148 @@ test('dispose stops timers and ignores late updater events', async () => {
   assert.equal(sent.length, before);
   assert.equal((await updater.check()).reason, 'disposed');
   updater.dispose();
+});
+
+test('initial local-only mode never loads an updater, configures a feed, schedules or calls the network', async () => {
+  const { updater, fake, timers, loaderCalls, sent } = harness({ autoUpdater: undefined, extra: { offline: true } });
+  await flush();
+  const state = updater.getState();
+  assert.equal(state.status, 'offline');
+  assert.equal(state.offline, true);
+  assert.equal(state.notice, 'local-only');
+  assert.equal(state.canCheck, false); assert.equal(state.canDownload, false); assert.equal(state.canInstall, false);
+  assert.equal(state.manualDownload, false);
+  assert.equal(state.nextCheckAt, null);
+  for (const action of ['check', 'download', 'install']) assert.equal((await updater[action]()).reason, 'offline');
+  assert.equal(loaderCalls(), 0); assert.equal(fake.feeds.length, 0); assert.equal(fake.checks, 0); assert.equal(fake.downloads, 0);
+  assert.equal(timers.intervals.length, 0); assert.equal(timers.timeouts.length, 0);
+  assert.equal(sent.at(-1).status, 'offline');
+});
+
+test('channels configured while local-only remain inactive until an explicit online transition', async () => {
+  const { updater, fake, timers } = harness({ channel: undefined, onCheck: notAvailable(), extra: { offline: true } });
+  assert.equal(updater.configureChannel(CHANNEL).ok, true);
+  await flush();
+  assert.equal(updater.getState().status, 'offline');
+  assert.equal(fake.feeds.length, 0); assert.equal(fake.checks, 0); assert.equal(timers.intervals.length, 0);
+  assert.equal(updater.setOffline(false).ok, true);
+  await flush();
+  assert.equal(fake.feeds.length, 1); assert.equal(fake.checks, 1); assert.equal(timers.intervals.length, 1);
+  assert.equal(updater.getState().status, 'current');
+  updater.setOffline(false);
+  await flush();
+  assert.equal(fake.checks, 1, 'the one-second settings poll must not create repeated startup checks');
+  assert.equal(updater.setOffline('false').reason, 'invalid_offline');
+});
+
+test('enabling local-only stops the schedule and ignores late native events', async () => {
+  const { updater, fake, timers } = harness({ onCheck: notAvailable() });
+  await flush();
+  updater.setOffline(true);
+  assert.equal(timers.intervals[0].cleared, true);
+  assert.equal(updater.getState().nextCheckAt, null);
+  timers.intervals[0].fn();
+  for (const name of ['checking-for-update', 'update-available', 'update-not-available', 'update-downloaded']) fake.emit(name, { version: '9.0.0' });
+  fake.emit('download-progress', { percent: 90 });
+  fake.emit('error', new Error('late request failure'));
+  await flush();
+  assert.equal(updater.getState().status, 'offline');
+  assert.equal(updater.getState().error, null);
+  assert.equal(fake.checks, 1);
+  for (const action of ['check', 'download', 'install']) assert.equal((await updater[action]()).reason, 'offline');
+});
+
+test('a pending pre-offline check cannot overwrite state after online checks resume', async () => {
+  let finishFirst;
+  const { updater, fake } = harness({ onCheck: () => new Promise(resolve => { finishFirst = resolve; }) });
+  await flush();
+  const pending = updater.check();
+  const oldAvailable = fake.listeners('update-available')[0];
+  updater.setOffline(true);
+  fake.onCheck = notAvailable('1.1.0');
+  updater.setOffline(false);
+  await flush();
+  assert.equal(fake.checks, 1, 'fresh checks wait until an uncancellable old operation settles');
+  oldAvailable({ version: '9.0.0' });
+  assert.notEqual(updater.getState().latestVersion, '9.0.0');
+  finishFirst({ isUpdateAvailable: true, updateInfo: { version: '9.0.0' } });
+  assert.equal((await pending).reason, 'offline');
+  await flush();
+  assert.equal(fake.checks, 2);
+  assert.equal(updater.getState().status, 'current');
+  assert.equal(updater.getState().latestVersion, '1.1.0');
+  oldAvailable({ version: '8.0.0' });
+  assert.equal(updater.getState().latestVersion, '1.1.0', 'handlers retained by an old request are generation-bound');
+});
+
+test('local-only cancels metadata HTTP requests through the executor cancellation token', async () => {
+  const fake = new FakeUpdater();
+  let networkCalls = 0, networkToken;
+  fake.httpExecutor = {
+    request(_options, token) {
+      networkCalls++;
+      networkToken = token;
+      return token.createPromise(() => {});
+    },
+  };
+  const originalRequest = fake.httpExecutor.request;
+  fake.onCheck = async u => {
+    await u.httpExecutor.request({ hostname: 'api.github.com' });
+    return { isUpdateAvailable: false, updateInfo: { version: '1.1.0' } };
+  };
+  const { updater } = harness({ fake });
+  await flush();
+  assert.equal(networkCalls, 1);
+  const pending = updater.check();
+  updater.setOffline(true);
+  assert.equal(networkToken.cancelled, true);
+  assert.equal((await pending).reason, 'offline');
+  await assert.rejects(fake.httpExecutor.request({ hostname: 'api.github.com' }), /local-only/);
+  assert.equal(networkCalls, 1, 'new metadata requests are rejected before reaching the native executor');
+  assert.equal(updater.getState().checkedAt, null, 'a cancelled check is not recorded as a completed check');
+  updater.dispose();
+  assert.equal(fake.httpExecutor.request, originalRequest);
+});
+
+test('local-only cancels an active file download and rejects its late completion', async () => {
+  const { updater, fake } = harness({ onCheck: available({ version: '1.2.0' }) });
+  await flush();
+  fake.onDownload = (_updater, token) => token.createPromise(() => {});
+  const pending = updater.download();
+  await flush();
+  assert.equal(fake.downloads, 1);
+  const token = fake.downloadArgs[0];
+  updater.setOffline(true);
+  assert.equal(token.cancelled, true);
+  assert.equal((await pending).reason, 'offline');
+  fake.emit('update-downloaded', { version: '1.2.0' });
+  assert.equal(updater.getState().status, 'offline');
+  assert.equal(updater.getState().canInstall, false);
+  assert.equal((await updater.install()).reason, 'offline');
+});
+
+test('entering local-only cancels an installation queued before its IPC reply was delivered', async () => {
+  const { updater, fake, timers } = harness({ onCheck: available({ version: '1.2.0' }) });
+  await flush();
+  fake.onDownload = u => { u.emit('update-downloaded', { version: '1.2.0' }); };
+  await updater.download();
+  assert.equal((await updater.install()).ok, true);
+  updater.setOffline(true);
+  timers.timeouts[0].fn();
+  assert.deepEqual(fake.installs, []);
+  assert.equal(updater.getState().installing, false);
+  assert.equal(updater.getState().status, 'offline');
+});
+
+test('leaving local-only still respects development and missing-channel network gates', async () => {
+  for (const options of [{ packaged: false }, { channel: undefined }]) {
+    const { updater, fake, timers, loaderCalls } = harness({ ...options, extra: { offline: true } });
+    updater.setOffline(false);
+    await flush();
+    assert.equal(updater.getState().status, options.packaged === false ? 'development' : 'setup_required');
+    assert.equal(fake.feeds.length, 0); assert.equal(fake.checks, 0); assert.equal(loaderCalls(), 0);
+    assert.equal(timers.intervals.length, 0);
+  }
 });
 
 test('release notes become bounded plain text', () => {

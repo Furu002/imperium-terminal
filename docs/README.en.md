@@ -2,43 +2,43 @@
 
 # IMPERIUM
 
-**IMPERIUM**, Latin for command or authority, is a local AI operations terminal where you act as headquarters and dispatch departmental tasks to Codex and Claude Code. Its Bloomberg-inspired interface shows queues, execution status, tool events, and results.
+**IMPERIUM**, Latin for command or authority, is a local operations terminal for building your own AI workspace. Add yourself, AI connections, roles, and memory to an empty canvas, then follow queues, execution status, tool events, and results from Codex, Claude Code, and other providers. A company organization chart is an optional layout; names and titles are yours to choose.
 
-Version 1.2.0 is an **internal validation build**. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
+Version 1.3.0 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
 
 The app runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
 ## Run the desktop app
 
-The Windows internal-validation installer is named **`Imperium-Setup-1.2.0-x64.exe`** and includes a guided setup wizard.
+The Windows internal-validation installer is named **`Imperium-Setup-1.3.0-x64.exe`** and includes a guided setup wizard.
 
 1. Run the installer and proceed through **Next → Install → Finish**. You can change the installation folder. The app installs for the current Windows user.
 2. Open the app using the **IMPERIUM** shortcut on your desktop or in the Start menu.
 3. To uninstall, select **IMPERIUM** in the apps list in Windows Settings.
 
-For use without installation, choose the portable file `Imperium-1.2.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
+For use without installation, choose the portable file `Imperium-1.3.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
 
-Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.2.0-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.2.0-mac-x64.dmg` and `.zip`.
+Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.3.0-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.3.0-mac-x64.dmg` and `.zip`.
 
 The author metadata names **Sato Junichiro**. This metadata alone does not establish a Windows-verified publisher. Builds remain unsigned developer packages until an actual Authenticode certificate is supplied and used for signing; Windows may show an unknown publisher. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
 
-Desktop records are stored in `hq-data/` under the operating system's application-data location. The default working folder is `Imperium Workspace` in Documents, and can be changed in settings.
+Desktop records are stored in `hq-data/` under the operating system's application-data location. The initial working folder is `Imperium Workspace` in Documents. **Projects (F9)** lets you create and select separate real work folders with a name and color.
 
 ## Install on Linux
 
-Linux x64 build targets are `Imperium-1.2.0-linux-x64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.2.0-linux-x64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
+Linux x64 build targets are `Imperium-1.3.0-linux-x64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.3.0-linux-x64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
 
 To install on Debian or Ubuntu:
 
 ```sh
-sudo apt install ./Imperium-1.2.0-linux-x64.deb
+sudo apt install ./Imperium-1.3.0-linux-x64.deb
 ```
 
 After installation, launch **IMPERIUM** from your application menu. To use the AppImage:
 
 ```sh
-chmod +x Imperium-1.2.0-linux-x64.AppImage
-./Imperium-1.2.0-linux-x64.AppImage
+chmod +x Imperium-1.3.0-linux-x64.AppImage
+./Imperium-1.3.0-linux-x64.AppImage
 ```
 
 The AppImage does not automatically create application-menu or desktop shortcuts. Linux also requires Codex or Claude Code installation and subscription login. A successful Linux CI build confirms package generation and automated checks, rather than manual testing in a Linux desktop session.
@@ -86,12 +86,17 @@ Model-list labels distinguish **Account discovery**, **CLI alias**, **Local mode
 
 ## Dispatch work
 
-The first screen is the **Node workspace (F1)**. Commander → provider → department relationships appear as editable nodes. Status reflects actual connections and task records. A department node represents a configured role, rather than a separate always-running model process.
+The first screen of a new workspace is an **empty canvas (F1)**. Use the **node library** to add yourself, AI connections, roles, and memory. Choose your own name and title; no Commander role is required. Each AI has a nameplate identifying its connection and role. Apply the **organization template** explicitly if you want a company layout. Existing projects restore their saved canvas.
 
-1. In the organization chart, choose **Assign work** on Strategy, Engineering, Research, or Quality to open operations with that department selected. This action alone does not run a model. Press **F2** to open operations directly. Department names, roles, and default providers are editable.
-2. Enter an instruction and select a ready provider or connection. Each task can override its department's default provider.
-3. Choose read-only or file-write permission and a priority, then dispatch.
-4. Follow live logs, results, and status; cancel tasks when needed. Export records as JSON or a genuine Excel workbook (`.xlsx`).
+1. Select a project in **Projects (F9)** or create a real folder with your preferred name, color, and parent folder. New projects start with an empty configuration.
+2. Verify CLI installation and sign-in in **AI connections (F5)**, then add the AI and roles you need to the canvas. **Assign work** opens operations with that role selected; it does not call a model. **F2** opens operations directly.
+3. Enter an instruction and select a ready provider or connection. Each task can override its role's default provider.
+4. Choose read-only or file-write permission and a priority, then use **Dispatch command** to start actual work.
+5. Follow live logs, results, and status; cancel tasks when needed. Export records as JSON or a genuine Excel workbook (`.xlsx`).
+
+A role or department node is a task-assignment definition, rather than an always-running model process. Agent definitions, canvas layouts, and memory are separated by project. Registered model connections and CLI sign-in are shared across projects under the same OS user; switching projects does not create a separate subscription account. Complete or cancel queued and running tasks before switching projects.
+
+Canvas execution and completion states follow actual task status. Public stages, percentages, and remaining times supplied by the AI are labeled **model estimates**, without a guarantee of completeness or an exact finish time. Times derived from previous tasks are **history-based estimates**. Only tasks confirmed complete are shown at 100%.
 
 The queue runs one task per provider and up to two tasks overall. Tasks in the same department run sequentially. File-write tasks run without other tasks to reduce conflicts. The overall concurrency setting is either one or two.
 
@@ -101,12 +106,26 @@ The queue runs one task per provider and up to two tasks overall. Tasks in the s
 
 - Drag nodes to move them. Drag the background or use the wheel to pan; use `Ctrl+wheel` to zoom, or choose **Fit view** and **Auto arrange**. Positions and connections are saved per project.
 - **Add memory** selects an existing memory or creates one. Connect its output port to a department input to include it in task context. Inspect and edit its content, pinned state, and revision. **Remove from canvas** retains the underlying memory.
-- Connect one department's output to another department's input to create a workflow handoff. Cycles are rejected. Select a connection to delete it. Base organization lines are derived from department settings.
+- Connect one role's output to another role's input to create a workflow handoff. Cycles are rejected. Select a connection to delete it.
 - Connecting nodes does not execute work. Choose a department to write an assignment, or explicitly use **Run connected workflow** in its inspector. The default permission is read-only.
 
-Memory consists of project-scoped local notes, decisions, constraints, and task results. Retrieval and automatic memory relationships form a **keyword-based knowledge graph**, not neural-network training or changes to model weights. Automatically captured task memories are unverified agent-authored material. Review them before relying on them. Retrieving a smaller relevant context can reduce the material supplied, but does not guarantee fewer billed tokens or lower charges.
+Memory consists of project-scoped local notes, decisions, constraints, and task results. **Knowledge (F11)** shows a graph of actual task results and pinned notes. Retrieval and automatic relationships use **project-scoped keyword RAG**; no model weights are trained. Automatically captured results are marked `unverified`. Review the original material, edit it when needed, and pin important notes. Agents cannot overwrite pinned or user-authored material. Pinning does not automatically establish factual accuracy.
 
 Codex and Claude tasks receive read-only MCP tools—`memory_search`, `memory_get`, and `memory_list`—that can retrieve more memory during execution. Access is scoped to that task and project. The model can query as needed; this does not mean it always reads every memory or learns autonomously in the background.
+
+## Projects and local-only mode
+
+**Projects (F9)** creates an actual new folder. The default parent is `Imperium Projects` next to the current work folder; you can choose another existing parent folder. Existing folders are not overwritten or moved. Project names and colors are editable. Role definitions, node layouts, and memory retrieval stay within the selected project.
+
+Enable **Local only** (`settings.localOnly`) to run only local models installed in Ollama on this computer. Cloud tasks and cloud model discovery are rejected with HTTP 403; desktop update checks and downloads are also stopped. Complete active and queued work before changing this setting. It applies to the app's model and updater paths; **it does not block external commands you run in the real terminal or networking at the operating-system level**.
+
+## Usage and performance
+
+**Analytics (F10)** uses retained real tasks from the current project to show token history and task graphs, p50/p95 first-output latency and execution duration, and the success rate among completed and failed tasks. DEMO tasks are excluded. Usage missing from CLI reports stays unreported, rather than becoming zero or an estimated charge.
+
+Earlier/recent comparisons require **at least six** completed tasks with reported usage in the same provider, model ID, role, and permission group. They compare equal-sized chronological halves, with at least three tasks in each. This is an observed token change, not causal evidence of a memory benefit or billing savings. Unknown model IDs are excluded. Remaining subscription credits or allowance percentages are unavailable from the CLIs; token counts are not converted into money saved.
+
+The **initial context character selection rate** compares the characters initially supplied with stored memory. It does not measure billed tokens across later MCP retrieval, the CLI's own context, or tokenization, so it is not a billing savings rate. See [architecture and validation principles](architecture.md) for the design rationale and measurement boundaries.
 
 ## Keyboard navigation and the real terminal
 
@@ -114,6 +133,7 @@ Codex and Claude tasks receive read-only MCP tools—`memory_search`, `memory_ge
 | --- | --- |
 | F1 / F2 / F3 / F4 | Node workspace / operations / departments / activity |
 | F5 / F6 / F7 / F8 | AI connections and setup guide / terminal / updates / general settings |
+| F9 / F10 / F11 | Projects / analytics / knowledge |
 | Ctrl+Enter | Dispatch from the task composer |
 | / | Search operations |
 
@@ -150,7 +170,7 @@ Pretendard, Pretendard JP, and JetBrains Mono are bundled in `public/fonts/` and
 
 ## Updates and release status
 
-The source repository remains private. The planned public distribution and update channel is [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases). Version 1.2.0 remains in internal validation; this documentation does not announce an external release before benchmarking is complete. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Download and installation require explicit user action.
+Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.3.0 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
 
 Windows installed builds use the NSIS update path. Linux AppImage builds use the AppImage update path; DEB users download and install the next package manually. macOS may require manual updates while signing certificates are unavailable. File-hash verification is not a code signature, and the **Sato Junichiro** author metadata is not certificate signing. Instructions do not require disabling a firewall or system-wide OS security settings.
 

@@ -13,7 +13,7 @@
  *   // on quit: removeIpc(); updater.dispose();
  *
  * Rules enforced here:
- *  - No network at all unless the app is packaged AND a valid public GitHub channel is configured.
+ *  - No network at all in local-only mode, or unless the app is packaged AND a valid public GitHub channel is configured.
  *  - Only GitHub (https://github.com / api.github.com) feeds built from validated owner/repo.
  *    No arbitrary feed URL, no tokens, no private repositories.
  *  - autoDownload=false, autoInstallOnAppQuit=false. Downloads and installs happen only on explicit
@@ -39,7 +39,7 @@ const IPC_CHANNELS = Object.freeze({
 
 const STATUSES = Object.freeze([
   'setup_required', 'development', 'checking', 'available', 'current',
-  'downloading', 'downloaded', 'error', 'unsupported',
+  'downloading', 'downloaded', 'error', 'unsupported', 'offline',
 ]);
 
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
@@ -251,6 +251,7 @@ function createUpdater(options = {}) {
     codeSigned = false,
     macAutoInstall = false,
     loadElectronUpdater = () => require('electron-updater'),
+    createCancellationToken = parent => new (require('builder-util-runtime').CancellationToken)(parent),
   } = options;
   if (!app || typeof app.getVersion !== 'function') throw new TypeError('createUpdater requires the Electron app object.');
   const intervalMs = Math.max(MIN_CHECK_INTERVAL_MS, Number.isFinite(options.intervalMs) ? options.intervalMs : CHECK_INTERVAL_MS);
@@ -275,6 +276,13 @@ function createUpdater(options = {}) {
   let interval = null;
   let lastManualCheckAt = -Infinity;
   let lastProgressSent = -1;
+  let offline = options.offline === true;
+  let generation = 0;
+  let resumeRequested = false;
+  let checkCancellation = null;
+  let downloadCancellation = null;
+  let checkRequest = null;
+  let restoreRequest = null;
 
   const state = {
     status: 'setup_required',
@@ -297,13 +305,15 @@ function createUpdater(options = {}) {
     publisher: PUBLISHER,
     codeSigned: Boolean(codeSigned),
     integrity: 'sha512',
+    offline,
   };
 
   function eligible() {
-    return !disposed && packaged && channel !== null && support.mode !== 'none' && !updaterFailed;
+    return !disposed && !offline && packaged && channel !== null && support.mode !== 'none' && !updaterFailed;
   }
 
   function baseStatus() {
+    if (offline) return 'offline';
     if (support.mode === 'none') return 'unsupported';
     if (!packaged) return 'development';
     if (!channel) return 'setup_required';
@@ -319,7 +329,7 @@ function createUpdater(options = {}) {
       canCheck: eligible() && !busy,
       canDownload: eligible() && support.mode === 'auto' && state.status === 'available' && !installing,
       canInstall: eligible() && support.mode === 'auto' && state.status === 'downloaded' && !installing,
-      manualDownload: support.mode === 'manual' && state.releasesURL !== null,
+      manualDownload: !offline && support.mode === 'manual' && state.releasesURL !== null,
     }));
   }
 
@@ -397,6 +407,9 @@ function createUpdater(options = {}) {
   }
 
   function attach(candidate) {
+    for (const [name, handler] of listeners) candidate.removeListener(name, handler);
+    listeners = [];
+    const epoch = generation;
     const handlers = {
       'checking-for-update': () => { if (state.status !== 'downloading') update({ status: 'checking', error: null }); },
       'update-available': (info) => applyAvailable(info),
@@ -407,9 +420,42 @@ function createUpdater(options = {}) {
       error: (error) => applyError(error),
     };
     for (const name of UPDATER_EVENTS) {
-      candidate.on(name, handlers[name]);
-      listeners.push([name, handlers[name]]);
+      const handler = (...args) => { if (!disposed && !offline && generation === epoch) handlers[name](...args); };
+      candidate.on(name, handler);
+      listeners.push([name, handler]);
     }
+  }
+
+  function cancelRequests() {
+    for (const token of new Set([checkCancellation, downloadCancellation])) {
+      try { token?.cancel(); } catch { /* Cancellation must never re-enable traffic. */ }
+    }
+    try {
+      if (typeof checkRequest?.abort === 'function') checkRequest.abort();
+      else if (typeof checkRequest?.cancel === 'function') checkRequest.cancel();
+    } catch {}
+  }
+
+  function guardMetadataRequests(candidate) {
+    // checkForUpdates() has no cancellation argument. Its public HTTP executor
+    // does, so give metadata requests a token tied to the current check as well.
+    const executor = candidate.httpExecutor;
+    if (typeof executor?.request !== 'function') return;
+    const original = executor.request;
+    const guarded = function (requestOptions, parentToken, data) {
+      if (offline || disposed) return Promise.reject(new Error('Update networking is disabled in local-only mode.'));
+      const owner = checkCancellation || downloadCancellation;
+      if (!owner) return original.call(this, requestOptions, parentToken, data);
+      const token = createCancellationToken(parentToken);
+      const cancel = () => token.cancel();
+      owner.once('cancel', cancel);
+      if (owner.cancelled) cancel();
+      const release = () => { owner.removeListener('cancel', cancel); token.dispose?.(); };
+      try { return Promise.resolve(original.call(this, requestOptions, token, data)).finally(release); }
+      catch (error) { release(); throw error; }
+    };
+    executor.request = guarded;
+    restoreRequest = () => { if (executor.request === guarded) executor.request = original; };
   }
 
   function loadUpdater() {
@@ -429,6 +475,7 @@ function createUpdater(options = {}) {
       candidate.fullChangelog = false;
       if (platform === 'win32') candidate.disableWebInstaller = true;
       candidate.logger = null;
+      guardMetadataRequests(candidate);
       candidate.setFeedURL(channel.feed);
       attach(candidate);
       updater = candidate;
@@ -445,14 +492,25 @@ function createUpdater(options = {}) {
   }
 
   function runCheck() {
+    if (offline) return Promise.resolve(refusal('offline'));
     if (inFlight) return inFlight;
     const instance = loadUpdater();
     if (!instance) return Promise.resolve(refusal(baseStatus() || 'unavailable'));
     update({ status: 'checking', error: null, progress: null });
-    inFlight = (async () => {
+    const epoch = generation;
+    const token = createCancellationToken();
+    checkCancellation = token;
+    let operation;
+    operation = (async () => {
+      // Set the in-flight handle before a synchronous library error can settle it.
+      await Promise.resolve();
       try {
-        const result = await instance.checkForUpdates();
+        if (offline || epoch !== generation) return refusal('offline');
+        checkRequest = instance.checkForUpdates();
+        const result = await checkRequest;
         if (disposed) return refusal('disposed');
+        if (offline || epoch !== generation) { result?.cancellationToken?.cancel(); return refusal('offline'); }
+        downloadCancellation = result?.cancellationToken || null;
         if (state.status === 'checking') {
           // Events normally settle the state; fall back to the resolved result, never to a guess.
           if (!result) applyError(new Error('The update service is not active for this build.'), 'updater_inactive');
@@ -462,13 +520,19 @@ function createUpdater(options = {}) {
         }
       } catch (error) {
         // The 'error' event may already have reported this failure.
+        if (disposed) return refusal('disposed');
+        if (offline || epoch !== generation) return refusal('offline');
         if (!disposed && state.status !== 'error') applyError(error);
       } finally {
-        inFlight = null;
-        if (!disposed) update({ checkedAt: new Date(now()).toISOString() });
+        if (inFlight === operation) inFlight = null;
+        if (checkCancellation === token) { checkCancellation = null; checkRequest = null; }
+        token.dispose?.();
+        if (!disposed && !offline && epoch === generation) update({ checkedAt: new Date(now()).toISOString() });
+        resumeIfIdle();
       }
       return { ok: state.status !== 'error', reason: state.status === 'error' ? state.error && state.error.code : null, state: snapshot() };
     })();
+    inFlight = operation;
     return inFlight;
   }
 
@@ -483,6 +547,7 @@ function createUpdater(options = {}) {
     if (disposed) return refusal('disposed');
     const blocked = baseStatus();
     if (blocked) return refusal(blocked);
+    if (resumeRequested && inFlight) return refusal('busy');
     if (inFlight) return inFlight;
     if (installing || state.status === 'downloading' || state.status === 'downloaded') return refusal('busy');
     const current = now();
@@ -497,37 +562,55 @@ function createUpdater(options = {}) {
 
   async function download() {
     if (disposed) return refusal('disposed');
+    if (offline) return refusal('offline');
     if (support.mode !== 'auto') return refusal('manual_download');
     if (!eligible() || !updater) return refusal(baseStatus() || 'unavailable');
     if (downloading) return downloading;
     if (state.status !== 'available') return refusal('not_available');
     lastProgressSent = -1;
     update({ status: 'downloading', progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 }, error: null });
-    downloading = (async () => {
+    const epoch = generation;
+    const token = downloadCancellation && !downloadCancellation.cancelled ? downloadCancellation : createCancellationToken();
+    downloadCancellation = token;
+    let operation;
+    operation = (async () => {
+      await Promise.resolve();
       try {
-        await updater.downloadUpdate();
+        if (disposed) return refusal('disposed');
+        if (offline || epoch !== generation) return refusal('offline');
+        await updater.downloadUpdate(token);
+        if (disposed) return refusal('disposed');
+        if (offline || epoch !== generation) return refusal('offline');
         // downloadUpdate resolves only after the file was written and its sha512 verified.
         if (!disposed && state.status === 'downloading') applyDownloaded({ version: state.latestVersion });
       } catch (error) {
+        if (offline || epoch !== generation) return refusal('offline');
         if (!disposed && state.status !== 'error') applyError(error);
       } finally {
-        downloading = null;
+        if (downloading === operation) downloading = null;
+        if (downloadCancellation === token) downloadCancellation = null;
+        token.dispose?.();
+        resumeIfIdle();
       }
       return { ok: state.status === 'downloaded', reason: state.status === 'downloaded' ? null : (state.error && state.error.code) || 'download_failed', state: snapshot() };
     })();
+    downloading = operation;
     return downloading;
   }
 
   async function install() {
     if (disposed) return refusal('disposed');
+    if (offline) return refusal('offline');
     if (support.mode !== 'auto') return refusal('manual_download');
     if (!eligible() || !updater) return refusal(baseStatus() || 'unavailable');
     if (installing) return refusal('installing');
     if (state.status !== 'downloaded') return refusal('not_downloaded');
     installing = true;
+    const epoch = generation;
     emit();
     // Let the IPC reply reach the renderer before the app starts quitting.
     setTimeoutFn(() => {
+      if (disposed || offline || epoch !== generation) return;
       try {
         // isSilent=false shows the NSIS installer UI; isForceRunAfter=true relaunches IMPERIUM.
         updater.quitAndInstall(false, true);
@@ -550,7 +633,7 @@ function createUpdater(options = {}) {
       return refusal('invalid_channel');
     }
     channel = parsed;
-    if (updater && channel) updater.setFeedURL(channel.feed);
+    if (updater && channel && !offline) updater.setFeedURL(channel.feed);
     update({
       channel: channel ? { owner: channel.owner, repo: channel.repo, provider: channel.provider } : null,
       releasesURL: channel ? channel.releasesURL : null,
@@ -571,19 +654,55 @@ function createUpdater(options = {}) {
     state.nextCheckAt = new Date(now() + intervalMs).toISOString();
   }
 
+  function resumeIfIdle() {
+    if (!resumeRequested || offline || disposed || inFlight || downloading || installing) return;
+    resumeRequested = false;
+    if (!eligible()) return;
+    if (updater) { updater.setFeedURL(channel.feed); attach(updater); }
+    startSchedule();
+    void runCheck();
+  }
+
+  function setOffline(value) {
+    if (disposed) return refusal('disposed');
+    if (typeof value !== 'boolean') return refusal('invalid_offline');
+    if (offline === value) return { ok: true, reason: null, state: snapshot() };
+    offline = value;
+    generation++;
+    if (interval) clearIntervalFn(interval);
+    interval = null;
+    if (offline) {
+      resumeRequested = false;
+      installing = false;
+      update({ status: 'offline', offline: true, notice: 'local-only', progress: null, error: null, nextCheckAt: null, manualCheckAvailableAt: null });
+      cancelRequests();
+    } else {
+      lastManualCheckAt = -Infinity;
+      resumeRequested = true;
+      update({ status: baseStatus() || 'checking', offline: false, notice: support.notice, progress: null, error: channelError });
+      resumeIfIdle();
+    }
+    return { ok: true, reason: null, state: snapshot() };
+  }
+
   function dispose() {
     if (disposed) return;
+    disposed = true;
+    generation++;
+    resumeRequested = false;
+    cancelRequests();
     if (interval) clearIntervalFn(interval);
     interval = null;
     if (updater && typeof updater.removeListener === 'function') {
       for (const [name, handler] of listeners) updater.removeListener(name, handler);
     }
     listeners = [];
-    disposed = true;
+    restoreRequest?.();
   }
 
   // Initial state: never claim "current" before the provider has answered.
   state.status = baseStatus() || 'checking';
+  if (offline) state.notice = 'local-only';
   if (eligible()) {
     startSchedule();
     void runCheck(); // startup check; later checks every 30 minutes
@@ -597,6 +716,7 @@ function createUpdater(options = {}) {
     download,
     install,
     configureChannel,
+    setOffline,
     dispose,
   };
 }
