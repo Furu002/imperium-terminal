@@ -4,7 +4,7 @@
     en: {
       '사용량과 운영 성능': 'Usage and operational performance', '저장된 실제 작업 기준 · DEMO 제외': 'Retained real tasks · DEMO excluded', '새로고침': 'Refresh',
       '불러오는 중…': 'Loading…', '분석 데이터를 불러오지 못했습니다.': 'Analytics could not be loaded.', '실제 작업': 'Real tasks', '보고된 토큰': 'Reported tokens', '완료 비율': 'Completion rate', '실행 시간 P50': 'Duration P50', '실행 시간 P95': 'Duration P95', '구독 잔량': 'Subscription balance',
-      '구독 CLI가 잔량을 제공하지 않습니다.': 'Subscription CLIs do not expose the remaining allowance.', '완료 + 실패 작업 기준': 'Completed + failed tasks', '보고 작업 {reported}/{total}': 'Reported jobs {reported}/{total}',
+      '화면 상단의 계정별 잔여 한도를 확인하세요.': 'See the per-account allowance panel above.', '완료 + 실패 작업 기준': 'Completed + failed tasks', '보고 작업 {reported}/{total}': 'Reported jobs {reported}/{total}',
       '일별 보고 토큰': 'Reported tokens by day', '입력': 'Input', '출력': 'Output', '누적 보고 이력': 'Cumulative reported usage', '저장된 보고값의 누적 합계': 'Cumulative sum of retained reports', '실행 시간 · 최근 관측 작업': 'Duration · recent measured tasks', '관측된 실행 시간 기록이 없습니다.': 'No measured execution durations yet.', '보고된 토큰 기록이 없습니다.': 'No reported token usage yet.',
       '작업 기록이 없습니다.': 'No task history yet.', '완료': 'Completed', '실패': 'Failed', '실행 중': 'Running', '대기': 'Queued', '보고 없음': 'Not reported',
       '첫 출력 지연 P50': 'First-output latency P50', '관측 {count}건': '{count} observations', '장기 기억 문맥': 'Long-term memory context', '초기 전달 문맥': 'Initial context', '작업별 전체 기억 합계': 'Sum of per-task memory pools', '추가 조회 문자': 'Additional retrieved characters', '추가 조회': 'Additional lookups', '문자 수 기준이며 문맥 레이블을 포함합니다. 토큰·요금 절감량이 아닙니다.': 'Character counts include context labels. These are not token or billing savings.',
@@ -15,7 +15,7 @@
     },
     ja: {
       '사용량과 운영 성능': '使用量と稼働状況', '저장된 실제 작업 기준 · DEMO 제외': '保存された実タスクのみ・DEMOを除外', '새로고침': '更新', '불러오는 중…': '読み込み中…', '분석 데이터를 불러오지 못했습니다.': '分析データを取得できませんでした。',
-      '실제 작업': '実タスク', '보고된 토큰': '報告トークン', '완료 비율': '完了率', '실행 시간 P50': '実行時間 P50', '실행 시간 P95': '実行時間 P95', '구독 잔량': 'プラン残量', '구독 CLI가 잔량을 제공하지 않습니다.': 'サブスクリプションCLIは残量を公開していません。', '완료 + 실패 작업 기준': '完了＋失敗タスクが対象', '보고 작업 {reported}/{total}': '報告タスク {reported}/{total}',
+      '실제 작업': '実タスク', '보고된 토큰': '報告トークン', '완료 비율': '完了率', '실행 시간 P50': '実行時間 P50', '실행 시간 P95': '実行時間 P95', '구독 잔량': 'プラン残量', '화면 상단의 계정별 잔여 한도를 확인하세요.': '上部のアカウント別残量パネルを確認してください。', '완료 + 실패 작업 기준': '完了＋失敗タスクが対象', '보고 작업 {reported}/{total}': '報告タスク {reported}/{total}',
       '일별 보고 토큰': '日別の報告トークン', '입력': '入力', '출력': '出力', '누적 보고 이력': '累積報告履歴', '저장된 보고값의 누적 합계': '保存された報告値の累積合計', '실행 시간 · 최근 관측 작업': '実行時間・直近の観測タスク', '관측된 실행 시간 기록이 없습니다.': '観測された実行時間がありません。', '보고된 토큰 기록이 없습니다.': '報告トークンの記録がありません。', '작업 기록이 없습니다.': 'タスク履歴がありません。', '완료': '完了', '실패': '失敗', '실행 중': '実行中', '대기': '待機', '보고 없음': '未報告',
       '첫 출력 지연 P50': '初回出力待ち時間 P50', '관측 {count}건': '観測 {count}件', '장기 기억 문맥': '長期記憶のコンテキスト', '초기 전달 문맥': '初期コンテキスト', '작업별 전체 기억 합계': 'タスク別の全記憶量合計', '추가 조회 문자': '追加取得文字数', '추가 조회': '追加取得回数', '문자 수 기준이며 문맥 레이블을 포함합니다. 토큰·요금 절감량이 아닙니다.': '文字数にはラベルを含みます。トークンや料金の節約量ではありません。', '추가 조회 문자 미보고 작업 {count}건': '追加取得サイズが未報告のタスク {count}件', '기억 사용 기록이 없습니다.': '記憶の使用記録がありません。',
       '관측된 사용량 변화': '観測された使用量の変化', '같은 제공자·모델 ID·부서·권한의 완료 작업만 비교합니다.': '同じプロバイダー・モデルID・部署・権限の完了タスクを比較します。', '시간순 이전 절반과 최근 절반을 같은 수로 비교합니다. 홀수 중간 표본은 제외합니다. 각 군 최소 3개가 필요합니다.': '時系列の前半と後半を同数で比較し、奇数の中央標本は除外します。各群に最低3件が必要です。', '난이도 미통제 · 청구 절감 아님 · 결과 품질 평가 아님': '難易度は未調整・請求額の節約ではありません・品質評価ではありません', '구성': '構成', '각 군 표본': '各群の標本', '이전 평균': '前半の平均', '최근 평균': '後半の平均', '변화': '変化', '데이터 부족': 'データ不足', '비교 가능한 보고 표본이 아직 없습니다.': '比較できる報告標本がまだありません。', '모델 ID 미지정 등 비교 제외 {count}건': 'モデルID未指定などで {count}件を比較対象から除外',
@@ -116,7 +116,7 @@
       const body = h('tbody');
       groups.slice(0, 20).forEach(group => {
         const row = h('tr'), config = h('td'), change = h('td', group.status === 'available' ? 'ia-change-value' : 'ia-insufficient');
-        config.append(h('strong', '', `${group.provider} / ${group.modelId}`), h('span', '', `${group.departmentId} · ${group.permission}`));
+        config.append(h('strong', '', `${group.provider} / ${group.modelId}`), h('span', '', `${group.departmentId} · ${group.permission} · ${group.reasoningEffort || 'default'} · ${group.speed || 'default'}`));
         change.textContent = group.status === 'available' ? percentage(group.changePercent) : t('데이터 부족');
         row.append(config, h('td', '', `${n(group.previousCount)} / ${n(group.recentCount)}`), h('td', '', n(group.previousAverageTokens)), h('td', '', n(group.recentAverageTokens)), change); body.append(row);
       }); table.append(body); wrap.append(table); card.append(wrap);
@@ -136,7 +136,7 @@
       ['완료 비율', known(performance.successRate) ? `${n(performance.successRate * 100)}%` : '—', t('완료 + 실패 작업 기준')],
       ['실행 시간 P50', duration(performance.durationMs?.p50), t('관측 {count}건', { count: n(performance.durationMs?.samples) })],
       ['실행 시간 P95', duration(performance.durationMs?.p95), 'NEAREST RANK'],
-      ['구독 잔량', '—', t('구독 CLI가 잔량을 제공하지 않습니다.')],
+      ['구독 잔량', '—', t('화면 상단의 계정별 잔여 한도를 확인하세요.')],
     ];
     for (const [label, number, note] of values) { const metric = h('div', 'ia-metric'); metric.append(h('span', 'ia-metric-label', t(label)), h('strong', 'ia-metric-value', number), h('span', 'ia-metric-note', note)); metrics.append(metric); }
     const grid = h('div', 'ia-grid'); grid.append(dailyChart(value.byDay || []), historyChart(value.tokenHistory || []), durationChart(value.taskBars || [], performance.firstOutputLatencyMs), memoryPanel(value.memory), comparisonPanel(value.comparison));

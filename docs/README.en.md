@@ -4,21 +4,21 @@
 
 **IMPERIUM**, Latin for command or authority, is a local operations terminal for building your own AI workspace. Add yourself, AI connections, roles, and memory to an empty canvas, then follow queues, execution status, tool events, and results from Codex, Claude Code, and other providers. A company organization chart is an optional layout; names and titles are yours to choose.
 
-Version 1.3.2 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
+Version 1.4.0 is the **internal validation target**. The expanded scope moves development forward without a final external 1.2.0 release. No external release will be published until benchmarking and distribution checks are complete. Package names and update instructions below describe build targets, rather than downloads already available to the public.
 
 The app runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
 ## Run the desktop app
 
-The Windows internal-validation installer is named **`Imperium-Setup-1.3.2-x64.exe`** and includes a guided setup wizard.
+The Windows internal-validation installer is named **`Imperium-Setup-1.4.0-x64.exe`** and includes a guided setup wizard.
 
 1. Run the installer and proceed through **Next → Install → Finish**. You can change the installation folder. The app installs for the current Windows user.
 2. Open the app using the **IMPERIUM** shortcut on your desktop or in the Start menu.
 3. To uninstall, select **IMPERIUM** in the apps list in Windows Settings.
 
-For use without installation, choose the portable file `Imperium-1.3.2-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
+For use without installation, choose the portable file `Imperium-1.4.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
 
-Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.3.2-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.3.2-mac-x64.dmg` and `.zip`.
+Developers with access to the private source repository can run **Build Imperium desktop** in Actions and obtain validation packages from a successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.4.0-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.4.0-mac-x64.dmg` and `.zip`.
 
 The author metadata names **Sato Junichiro**. This metadata alone does not establish a Windows-verified publisher. Builds remain unsigned developer packages until an actual Authenticode certificate is supplied and used for signing; Windows may show an unknown publisher. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
 
@@ -26,19 +26,19 @@ Desktop records are stored in `hq-data/` under the operating system's applicatio
 
 ## Install on Linux
 
-Linux x64 build targets are `Imperium-1.3.2-linux-amd64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.3.2-linux-x86_64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
+Linux x64 build targets are `Imperium-1.4.0-linux-amd64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.4.0-linux-x86_64.AppImage`. If you have received a validation package, run the relevant commands from its folder.
 
 To install on Debian or Ubuntu:
 
 ```sh
-sudo apt install ./Imperium-1.3.2-linux-amd64.deb
+sudo apt install ./Imperium-1.4.0-linux-amd64.deb
 ```
 
 After installation, launch **IMPERIUM** from your application menu. To use the AppImage:
 
 ```sh
-chmod +x Imperium-1.3.2-linux-x86_64.AppImage
-./Imperium-1.3.2-linux-x86_64.AppImage
+chmod +x Imperium-1.4.0-linux-x86_64.AppImage
+./Imperium-1.4.0-linux-x86_64.AppImage
 ```
 
 The AppImage does not automatically create application-menu or desktop shortcuts. Linux also requires Codex or Claude Code installation and subscription login. A successful Linux CI build confirms package generation and automated checks, rather than manual testing in a Linux desktop session.
@@ -84,13 +84,43 @@ Selecting subscription sign-in in Codex or Claude Code uses that account's condi
 
 Model-list labels distinguish **Account discovery**, **CLI alias**, **Local model**, and **Manual entry**. Aliases and manually entered IDs are not evidence of account entitlement. When discovery is unavailable, check supported models in the official CLI and enter the ID. Detecting an installed Gemini CLI may not establish authentication; verify Google account sign-in in that CLI. Ollama uses local models installed on this computer.
 
+## Select a model, reasoning effort, and speed
+
+Version 1.4.0 lets you save execution model, reasoning effort, and response speed defaults for each role or agent. Override them for one task under **Model settings for this task** in **Operations (F2)**. **Load account models** retrieves models and supported options reported by Codex or Claude Code, including Claude aliases and their resolved model IDs. A manually entered ID does not establish access or support for every option.
+
+| Setting | Behavior |
+| --- | --- |
+| Default model / effort | Leaves model selection or effort to the CLI and model rather than forcing an override. |
+| Default speed | Inherits the CLI's existing speed preference, which may already enable Fast. |
+| Standard | Explicitly turns Fast off for Codex and Claude and requests standard speed. |
+| Fast | Requests faster processing on a supported model and account. It may consume more allowance or incur additional charges. |
+
+Codex effort options follow the selected model's reported list; `max` and `ultra` appear where supported. Claude's `low`, `medium`, `high`, `xhigh`, and `max` also depend on model metadata. Copilot effort support depends on the model and CLI; only default speed is offered. Gemini and Ollama offer default reasoning and speed in this version. Unsupported selections return to default.
+
+**Claude Fast consumes separate usage credits, even when included subscription allowance remains.** Select it only after checking your account or organization's access and extra usage terms. See the official [Claude Fast guide](https://code.claude.com/docs/en/fast-mode) and [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+Task details show **Requested execution settings**: the values saved and passed to the CLI. Actual model, effort, and speed may differ because of account access, organization policies, model support, or provider fallback. This label does not certify that Fast was applied or that a performance level was achieved. Overrides are scoped to task execution and do not rewrite global CLI settings.
+
+## Account allowance
+
+The **Account allowance** panel at the top shows reported usage and remaining percentages, reset times, source, and check time. Expand **Details** and choose **Refresh account data** to update it. Allowance belongs to the **provider account signed into the current OS user's CLI** and is shared across connections and projects; each model label does not have a separate balance.
+
+- **Codex** shows windows reported by the official account interface and a credit balance when provided.
+- **Claude Code** reads five-hour, weekly, and model-scoped limits through its official CLI usage interface. Usage events during tasks update the relevant windows. Extra usage amounts appear only when currency and units are known. This experimental interface can be unavailable on other CLI versions.
+- **Copilot** shows quota, request counts, and remaining percentages exposed by its official CLI. If only used and allowed counts are supplied, the percentage is calculated from those counts.
+- **Gemini** has no automatic remaining-quota reader in this version; the panel links to the official usage guide. Cloud subscription quotas do not apply to **Ollama** local models.
+
+A remaining percentage is not converted into messages or money. Unreported balances and reset times stay unknown; task tokens are never used to estimate account balances. The normal cache lasts 60 seconds; manual refresh has a minimum ten-second cooldown. Values over two minutes old, or past their reported reset time, are marked as last reported values and need confirmation.
+
+Model discovery and quota checks use official CLI metadata interfaces **without model inference or a user prompt**. Cloud account checks still require network access. Local-only mode stops cloud quota checks, cancels pending checks, and hides external usage links.
+
 ## Dispatch work
 
 The first screen of a new workspace is an **empty canvas (F1)**. Use the **node library** to add yourself, AI connections, roles, and memory. Choose your own name and title; no Commander role is required. Each AI has a nameplate identifying its connection and role. Apply the **organization template** explicitly if you want a company layout. Existing projects restore their saved canvas.
 
 1. Select a project in **Projects (F9)** or create a real folder with your preferred name, color, and parent folder. New projects start with an empty configuration.
 2. Verify CLI installation and sign-in in **AI connections (F5)**, then add the AI and roles you need to the canvas. **Assign work** opens operations with that role selected; it does not call a model. **F2** opens operations directly.
-3. Enter an instruction and select a ready provider or connection. Each task can override its role's default provider.
+3. Enter an instruction and select a ready provider or connection. Use **Model settings for this task** to override the role's model, reasoning effort, or speed when needed.
 4. Choose read-only or file-write permission and a priority, then use **Dispatch command** to start actual work.
 5. Follow live logs, results, and status; cancel tasks when needed. Export records as JSON or a genuine Excel workbook (`.xlsx`).
 
@@ -123,7 +153,7 @@ Enable **Local only** (`settings.localOnly`) to run only local models installed 
 
 **Analytics (F10)** uses retained real tasks from the current project to show token history and task graphs, p50/p95 first-output latency and execution duration, and the success rate among completed and failed tasks. DEMO tasks are excluded. Usage missing from CLI reports stays unreported, rather than becoming zero or an estimated charge.
 
-Earlier/recent comparisons require **at least six** completed tasks with reported usage in the same provider, model ID, role, and permission group. They compare equal-sized chronological halves, with at least three tasks in each. This is an observed token change, not causal evidence of a memory benefit or billing savings. Unknown model IDs are excluded. Remaining subscription credits or allowance percentages are unavailable from the CLIs; token counts are not converted into money saved.
+Earlier/recent comparisons require **at least six** completed tasks with reported usage in the same provider, model ID, role, and permission group. They compare equal-sized chronological halves, with at least three tasks in each. This is an observed token change, not causal evidence of a memory benefit or billing savings. Unknown model IDs are excluded. Account allowance is shown separately from official reports as described above; task tokens are not converted into remaining allowance or money saved.
 
 The **initial context character selection rate** compares the characters initially supplied with stored memory. It does not measure billed tokens across later MCP retrieval, the CLI's own context, or tokenization, so it is not a billing savings rate. See [architecture and validation principles](architecture.md) for the design rationale and measurement boundaries.
 
@@ -162,7 +192,7 @@ Gemini CLI, GitHub Copilot CLI, and Ollama support **read-only tasks only** in t
 
 - In web mode, tasks, results, events, settings, memory, and project node layouts persist in the Git-ignored `.hq/` directory. Desktop mode uses the application-data location above. Up to 200 task records are retained.
 - After a server restart, running and queued tasks are marked interrupted. They are not automatically resumed.
-- Task token counts come from CLI reports. Account-wide remaining allowance and an exact subscription usage percentage are unavailable.
+- Task token counts come from CLI reports. Account allowance shows only windows and balances exposed by the official CLI; separate per-model balances and remaining message counts are not estimated.
 - Existing-chat synchronization, observation of other sessions, and automatic background model runs are outside the current scope.
 - This folder is a standalone app. Placing it inside another project does not make it manage the parent repository or its code. Work in your explicitly selected working folder is separate.
 
@@ -170,7 +200,7 @@ Pretendard, Pretendard JP, and JetBrains Mono are bundled in `public/fonts/` and
 
 ## Updates and release status
 
-Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.3.2 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
+Source is maintained privately in `Furu002/imperium-terminal`. The public distribution repository [Furu002/imperium-releases](https://github.com/Furu002/imperium-releases) is currently empty; no external release is published before benchmarking is complete. Version 1.4.0 is the internal validation target. **Updates (F7)** requires a packaged app, a configured public channel, and an actually published release. Local-only mode stops update network requests. Download and installation require explicit user action.
 
 Windows installed builds use the NSIS update path. Linux AppImage builds use the AppImage update path; DEB users download and install the next package manually. macOS may require manual updates while signing certificates are unavailable. File-hash verification is not a code signature, and the **Sato Junichiro** author metadata is not certificate signing. Instructions do not require disabling a firewall or system-wide OS security settings.
 

@@ -17,6 +17,8 @@
   <link rel="stylesheet" href="/projects.css">
   <link rel="stylesheet" href="/analytics.css">
   <link rel="stylesheet" href="/knowledge.css">
+  <link rel="stylesheet" href="/quotas.css">
+  <link rel="stylesheet" href="/execution-options.css">
   <script src="/vendor/xterm.js" defer></script>
   <script src="/vendor/xterm-addon-fit.js" defer></script>
   <script src="/workspace.js" defer></script>
@@ -26,6 +28,8 @@
   <script src="/projects.js" defer></script>
   <script src="/analytics.js" defer></script>
   <script src="/knowledge.js" defer></script>
+  <script src="/quotas.js" defer></script>
+  <script src="/execution-options.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -58,6 +62,7 @@
     <main class="main-content" id="main-content">
       <div class="page-heading"><div><div class="eyebrow"><span class="orange-text">HQ</span> <span>/</span> <span id="breadcrumb">COMMAND CENTER</span></div><h1 id="page-title">지휘 통제실<span class="title-cursor">_</span></h1><p id="page-description">지시하고, 연결하고, 모든 작업의 흐름을 확인하세요.</p></div><div class="heading-actions"><button class="button button-quiet" id="export-button"><span aria-hidden="true">↧</span> 기록 내보내기</button><button class="button button-outline" id="connections-button"><span class="link-symbol" aria-hidden="true">⌁</span> 모델 연결 <span id="connection-count" class="count-chip">0/2</span></button></div></div>
 
+      <section id="quotas-section" aria-label="AI account allowance"></section>
       <section class="metrics-strip" aria-label="조직 현황">
         <div class="metric"><span class="metric-label"><span class="metric-indicator green"></span>ACTIVE AGENTS</span><div><strong id="metric-running">00</strong><span>실행 중</span></div><span class="metric-detail" id="metric-running-detail">지시를 기다리고 있습니다</span><span class="metric-graphic green-text" aria-hidden="true">▁▁▁▁▁▁▁▁</span></div>
         <div class="metric"><span class="metric-label"><span class="metric-indicator orange"></span>IN QUEUE</span><div><strong id="metric-queued">00</strong><span>대기 작업</span></div><span class="metric-detail">우선순위에 따라 순차 실행</span><span class="metric-graphic orange-text" aria-hidden="true">············</span></div>

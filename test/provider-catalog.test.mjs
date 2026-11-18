@@ -10,16 +10,27 @@ test('provider catalog identifies local and subscription CLIs without implying s
   assert.ok(PROVIDER_CATALOG.every(provider => provider.docsUrl.startsWith('https://') && typeof provider.requiresNode === 'boolean'));
 });
 
-test('Claude, Gemini and Copilot expose verified aliases without claiming account discovery', async () => {
+test('Gemini and Copilot expose verified aliases without claiming account discovery', async () => {
   const mustNotRun = async () => assert.fail('aliases must not run a model or CLI');
-  for (const id of ['claude', 'gemini', 'copilot']) {
+  for (const id of ['gemini', 'copilot']) {
     const result = await discoverModels(id, { providerRunner: mustNotRun });
     assert.ok(result.models.length > 0);
     assert.ok(result.models.every(model => model.source === 'alias'));
     assert.ok(result.detail.includes('/model'));
   }
-  const claude = await discoverModels('claude');
-  assert.deepEqual(claude.models.map(model => model.id), ['opus', 'sonnet', 'haiku']);
+});
+
+test('Claude discovery failures expose only conservative aliases and no upstream diagnostics', async () => {
+  let calls = 0;
+  const result = await discoverModels('claude', { providerRunner: async request => {
+    calls++;
+    assert.equal(request.id, 'claude'); assert.equal(request.operation, 'model/list');
+    throw new Error('PRIVATE_ACCOUNT_DETAIL');
+  } });
+  assert.equal(calls, 1);
+  assert.deepEqual(result.models.map(model => model.id), ['opus', 'sonnet', 'haiku']);
+  assert.ok(result.models.every(model => model.source === 'alias' && model.supportsFastMode === false && model.supportedReasoningEfforts.length === 0));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_ACCOUNT_DETAIL/);
 });
 
 test('account model catalogs are bounded, deduplicated, and filtered without invented fallbacks', async () => {
@@ -34,6 +45,74 @@ test('account model catalogs are bounded, deduplicated, and filtered without inv
   const failed = await discoverModels('codex', { providerRunner: async () => { throw Error('sensitive upstream diagnostic'); } });
   assert.deepEqual(failed.models, []);
   assert.ok(!failed.detail.includes('sensitive'));
+});
+
+test('Codex account discovery preserves advertised reasoning and speed capabilities without mutating provider data', async () => {
+  const raw = { data: [
+    { model: 'account-advanced', displayName: 'Advanced', isDefault: true, supportedReasoningEfforts: ['low', { reasoningEffort: 'medium' }, { reasoningEffort: 'max' }, { reasoningEffort: 'ultra' }, { reasoningEffort: 'max' }, { reasoningEffort: 'unknown-level' }], defaultReasoningEffort: 'max', serviceTiers: [{ id: 'priority', name: 'Fast' }], accountEmail: 'PRIVATE_ACCOUNT_DETAIL' },
+    { model: 'account-standard', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }], defaultReasoningEffort: 'max', serviceTiers: [] },
+  ] };
+  const before = structuredClone(raw), requests = [];
+  const result = await discoverModels('codex', { providerRunner: async request => { requests.push(request); return raw; } });
+  const [advanced, standard] = result.models;
+  assert.deepEqual(advanced.supportedReasoningEfforts, ['low', 'medium', 'max', 'ultra']);
+  assert.equal(advanced.defaultReasoningEffort, 'max'); assert.equal(advanced.supportsFastMode, true); assert.equal(advanced.isDefault, true);
+  assert.deepEqual(standard.supportedReasoningEfforts, ['medium']);
+  assert.equal(standard.supportsFastMode, false); assert.equal(standard.defaultReasoningEffort, undefined);
+  assert.ok(result.models.every(model => model.source === 'account'));
+  assert.deepEqual(requests.map(request => request.operation), ['model/list']);
+  assert.deepEqual(raw, before, 'read-only discovery must leave provider metadata untouched');
+  advanced.supportedReasoningEfforts.push('high');
+  assert.deepEqual(raw, before, 'normalized capability arrays must not alias provider data');
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_ACCOUNT_DETAIL/);
+});
+
+test('Claude account discovery normalizes fourteen model rows through initialization alone', async () => {
+  const fullEffort = ['low', 'medium', 'high', 'xhigh', 'max'];
+  const versions = [
+    ['default', 'claude-opus-5-5'], ['opus', 'claude-opus-5-5'], ['fable', 'claude-fable-5-2'],
+    ['sonnet', 'claude-sonnet-5-5'], ['haiku', 'claude-haiku-5-5'], ['claude-fable-5-1', 'claude-fable-5-1'],
+    ['claude-haiku-4-5-20251001', 'claude-haiku-4-5-20251001'], ['claude-sonnet-5', 'claude-sonnet-5'],
+    ['claude-opus-5', 'claude-opus-5'], ['claude-fable-5', 'claude-fable-5'], ['claude-opus-4-8', 'claude-opus-4-8'],
+    ['claude-opus-4-7', 'claude-opus-4-7'], ['claude-opus-4-6', 'claude-opus-4-6'], ['claude-sonnet-4-6', 'claude-sonnet-4-6'],
+  ];
+  const models = versions.map(([value, resolvedModel]) => ({ value, resolvedModel, displayName: value === 'default' ? 'Default (recommended)' : resolvedModel, description: 'Published model metadata',
+    ...(value === 'claude-haiku-4-5-20251001' ? {} : { supportsEffort: true }),
+    ...(value === 'claude-haiku-4-5-20251001' ? {} : { supportedEffortLevels: value.endsWith('-4-6') ? ['low', 'medium', 'high', 'max'] : [...fullEffort] }),
+    ...(['default', 'opus', 'fable', 'claude-opus-5', 'claude-opus-4-8'].includes(value) ? { supportsFastMode: true } : {}),
+  }));
+  const before = structuredClone(models), commands = [], spawns = [];
+  const child = new EventEmitter();
+  child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough(); child.exitCode = null;
+  child.kill = () => { child.exitCode = 0; child.emit('close', 0); };
+  let buffer = '';
+  child.stdin.on('data', chunk => {
+    buffer += chunk;
+    let boundary;
+    while ((boundary = buffer.indexOf('\n')) !== -1) {
+      const message = JSON.parse(buffer.slice(0, boundary)); buffer = buffer.slice(boundary + 1); commands.push(message);
+      assert.equal(message.request.subtype, 'initialize');
+      queueMicrotask(() => child.stdout.write(`${JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response: { models, account: { email: 'PRIVATE_ACCOUNT_DETAIL' } } } })}\n`));
+    }
+  });
+  const runner = createCatalogRunner({ locate: async id => { assert.equal(id, 'claude'); return { command: 'C:\\CLI Space\\claude.exe', prefix: [] }; }, spawnProcess: (command, args, options) => { spawns.push({ command, args, options }); return child; } });
+  const result = await discoverModels('claude', { providerRunner: runner });
+  assert.equal(result.models.length, 14);
+  assert.ok(result.models.every(model => model.source === 'account'));
+  assert.deepEqual(result.models.filter(model => model.isDefault).map(model => model.id), ['default']);
+  assert.equal(result.models.find(model => model.id === 'default').resolvedModel, 'claude-opus-5-5');
+  assert.equal(result.models.find(model => model.id === 'opus').resolvedModel, 'claude-opus-5-5');
+  assert.deepEqual(result.models.find(model => model.id === 'opus').supportedReasoningEfforts, fullEffort);
+  assert.deepEqual(result.models.find(model => model.id === 'claude-opus-4-6').supportedReasoningEfforts, ['low', 'medium', 'high', 'max']);
+  assert.deepEqual(result.models.find(model => model.id === 'claude-haiku-4-5-20251001').supportedReasoningEfforts, []);
+  assert.equal(result.models.find(model => model.id === 'sonnet').supportsFastMode, false);
+  assert.equal(result.models.find(model => model.id === 'fable').supportsFastMode, true);
+  assert.deepEqual(commands.map(message => [message.type, message.request.subtype]), [['control_request', 'initialize']]);
+  assert.equal(spawns.length, 1); assert.equal(spawns[0].options.shell, false);
+  assert.ok(spawns[0].args.includes('--safe-mode')); assert.ok(spawns[0].args.includes('--no-session-persistence'));
+  assert.equal(spawns[0].options.env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(child.exitCode, 0); assert.deepEqual(models, before);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_ACCOUNT_DETAIL/);
 });
 
 test('Ollama exposes installed local names and excludes cloud proxies', async () => {

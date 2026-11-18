@@ -34,6 +34,9 @@ test('XLSX export contains seven styled localized sheets and only whitelisted da
   }
   assert.equal(workbook.getWorksheet('Tasks').getCell('J2').value.toISOString(), when);
   assert.equal(workbook.getWorksheet('Tasks').getCell('R2').value, 'Analyze the requirements and report your findings.');
+  assert.equal(workbook.getWorksheet('Tasks').getCell('S1').value, 'Requested reasoning effort');
+  assert.equal(workbook.getWorksheet('Tasks').getCell('T1').value, 'Requested processing speed');
+  assert.equal(workbook.getWorksheet('Tasks').getCell('S2').value, 'default');
   assert.equal(workbook.getWorksheet('Memory').getCell('F2').value, 3);
   const allValues = JSON.stringify(workbook.worksheets.map(sheet => sheet.getSheetValues()));
   for (const secret of ['PRIVATE_CSRF_TOKEN_NEVER_EXPORT', 'PRIVATE_SERVER_STATE', 'PRIVATE_TERMINAL_OUTPUT', 'PRIVATE_API_KEY', 'PRIVATE_PROVIDER_KEY', 'PRIVATE_CONNECTION_SECRET', 'PRIVATE_MEMORY_CREDENTIAL']) assert.ok(!allValues.includes(secret), `${secret} must not be exported`);
@@ -61,8 +64,10 @@ test('a complete 200000-character output round-trips across bounded Unicode-safe
 test('Korean and Japanese headers are localized and unreported or demo usage is not invented', async () => {
   const korean = await read(await buildExportWorkbook(fixture(), { memory, language: 'ko' }));
   assert.equal(korean.getWorksheet('작업').getCell('A1').value, '작업 ID'); assert.ok(korean.getWorksheet('기억'));
+  assert.equal(korean.getWorksheet('작업').getCell('S1').value, '추론 강도 (요청)');
   const japanese = await read(await buildExportWorkbook(fixture(), { memory, language: 'ja' }));
   assert.equal(japanese.getWorksheet('タスク').getCell('A1').value, 'タスクID'); assert.ok(japanese.getWorksheet('接続'));
+  assert.equal(japanese.getWorksheet('タスク').getCell('T1').value, '処理速度（要求）');
   const english = await read(await buildExportWorkbook(fixture(), { memory, language: 'en' }));
   const tasks = english.getWorksheet('Tasks');
   assert.equal(tasks.getCell('M2').value, 120); assert.equal(tasks.getCell('N2').value, 33);

@@ -39,6 +39,7 @@
   let state = {}, options = {}, host, stage, world, edgesLayer, inspector, label, toolbar, footer, memoryDialog, emptyOverlay, libraryPanel;
   let graph = { nodes: [], edges: [] }, memories = [], memoryLoaded = false, project = null, loaded = false, loading = false, dirty = false, saving = false, errorMessage = '';
   let selected = null, pendingSource = null, drag = null, zoom = 1, pan = { x: 0, y: 0 }, saveTimer, progressTimer, requestGeneration = 0, inspectorSignature = '', loadedGraphHash = '', savingPromise = Promise.resolve(true);
+  let agentExecutionControls;
   const tr = key => WORDS[options.language]?.[key] ?? key;
   const common = key => options.t?.(key) ?? tr(key);
   const online = () => options.connected !== false;
@@ -402,6 +403,7 @@
     libraryPanel.replaceChildren(heading, body);
   }
   function createAgentForm() {
+    agentExecutionControls?.destroy(); agentExecutionControls = null;
     const name = h('input', { required: '', maxlength: '24', 'aria-label': tr('에이전트 이름') });
     const title = h('input', { maxlength: '80', 'aria-label': tr('직함') });
     const role = h('textarea', { required: '', rows: '3', maxlength: '1500', placeholder: tr('역할을 입력하세요.'), 'aria-label': tr('역할과 지침') });
@@ -410,13 +412,19 @@
     const updateConnections = () => connection.replaceChildren(h('option', { value: '' }, tr('기본 연결')), ...(state.connections || []).filter(item => item.providerId === provider.value).map(item => h('option', { value: item.id }, item.label)));
     updateConnections(); provider.addEventListener('change', updateConnections);
     const submit = h('button', { class: 'iw-accent-button', type: 'submit', disabled: !availableProviders().length }, tr('등록하고 노드 추가'));
+    if (window.ImperiumExecution) {
+      agentExecutionControls = window.ImperiumExecution.create({ api: (route, value = {}) => request(route, value.method || 'GET', value.body), provider: provider.value || 'codex' });
+      provider.addEventListener('change', () => agentExecutionControls?.setContext({ provider: provider.value, modelId: '', reasoningEffort: 'default', speed: 'default' }));
+      connection.addEventListener('change', () => { const item = state.connections?.find(value => value.id === connection.value); agentExecutionControls?.setContext({ provider: provider.value, modelId: item?.modelId || '', reasoningEffort: 'default', speed: 'default' }); });
+    }
     const form = h('form', { class: 'iw-agent-create-form' }, h('h3', {}, tr('새 에이전트 등록')), field(tr('에이전트 이름'), name), field(tr('직함'), title), field(tr('역할과 지침'), role), field(tr('제공자'), provider), field(tr('등록된 연결'), connection), submit);
+    if (agentExecutionControls) form.insertBefore(agentExecutionControls.element, submit);
     if (!availableProviders().length) form.append(h('p', {}, tr('이 제공자는 AI 연결 화면에서 먼저 설치하거나 등록하세요.')));
     const key = project;
     form.addEventListener('submit', async event => {
       event.preventDefault(); submit.disabled = true;
       try {
-        const result = await request('/api/departments', 'POST', { name: name.value.trim(), title: title.value.trim(), role: role.value.trim(), provider: provider.value, ...(connection.value ? { connectionId: connection.value } : {}) });
+        const result = await request('/api/departments', 'POST', { workspace: key, name: name.value.trim(), title: title.value.trim(), role: role.value.trim(), provider: provider.value, ...(connection.value ? { connectionId: connection.value } : {}), ...(agentExecutionControls?.getValue() || {}) });
         if (key !== project) return;
         const dept = result.department;
         if (!dept?.id) throw new Error(tr('요청을 처리하지 못했습니다.'));

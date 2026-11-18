@@ -105,6 +105,7 @@ const TRANSLATIONS = {
 };
 
 Object.assign(TRANSLATIONS.en, {
+  '이번 작업 모델 설정': 'Model settings for this task', '요청 실행 설정': 'Requested execution settings', '추론 강도': 'Reasoning effort', '처리 속도': 'Processing speed', 'CLI 기본 모델': 'CLI default model',
   'AI 계정에서 로그인 안내를 확인한 뒤 상태를 새로고침하세요.': 'Open AI accounts for sign-in guidance, then refresh the status.',
   '이 컴퓨터의 Ollama 서비스에 설치된 로컬 모델을 사용합니다.': 'Uses local models installed in the Ollama service on this computer.',
   '노드 워크스페이스': 'Node workspace', '노드를 직접 추가하고 이름표와 연결을 구성하세요.': 'Add nodes and customize names, titles, and connections.', '프로젝트': 'Projects', '프로젝트별 폴더, 색상과 작업 환경을 관리하세요.': 'Manage project folders, colors, and workspaces.', '사용량과 성능': 'Usage & performance', '실제 실행 기록의 토큰, 작업 시간과 비교를 확인하세요.': 'Inspect reported tokens, task duration, and observed changes.', '프로젝트 기억': 'Project memory', '지식을 검토하고 연결하며 다음 작업에 재사용하세요.': 'Review, connect, and reuse project knowledge.',
@@ -128,6 +129,7 @@ Object.assign(TRANSLATIONS.en, {
   '부서 편집에서 담당 모델을 변경할 수 있습니다.': 'Assign a model in the department editor.',
 });
 Object.assign(TRANSLATIONS.ja, {
+  '이번 작업 모델 설정': '今回のモデル設定', '요청 실행 설정': 'リクエストした実行設定', '추론 강도': '推論強度', '처리 속도': '処理速度', 'CLI 기본 모델': 'CLIの既定モデル',
   'AI 계정에서 로그인 안내를 확인한 뒤 상태를 새로고침하세요.': 'AIアカウントでログイン手順を確認してから状態を更新してください。',
   '이 컴퓨터의 Ollama 서비스에 설치된 로컬 모델을 사용합니다.': 'このコンピューターのOllamaサービスに導入済みのローカルモデルを使用します。',
   '노드 워크스페이스': 'ノードワークスペース', '노드를 직접 추가하고 이름표와 연결을 구성하세요.': 'ノードを追加し、名前・役職・接続を自由に設定します。', '프로젝트': 'プロジェクト', '프로젝트별 폴더, 색상과 작업 환경을 관리하세요.': 'プロジェクト別のフォルダー・色・作業環境を管理します。', '사용량과 성능': '使用量と性能', '실제 실행 기록의 토큰, 작업 시간과 비교를 확인하세요.': '実測トークン数、作業時間、観測された変化を確認します。', '프로젝트 기억': 'プロジェクトの記憶', '지식을 검토하고 연결하며 다음 작업에 재사용하세요.': '知識を確認・接続し、次の作業に再利用します。',
@@ -192,6 +194,31 @@ let lastFeedSignature = '';
 let stream;
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
 let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false;
+let quotasMounted = false, quotaStamp;
+let dispatchExecution, departmentExecution, executionContext = '', executionSummary;
+function safeExecutionValue(widget) { try { return widget?.getValue() || {}; } catch { return {}; } }
+function executionContextFor(department, choiceValue = '') {
+  const choice = selectedConnection(choiceValue);
+  const connectionId = choice.connectionId || (!choice.provider ? department?.connectionId : null);
+  const connection = state.connections?.find(value => value.id === connectionId);
+  const provider = connection?.providerId || choice.provider || department?.provider || 'codex';
+  const inherited = !choice.provider && !choice.connectionId;
+  return { provider, modelId: (inherited ? department?.modelId : undefined) ?? connection?.modelId ?? '', reasoningEffort: provider === department?.provider ? department.reasoningEffort || 'default' : 'default', speed: provider === department?.provider ? department.speed || 'default' : 'default' };
+}
+function syncDispatchExecution(force = false) {
+  if (!window.ImperiumExecution) return;
+  const department = state.departments.find(value => value.id === $('#dispatch-department').value);
+  const context = executionContextFor(department, $('#dispatch-provider').value);
+  const signature = JSON.stringify([state.settings.workspace, department?.id, $('#dispatch-provider').value, context]);
+  if (!dispatchExecution) {
+    dispatchExecution = window.ImperiumExecution.create({ api, ...context });
+    executionSummary = node('summary', {}, t('이번 작업 모델 설정'));
+    const details = node('details', { class: 'execution-task-settings', id: 'dispatch-execution-settings' }, executionSummary, dispatchExecution.element);
+    $('#dispatch-form').insertBefore(details, $('#dispatch-form .prompt-wrap'));
+    executionContext = signature;
+  } else if (force || signature !== executionContext) { executionContext = signature; dispatchExecution.setContext(context); }
+  if (executionSummary) executionSummary.textContent = t('이번 작업 모델 설정');
+}
 const taskDetailCache = new Map(), taskDetailRequests = new Map(), projectDrafts = new Map();
 const taskDetailKey = task => `${task.id}:${task.status}:${task.finishedAt || ''}:${task.outputChars || task.output?.length || 0}`;
 function inspectedTask(task) {
@@ -240,7 +267,7 @@ function installControls() {
   while (profileWalker.nextNode()) { const item = profileWalker.currentNode, original = item.nodeValue.trim(); if (original && /[가-힣]/.test(original)) staticText.push({ item, original, raw: item.nodeValue }); }
   const titleLabel = node('label', { class: 'settings-label', for: 'edit-department-title' }, '직함');
   const titleInput = node('input', { id: 'edit-department-title', class: 'text-input', maxlength: 80 });
-  $('#edit-department-role').before(titleLabel, titleInput);
+  $('#department-form label[for="edit-department-role"]').before(titleLabel, titleInput);
   staticText.push({ item: titleLabel.firstChild, original: '직함', raw: '직함' });
   const picker = node('label', { class: 'language-picker' }, node('span', { class: 'sr-only', id: 'language-label' }, t('화면 언어')));
   const select = node('select', { id: 'language-select', 'aria-label': t('화면 언어') },
@@ -333,7 +360,7 @@ function receiveState(incoming) {
   let restoredDepartment = null;
   if (previousWorkspace && incoming.settings?.workspace !== previousWorkspace) {
     taskDetailRequests.clear();
-    projectDrafts.set(previousWorkspace, { prompt: $('#dispatch-prompt').value, department: $('#dispatch-department').value, provider: $('#dispatch-provider').value });
+    projectDrafts.set(previousWorkspace, { prompt: $('#dispatch-prompt').value, department: $('#dispatch-department').value, provider: $('#dispatch-provider').value, execution: safeExecutionValue(dispatchExecution) });
     const draft = projectDrafts.get(incoming.settings?.workspace);
     restoredDepartment = draft?.department || null;
     $('#dispatch-prompt').value = draft?.prompt || ''; $('#dispatch-provider').value = draft?.provider || '';
@@ -356,6 +383,11 @@ function receiveState(incoming) {
   if (!selectedTaskId && state.tasks.length) selectedTaskId = state.tasks[0].id;
   render();
   if (restoredDepartment && state.departments.some(d => d.id === restoredDepartment)) { $('#dispatch-department').value = restoredDepartment; renderDepartments(); }
+  if (previousWorkspace && incoming.settings?.workspace !== previousWorkspace) {
+    syncDispatchExecution(true);
+    const draft = projectDrafts.get(state.settings.workspace);
+    if (draft?.execution && dispatchExecution && (draft.provider || '') === $('#dispatch-provider').value && draft.department === $('#dispatch-department').value) dispatchExecution.setContext(draft.execution);
+  }
   if ($('#settings-dialog').open) renderProviders();
 }
 
@@ -506,6 +538,7 @@ function selectedConnection(value) {
 }
 
 function renderDepartments() {
+  syncDispatchExecution();
   const icons = { strategy: '⌘', engineering: '⌥', research: '⌕', quality: '◇' };
   $('#department-total').textContent = `${state.departments.length} DEPARTMENTS`;
   const cards = state.departments.map(dept => {
@@ -655,6 +688,7 @@ function renderInspector() {
   const tags = node('div', { class: 'inspector-tags' }, node('span', {}, departmentName(department)), node('span', {}, providerName(task.provider)), node('span', {}, t(task.permission === 'workspace-write' ? '파일 수정 허용됨' : '읽기 전용')));
   if (task.demo) tags.append(node('span', { class: 'demo-tag' }, 'DEMO'));
   const meta = node('div', { class: 'inspector-meta' }, node('div', { class: 'inspector-meta-top' }, node('span', {}, `#${task.id.slice(-8).toUpperCase()}`), statusTag(task)), node('h3', {}, task.title), tags);
+  meta.append(node('p', { class: 'execution-request-note' }, `${t('요청 실행 설정')} · ${task.modelId || t('CLI 기본 모델')} · ${t('추론 강도')}: ${task.reasoningEffort || 'default'} · ${t('처리 속도')}: ${task.speed || 'default'}`));
   const prompt = node('div', { class: 'inspector-prompt' }, node('span', { class: 'inspector-section-label' }, t('작업 지시')), node('p', {}, task.prompt || ''));
   const result = node('div', { class: 'inspector-result' }, node('span', { class: 'inspector-section-label' }, t('실행 결과')));
   if (task.detailsTruncated) result.append(node('p', { class: 'waiting-output' }, language === 'ja' ? 'プレビュー · 全文を読み込み中…' : language === 'en' ? 'Preview · loading full output…' : '미리보기 · 전체 결과 불러오는 중…'));
@@ -697,6 +731,12 @@ function updateView(next) {
 }
 
 function renderExtensions() {
+  if (state.server.csrfToken && window.ImperiumQuotas) {
+    if (!quotasMounted) { quotasMounted = true; quotaStamp = state.server.quotaUpdatedAt; window.ImperiumQuotas.mount($('#quotas-section'), { getState: () => state, api, compact: true }); }
+    window.ImperiumQuotas.render(state);
+    if (state.server.quotaUpdatedAt !== quotaStamp) { quotaStamp = state.server.quotaUpdatedAt; if (quotaStamp) void window.ImperiumQuotas.refresh(); }
+  }
+  if (state.server.csrfToken) syncDispatchExecution();
   window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor });
   if (state.server.csrfToken && window.ImperiumAccounts) {
     if (!accountsMounted) {
@@ -762,6 +802,11 @@ function openDepartmentEditor(dept) {
   $('#edit-department-provider').value = dept.connectionId ? `connection:${dept.connectionId}` : dept.provider;
   $('#edit-department-role').value = dept.role;
   $('#edit-department-title').value = dept.title || '';
+  if (window.ImperiumExecution) {
+    departmentExecution?.destroy();
+    departmentExecution = window.ImperiumExecution.create({ api, provider: dept.provider, modelId: dept.modelId || '', reasoningEffort: dept.reasoningEffort || 'default', speed: dept.speed || 'default' });
+    $('#department-form').insertBefore(departmentExecution.element, $('#department-form label[for="edit-department-role"]'));
+  }
   $('#department-error').hidden = true;
   $('#department-dialog').showModal();
 }
@@ -799,6 +844,12 @@ function bindEvents() {
   $$('.filter-tab').forEach(button => button.addEventListener('click', () => { currentFilter = button.dataset.filter; $$('.filter-tab').forEach(item => item.classList.toggle('active', item === button)); renderMissions(); }));
   $('#task-search').addEventListener('input', renderMissions);
   $('#dispatch-department').addEventListener('change', renderDepartments);
+  $('#dispatch-provider').addEventListener('change', () => syncDispatchExecution(true));
+  $('#edit-department-provider').addEventListener('change', () => {
+    const department = state.departments.find(value => value.id === $('#edit-department-id').value);
+    const context = executionContextFor(department, $('#edit-department-provider').value);
+    departmentExecution?.setContext({ ...context, reasoningEffort: 'default', speed: 'default' });
+  });
   $('#dispatch-prompt').addEventListener('input', () => { $('#prompt-count').textContent = `${num($('#dispatch-prompt').value.length)} / 12,000`; $('#dispatch-error').hidden = true; });
   $('#write-permission').addEventListener('change', () => { $('#permission-description').textContent = t($('#write-permission').checked ? '파일 수정이 가능한 작업으로 실행합니다.' : '기본: 읽기 및 분석만'); });
   $('#focus-dispatch').addEventListener('click', () => { $('#dispatch-section').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#dispatch-prompt').focus({ preventScroll: true }); });
@@ -821,7 +872,7 @@ function bindEvents() {
     $('#dispatch-submit').textContent = t('전송 중…');
     $('#dispatch-error').hidden = true;
     try {
-      const result = await api('/api/tasks', { method: 'POST', body: { prompt, departmentId, workspace: state.settings.workspace, ...choice, priority: $('#dispatch-priority').value, permission: $('#write-permission').checked ? 'workspace-write' : 'read-only' } });
+      const result = await api('/api/tasks', { method: 'POST', body: { prompt, departmentId, workspace: state.settings.workspace, ...choice, ...(dispatchExecution?.getValue() || {}), priority: $('#dispatch-priority').value, permission: $('#write-permission').checked ? 'workspace-write' : 'read-only' } });
       if (result.task) { selectedTaskId = result.task.id; if (!state.tasks.some(task => task.id === result.task.id)) state.tasks.unshift(result.task); }
       $('#dispatch-prompt').value = '';
       render();
@@ -850,7 +901,7 @@ function bindEvents() {
     const id = $('#edit-department-id').value;
     const button = $('#department-form button[type=submit]'); button.disabled = true; $('#department-error').hidden = true;
     try {
-      const result = await api(`/api/departments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { workspace: $('#department-dialog').dataset.workspace, name: $('#edit-department-name').value.trim(), title: $('#edit-department-title').value.trim(), ...selectedConnection($('#edit-department-provider').value), role: $('#edit-department-role').value.trim() } });
+      const result = await api(`/api/departments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { workspace: $('#department-dialog').dataset.workspace, name: $('#edit-department-name').value.trim(), title: $('#edit-department-title').value.trim(), ...selectedConnection($('#edit-department-provider').value), ...(departmentExecution?.getValue() || {}), role: $('#edit-department-role').value.trim() } });
       if (result.department) { const index = state.departments.findIndex(dept => dept.id === id); if (index >= 0) state.departments[index] = result.department; }
       render(); $('#department-dialog').close(); toast(t('부서 설정을 저장했습니다.'));
     } catch (error) { showFormError('#department-error', error); }
@@ -922,4 +973,5 @@ bindEvents();
 applyLanguage();
 updateClock();
 setInterval(updateClock, 1000);
+setInterval(() => { if (connected && !document.hidden) void window.ImperiumQuotas?.refresh(); }, 60000);
 connect();

@@ -10,6 +10,7 @@ import { detectAdditionalProviders, startAdditionalProvider } from './lib/additi
 import { createProgressReader, estimateHistoricalETA } from './lib/progress.mjs';
 import { canonicalMemoryWorkspace } from './lib/memory.mjs';
 import { createUISnapshot } from './lib/ui-snapshot.mjs';
+import { resolveExecutionOptions } from './lib/execution-options.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TERMINAL_STATES = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
@@ -41,7 +42,7 @@ async function bodyJSON(req, maxBytes = req.url?.startsWith('/api/memory') ? 128
 
 export function createHQServer({
   dataDir = path.join(HERE, '.hq'), workspace = path.join(HERE, 'workspace'),
-  port = 4310, providers = defaultProviders, privateSessionToken = null, terminalManager, modelDiscovery, onSettingsChange, projectParent,
+  port = 4310, providers = defaultProviders, privateSessionToken = null, terminalManager, modelDiscovery, onSettingsChange, projectParent, quotaReaders,
 } = {}) {
   const store = createStore({ dataDir, workspace: path.resolve(workspace), onStorageChange: () => notify() });
   const { state } = store;
@@ -52,11 +53,12 @@ export function createHQServer({
   const demoTimers = new Set();
   let actualPort, closing = false, scheduled = false, dirty = false;
   let lastDetection = 0;
-  const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTask, validateTask, getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery, projectParent });
+  const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTask, validateTask, getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery, projectParent, quotaReaders });
 
   function notify() { dirty = true; }
   function record(type, text, extra = {}) { store.event(type, text, { workspace: state.settings.workspace, ...extra }); notify(); }
   function taskEvent(task, event) {
+    if (event.type === 'quota') { extensions.observeQuota(task.provider, event.quota); return; }
     if (TERMINAL_STATES.has(task.status)) return;
     if (event.type === 'text' && !event.progressParsed && active.get(task.id)?.progressReader) {
       active.get(task.id).progressReader.write(String(event.text ?? '')); return;
@@ -171,7 +173,7 @@ export function createHQServer({
     const prompt = composePrompt();
       const runner = providers === defaultProviders && !['codex', 'claude'].includes(task.provider) ? startAdditionalProvider : providers.startProvider;
       const handle = await runner({
-        provider: task.provider, modelId: task.modelId, memory: ['codex', 'claude'].includes(task.provider) ? retrieved.memory : undefined, prompt, cwd: task.workspace, permission: task.permission,
+        provider: task.provider, modelId: task.modelId, reasoningEffort: task.reasoningEffort, speed: task.speed, memory: ['codex', 'claude'].includes(task.provider) ? retrieved.memory : undefined, prompt, cwd: task.workspace, permission: task.permission,
         onEvent: event => taskEvent(task, event),
         onExit: result => endTask(task, result),
       });
@@ -216,7 +218,7 @@ export function createHQServer({
     const provider = connection?.providerId || input.provider || department.provider;
     if (state.settings.localOnly && provider !== 'ollama') throw fail(403, '로컬 전용 모드에서는 Ollama의 설치된 로컬 모델만 실행할 수 있습니다.');
     if (!['codex', 'claude', 'gemini', 'copilot', 'ollama'].includes(provider)) throw fail(400, '지원하지 않는 모델 연결입니다.');
-    const modelId = connection?.modelId ?? input.modelId ?? (!input.provider && !input.connectionId ? department.modelId : '') ?? '';
+    const modelId = input.modelId ?? (!input.provider && !input.connectionId ? department.modelId : undefined) ?? connection?.modelId ?? '';
     if (typeof modelId !== 'string' || modelId.length > 200 || modelId && !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(modelId)) throw fail(400, '모델 ID를 확인해 주세요.');
     const priority = input.priority ?? 'normal';
     const permission = input.permission ?? 'read-only';
@@ -225,17 +227,18 @@ export function createHQServer({
     if (permission === 'workspace-write' && !['codex', 'claude'].includes(provider)) throw fail(400, '이 연결은 현재 읽기 전용 작업을 지원합니다. 파일 수정은 Codex 또는 Claude를 선택해 주세요.');
     if (!demo && !state.providers.some(p => p.id === provider && p.status === 'ready' && p.authenticated === true)) throw fail(409, `${provider === 'codex' ? 'Codex' : 'Claude Code'} 연결이 필요합니다. 연결 설정에서 설치·로그인 상태를 확인해 주세요.`);
     if (state.tasks.filter(t => ['queued', 'running'].includes(t.status)).length >= 30) throw fail(409, '대기 작업이 많습니다. 현재 작업이 끝난 뒤 다시 지시해 주세요.');
-    return { department, provider, modelId, priority, permission, connection };
+    const execution = resolveExecutionOptions(provider, input, provider === department.provider ? department : {});
+    return { department, provider, modelId, priority, permission, connection, ...execution };
   }
   function addTask(input, demo = false) {
-    const { department, provider, modelId, priority, permission, connection } = validateTask(input, demo);
+    const { department, provider, modelId, priority, permission, connection, reasoningEffort, speed } = validateTask(input, demo);
     if (state.tasks.length >= 200) {
       const removable = state.tasks.findIndex(t => TERMINAL_STATES.has(t.status));
       if (removable >= 0) state.tasks.splice(removable, 1);
     }
     const task = {
       id: randomUUID(), title: String(input.title || input.prompt.trim().split('\n')[0]).replace(/[\x00-\x1f]/g, ' ').slice(0, 90),
-      prompt: input.prompt.trim(), departmentId: department.id, departmentName: department.name, provider, priority, permission, modelId, connectionId: connection?.id || null, workspace: state.settings.workspace,
+      prompt: input.prompt.trim(), departmentId: department.id, departmentName: department.name, provider, priority, permission, modelId, reasoningEffort, speed, connectionId: connection?.id || null, workspace: state.settings.workspace,
       status: 'queued', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null,
       output: '', error: null, logs: [], usage: { inputTokens: 0, outputTokens: 0 }, demo,
     };
@@ -259,6 +262,7 @@ export function createHQServer({
     return task;
   }
   async function refreshProviders() {
+    extensions.invalidateQuotas();
     if (providers === defaultProviders && state.settings.localOnly) {
       state.providers = ['codex', 'claude', 'gemini', 'copilot'].map(id => ({ id, name: { codex: 'ChatGPT / Codex', claude: 'Claude Code', gemini: 'Gemini CLI', copilot: 'GitHub Copilot CLI' }[id], status: 'disabled', installed: false, authenticated: false, detail: '로컬 전용 모드에서 비활성화되었습니다.' }));
       state.providers.push(...await detectAdditionalProviders({ localOnly: true }));
@@ -330,9 +334,10 @@ export function createHQServer({
         if (input.connectionId && !connection) throw fail(400, '등록된 연결을 찾을 수 없습니다.');
         const provider = connection?.providerId || input.provider;
         if (!['codex', 'claude', 'gemini', 'copilot', 'ollama'].includes(provider)) throw fail(400, '지원하는 제공자를 선택해 주세요.');
-        const modelId = connection?.modelId ?? input.modelId ?? '';
+        const modelId = input.modelId ?? connection?.modelId ?? '';
         if (typeof modelId !== 'string' || modelId && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(modelId)) throw fail(400, '모델 ID를 확인해 주세요.');
-        const department = { id: randomUUID(), code: 'AI', name: input.name.trim(), title: input.title?.trim() || '', role: input.role.trim(), provider, modelId, connectionId: connection?.id || null };
+        const execution = resolveExecutionOptions(provider, input);
+        const department = { id: randomUUID(), code: 'AI', name: input.name.trim(), title: input.title?.trim() || '', role: input.role.trim(), provider, modelId, ...execution, connectionId: connection?.id || null };
         state.departments.push(department); store.save(); notify(); return json(res, 201, { department });
       }
       const cancelMatch = /^\/api\/tasks\/([\w-]+)\/cancel$/.exec(route);
@@ -354,18 +359,22 @@ export function createHQServer({
         if (input.connectionId) {
           const connection = state.connections.find(c => c.id === input.connectionId);
           if (!connection) throw fail(400, '등록된 모델 연결을 찾을 수 없습니다.');
-          input.provider = connection.providerId; input.modelId = connection.modelId;
+          input.provider = connection.providerId; input.modelId ??= connection.modelId;
         }
         if (input.modelId !== undefined && (typeof input.modelId !== 'string' || input.modelId.length > 200 || input.modelId && !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(input.modelId))) throw fail(400, '모델 ID를 확인해 주세요.');
         if (input.title !== undefined && (typeof input.title !== 'string' || input.title.length > 80)) throw fail(400, '직함은 80자 이내로 입력해 주세요.');
         for (const [key, max] of [['name', 24], ['role', 1500]]) {
           if (input[key] !== undefined && (typeof input[key] !== 'string' || !input[key].trim() || input[key].length > max)) throw fail(400, `${key === 'name' ? '부서 이름' : '부서 역할'}을 올바르게 입력해 주세요.`);
         }
+        const nextProvider = input.provider || department.provider;
+        const execution = resolveExecutionOptions(nextProvider, input, nextProvider === department.provider ? department : {});
         for (const key of ['name', 'role', 'provider', 'title']) if (input[key] !== undefined) department[key] = input[key].trim();
+        Object.assign(department, execution);
         if (input.provider !== undefined || Object.hasOwn(input, 'connectionId')) {
           department.connectionId = input.connectionId || null;
           department.modelId = input.modelId || '';
         }
+        if (Object.hasOwn(input, 'modelId')) department.modelId = input.modelId;
         store.save(); record('settings', `${department.name} 부서 설정 변경`);
         return json(res, 200, { department });
       }
@@ -407,6 +416,7 @@ export function createHQServer({
         }
         const changedKeys = ['workspace', 'maxConcurrent', 'language', 'onboarded', 'localOnly', 'identity'].filter(key => Object.hasOwn(input, key));
         state.settings = { ...state.settings, ...Object.fromEntries(changedKeys.map(key => [key, next[key]])) };
+        extensions.quotaSettingsChanged();
         onSettingsChange?.(state.settings);
         if (input.localOnly !== undefined) await refreshProviders();
         store.save(); record('settings', '본부 작업 환경 변경');
@@ -437,7 +447,7 @@ export function createHQServer({
         '/': ['index.html', 'text/html; charset=utf-8'],
         '/app.css': ['app.css', 'text/css; charset=utf-8'],
         '/organization.css': ['organization.css', 'text/css; charset=utf-8'],
-        ...Object.fromEntries(['workspace', 'accounts', 'terminal-pane', 'updates', 'projects', 'analytics', 'knowledge'].flatMap(name => [[`/${name}.css`, [`${name}.css`, 'text/css; charset=utf-8']], [`/${name}.js`, [`${name}.js`, 'text/javascript; charset=utf-8']]])),
+        ...Object.fromEntries(['workspace', 'accounts', 'terminal-pane', 'updates', 'projects', 'analytics', 'knowledge', 'quotas', 'execution-options'].flatMap(name => [[`/${name}.css`, [`${name}.css`, 'text/css; charset=utf-8']], [`/${name}.js`, [`${name}.js`, 'text/javascript; charset=utf-8']]])),
         '/vendor/xterm.js': ['../node_modules/@xterm/xterm/lib/xterm.js', 'text/javascript; charset=utf-8'],
         '/vendor/xterm-addon-fit.js': ['../node_modules/@xterm/addon-fit/lib/addon-fit.js', 'text/javascript; charset=utf-8'],
         '/vendor/xterm.css': ['../node_modules/@xterm/xterm/css/xterm.css', 'text/css; charset=utf-8'],

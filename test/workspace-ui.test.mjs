@@ -120,7 +120,7 @@ test('templates are explicit, auto arrangement never creates nodes, and removing
 });
 
 test('the library supports drag and drop and creates custom agents with free names and titles', async t => {
-  const { window, document, calls } = await setup(t);
+  const { window, document, calls, state } = await setup(t);
   document.querySelector('[data-iw-action="add-node"]').click(); await settle();
   const entry = document.querySelector('[data-library-type="provider"][data-library-reference="codex"]');
   const values = new Map(), transfer = { types: ['application/x-imperium-node'], setData: (key, value) => values.set(key, value), getData: key => values.get(key) };
@@ -131,7 +131,7 @@ test('the library supports drag and drop and creates custom agents with free nam
   assert.equal(form.querySelector('input[aria-label="Agent name"]').maxLength, 24); assert.equal(form.querySelector('input[aria-label="Title"]').maxLength, 80); assert.equal(form.querySelector('textarea').maxLength, 1500);
   form.querySelector('input[aria-label="Agent name"]').value = 'Aster'; form.querySelector('input[aria-label="Title"]').value = 'Systems analyst'; form.querySelector('textarea').value = 'Review system assumptions.';
   form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
-  const create = calls.find(call => call.path === '/api/departments'); assert.deepEqual(create.body, { name: 'Aster', title: 'Systems analyst', role: 'Review system assumptions.', provider: 'codex' });
+  const create = calls.find(call => call.path === '/api/departments'); assert.deepEqual(create.body, { name: 'Aster', title: 'Systems analyst', role: 'Review system assumptions.', provider: 'codex', workspace: state.settings.workspace });
   const card = document.querySelector('[data-node-id="department:custom-agent-1"]'); assert.ok(card); assert.equal(card.querySelector('.iw-node-title').textContent, 'Aster'); assert.equal(card.querySelector('.iw-node-kind').textContent, 'Systems analyst');
   await addFromLibrary(document, 'commander', 'commander'); select(window, document, 'commander');
   const identity = document.querySelector('.iw-identity-form'); identity.querySelector('input[aria-label="Name"]').value = 'Sato'; identity.querySelector('input[aria-label="Title"]').value = 'Technical director'; identity.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
