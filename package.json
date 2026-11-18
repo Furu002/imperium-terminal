@@ -1,9 +1,10 @@
 {
   "name": "imperium-terminal",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "IMPERIUM — a local AI command terminal for Codex and Claude Code subscriptions.",
+  "homepage": "https://github.com/Furu002/imperium-terminal",
   "main": "desktop/main.cjs",
   "author": "Sato Junichiro",
   "license": "UNLICENSED",
@@ -17,6 +18,7 @@
     "build:win": "electron-builder --win nsis portable --x64",
     "build:installer": "electron-builder --win nsis --x64",
     "build:mac": "electron-builder --mac dmg zip --x64 --arm64",
+    "build:linux": "electron-builder --linux deb AppImage --x64",
     "icons": "node scripts/build-icons.mjs",
     "test": "node --test test/*.test.mjs",
     "check": "node --check server.mjs && node --check lib/store.mjs && node --check lib/providers.mjs && node --check public/app.js && node --check terminal.mjs"

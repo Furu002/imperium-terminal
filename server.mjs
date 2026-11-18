@@ -24,7 +24,7 @@ async function bodyJSON(req) {
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 32768) throw fail(413, '요청이 너무 큽니다. 지시를 짧게 나눠 주세요.');
+    if (size > 65536) throw fail(413, '요청이 너무 큽니다. 지시를 짧게 나눠 주세요.');
     chunks.push(chunk);
   }
   try {
@@ -286,7 +286,16 @@ export function createHQServer({
       }
       if (route.startsWith('/api/')) throw fail(404, '요청한 기능을 찾을 수 없습니다.');
       if (!['GET', 'HEAD'].includes(req.method)) throw fail(405, '지원하지 않는 요청입니다.');
-      const files = { '/': ['index.html', 'text/html; charset=utf-8'], '/app.css': ['app.css', 'text/css; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
+      const files = {
+        '/': ['index.html', 'text/html; charset=utf-8'],
+        '/app.css': ['app.css', 'text/css; charset=utf-8'],
+        '/organization.css': ['organization.css', 'text/css; charset=utf-8'],
+        '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+        '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
+        '/fonts/pretendard-variable.woff2': ['fonts/pretendard-variable.woff2', 'font/woff2'],
+        '/fonts/pretendard-jp-variable.woff2': ['fonts/pretendard-jp-variable.woff2', 'font/woff2'],
+        '/fonts/jetbrains-mono-variable.woff2': ['fonts/jetbrains-mono-variable.woff2', 'font/woff2'],
+      };
       const asset = files[route];
       if (!asset) throw fail(404, '페이지를 찾을 수 없습니다.');
       const content = await readFile(path.join(HERE, 'public', asset[0]));

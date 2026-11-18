@@ -29,6 +29,13 @@ jobs:
             files: |
               dist/*.dmg
               dist/*.zip
+          - name: Linux x64 Debian and AppImage
+            os: ubuntu-latest
+            command: build:linux
+            artifact: imperium-linux-x64
+            files: |
+              dist/*.deb
+              dist/*.AppImage
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
@@ -47,6 +54,13 @@ jobs:
         run: npm test
       - name: Build unsigned desktop artifacts
         run: npm run ${{ matrix.command }}
+      - name: Inspect Linux desktop package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb > dist/linux-package-contents.txt
+          grep -E 'applications/.+\.desktop|chrome-sandbox|imperium-terminal' dist/linux-package-contents.txt
       - name: Upload desktop files
         uses: actions/upload-artifact@v7
         with:

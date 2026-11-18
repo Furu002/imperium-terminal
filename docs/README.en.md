@@ -4,23 +4,42 @@
 
 **IMPERIUM**, Latin for command or authority, is a local AI operations terminal where you act as headquarters and dispatch departmental tasks to Codex and Claude Code. Its Bloomberg-inspired interface shows queues, execution status, tool events, and results.
 
-Version 1 runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
+Version 1.1 runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
 ## Run the desktop app
 
-For Windows, the recommended download is **`Imperium-Setup-1.0.0-x64.exe`**, which includes a guided setup wizard.
+For Windows, the recommended download is **`Imperium-Setup-1.1.0-x64.exe`**, which includes a guided setup wizard.
 
 1. Run the installer and proceed through **Next → Install → Finish**. You can change the installation folder. The app installs for the current Windows user.
 2. Open the app using the **IMPERIUM** shortcut on your desktop or in the Start menu.
 3. To uninstall, select **IMPERIUM** in the apps list in Windows Settings.
 
-For use without installation, choose the portable file `Imperium-1.0.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
+For use without installation, choose the portable file `Imperium-1.1.0-win-x64.exe`. Both versions open their own window. Model connections still require the Codex or Claude Code installation and subscription login described below.
 
-Once this app is hosted on GitHub, run **Build Imperium desktop** in Actions and download the appropriate package from the successful run's **Artifacts**: `imperium-windows-x64` or `imperium-macos-intel-apple-silicon`. macOS DMG and ZIP packages are available after a successful build on a macOS runner.
+Once this app is hosted on GitHub, run **Build Imperium desktop** in Actions and download the appropriate package from the successful run's **Artifacts**: `imperium-windows-x64`, `imperium-macos-intel-apple-silicon`, or `imperium-linux-x64`. macOS DMG and ZIP packages are available after a successful build on a macOS runner. Apple Silicon packages are named `Imperium-1.1.0-mac-arm64.dmg` and `.zip`; Intel packages are named `Imperium-1.1.0-mac-x64.dmg` and `.zip`.
 
 The author metadata names **Sato Junichiro**. This metadata alone does not establish a Windows-verified publisher. Builds remain unsigned developer packages until an actual Authenticode certificate is supplied and used for signing; Windows may show an unknown publisher. If Windows displays a security prompt, verify the source before allowing that specific app. If macOS blocks the app, authorize that individual app in System Settings under Privacy & Security. There is no need to disable system-wide security controls.
 
 Desktop records are stored in `hq-data/` under the operating system's application-data location. The default working folder is `Imperium Workspace` in Documents, and can be changed in settings.
+
+## Install on Linux
+
+Linux x64 packages include `Imperium-1.1.0-linux-x64.deb` for Debian and Ubuntu, and the directly executable `Imperium-1.1.0-linux-x64.AppImage`. Run the relevant commands from the folder containing your download.
+
+To install on Debian or Ubuntu:
+
+```sh
+sudo apt install ./Imperium-1.1.0-linux-x64.deb
+```
+
+After installation, launch **IMPERIUM** from your application menu. To use the AppImage:
+
+```sh
+chmod +x Imperium-1.1.0-linux-x64.AppImage
+./Imperium-1.1.0-linux-x64.AppImage
+```
+
+The AppImage does not automatically create application-menu or desktop shortcuts. Linux also requires Codex or Claude Code installation and subscription login. A successful Linux CI build confirms package generation and automated checks, rather than manual testing in a Linux desktop session.
 
 ## Run web mode from source
 
@@ -60,7 +79,9 @@ This connection method requires no separate API key and draws from your subscrip
 
 ## Dispatch work
 
-1. Select Strategy, Engineering, Research, or Quality. Department names, roles, and default providers are editable.
+The first screen is **AI Organization (F1)**. It shows the commander above ChatGPT/Codex and Claude, with departmental roles, connection state, and current tasks below each provider. Status reflects actual connections and task records.
+
+1. In the organization chart, choose **Assign work** on Strategy, Engineering, Research, or Quality to open operations with that department selected. This action alone does not run a model. Press **F2** to open operations directly. Department names, roles, and default providers are editable.
 2. Enter an instruction and select Codex or Claude. Each task can override its department's default provider.
 3. Choose read-only or file-write permission and a priority, then dispatch.
 4. Follow live logs, results, and status; cancel tasks when needed. Export records as JSON.
@@ -88,6 +109,8 @@ Claude's tool set excludes `Bash`, so Claude tasks cannot run shell commands or 
 - Existing-chat synchronization, observation of other sessions, and automatic background model runs are outside the current scope.
 - This folder is a standalone app. Placing it inside another project does not make it manage the parent repository or its code. Work in your explicitly selected working folder is separate.
 
+Pretendard, Pretendard JP, and JetBrains Mono are bundled in `public/fonts/` and work without an external font CDN. See [third-party notices](../THIRD_PARTY_NOTICES.md) for their SIL Open Font License 1.1 license texts and sources.
+
 ## Desktop development and builds
 
 ```sh
@@ -95,11 +118,12 @@ npm install
 npm run desktop
 ```
 
-On Windows, `npm run build:win` generates both the setup wizard and the portable app. Run `npm run build:installer` to generate only the installer. For macOS DMG and ZIP packages, run `npm run build:mac` on a Mac or use the GitHub Actions macOS build. Build output is written to `dist/`. Check the workflow result to confirm whether each platform build succeeded.
+On Windows, `npm run build:win` generates both the setup wizard and the portable app. Run `npm run build:installer` to generate only the installer. For macOS DMG and ZIP packages, run `npm run build:mac` on a Mac or use the GitHub Actions macOS build. For Linux DEB and AppImage packages, run `npm run build:linux` on Linux or use the GitHub Actions Ubuntu build. Build output is written to `dist/`. Check the workflow result to confirm whether each platform build succeeded.
 
 ## Validate
 
 ```sh
+npm ci --ignore-scripts
 npm test
 npm run check
 ```

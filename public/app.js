@@ -31,7 +31,7 @@ const TRANSLATIONS = {
     '부서의 역할은 앞으로 보내는 모든 작업의 지시에 함께 전달됩니다.': 'These instructions are included with every new assignment to this department.', '취소': 'Cancel', '부서 저장': 'Save department',
     '화면 언어': 'Display language', 'IMPERIUM 홈': 'IMPERIUM home', '주 메뉴': 'Main navigation', '조직 현황 요약': 'Organization summary', '조직 현황': 'Organization',
     '작업을 선택하면 오른쪽에서 결과를 확인할 수 있습니다.': 'Select an operation to inspect its output.', '구독 연결 안내': 'Subscription connection information', '작업 폴더': 'Working directory',
-    'F1 지휘 통제실': 'F1 Command center', 'F2 작업 관리': 'F2 Operations', 'F3 부서 관리': 'F3 Departments', 'F4 활동 로그': 'F4 Activity', 'F8 연결 및 설정': 'F8 Connections and settings',
+    'F1 AI 조직도': 'F1 AI organization', 'F2 작업 관리': 'F2 Operations', 'F3 부서 관리': 'F3 Departments', 'F4 활동 로그': 'F4 Activity', 'F8 연결 및 설정': 'F8 Connections and settings',
     '실행 중인 에이전트 {count}개': '{count} agents at work', '연결 {ready} · 확인 필요 {missing}': '{ready} connected · {missing} need attention', '전체 {count}건 중': 'Across {count} operations',
     '일치하는 작업이 없습니다': 'No matching operations', '상태 필터나 검색어를 변경해보세요.': 'Try another filter or search term.', '작업을 선택하세요': 'Select an operation', '작업 현황에서 항목을 선택하면': 'Choose an item in Mission Control', '진행 과정과 결과를 확인할 수 있습니다.': 'to inspect its progress and output.',
     '작업 지시': 'COMMAND', '실행 결과': 'OUTPUT', '결과를 기다리는 중입니다…': 'Waiting for output…', '작업이 취소되었습니다.': 'This operation was cancelled.', '아직 결과가 없습니다.': 'No output yet.', '읽기 전용': 'READ ONLY', '파일 수정 허용됨': 'FILE EDITS ALLOWED',
@@ -81,7 +81,7 @@ const TRANSLATIONS = {
     '부서의 역할은 앞으로 보내는 모든 작업의 지시에 함께 전달됩니다.': 'この役割は、今後この部署に送るすべての指示に含まれます。', '취소': 'キャンセル', '부서 저장': '部署を保存',
     '화면 언어': '表示言語', 'IMPERIUM 홈': 'IMPERIUMホーム', '주 메뉴': 'メインメニュー', '조직 현황 요약': '組織状況の概要',
     '작업을 선택하면 오른쪽에서 결과를 확인할 수 있습니다.': 'タスクを選択すると、右側で結果を確認できます。', '구독 연결 안내': 'サブスクリプション接続の案内', '작업 폴더': '作業フォルダー',
-    'F1 지휘 통제실': 'F1 コマンドセンター', 'F2 작업 관리': 'F2 タスク管理', 'F3 부서 관리': 'F3 部署管理', 'F4 활동 로그': 'F4 アクティビティ', 'F8 연결 및 설정': 'F8 接続と設定',
+    'F1 AI 조직도': 'F1 AI組織図', 'F2 작업 관리': 'F2 タスク管理', 'F3 부서 관리': 'F3 部署管理', 'F4 활동 로그': 'F4 アクティビティ', 'F8 연결 및 설정': 'F8 接続と設定',
     '실행 중인 에이전트 {count}개': '{count}個のエージェントが実行中', '연결 {ready} · 확인 필요 {missing}': '接続 {ready} · 要確認 {missing}', '전체 {count}건 중': '全{count}件のタスク',
     '일치하는 작업이 없습니다': '一致するタスクがありません', '상태 필터나 검색어를 변경해보세요.': 'フィルターや検索語を変更してください。', '작업을 선택하세요': 'タスクを選択', '작업 현황에서 항목을 선택하면': 'タスク一覧から項目を選択すると', '진행 과정과 결과를 확인할 수 있습니다.': '進行状況と結果を確認できます。',
     '작업 지시': '作業指示', '실행 결과': '実行結果', '결과를 기다리는 중입니다…': '結果を待っています…', '작업이 취소되었습니다.': 'タスクは中止されました。', '아직 결과가 없습니다.': '結果はまだありません。', '읽기 전용': '読み取り専用', '파일 수정 허용됨': 'ファイル編集を許可',
@@ -103,6 +103,45 @@ const TRANSLATIONS = {
     '지금 개발하려는 기능의 요구사항을 정리하고, 구현 단계와 검증 방법을 제안해줘.': '開発予定の機能の要件を整理し、実装手順と検証方法を提案してください。'
   }
 };
+
+Object.assign(TRANSLATIONS.en, {
+  'AI 조직도': 'AI Organization',
+  '모델과 부서를 연결하고, 당신의 AI 조직을 지휘하세요.': 'Connect models and departments. Take command of your AI organization.',
+  '조직 연결 현황': 'Organization network',
+  '본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.': 'See how models and departments connect, and what each team is working on.',
+  '연결 모델과 담당 부서': 'Connected models and their departments',
+  '부서 에이전트는 설정된 역할입니다. 각 모델은 업무를 지시할 때 실행됩니다.': 'Department agents represent configured roles. Models run when you assign work; they are not always-running processes.',
+  '본부장': 'Commander', '지휘 · 최종 의사결정': 'Direction · Final decisions',
+  '연결된 모델': 'Connected models', '구성된 부서 에이전트': 'Department roles', '실제 실행 작업': 'Running operations',
+  '구성된 부서 에이전트 {count}개': '{count} configured department roles',
+  '연결 관리': 'Manage connection', '업무 지시': 'Assign work', '편집': 'Edit',
+  '실행 중': 'Running', '작업 대기': 'Queued', '지시 대기': 'Standing by', '오프라인': 'Offline', '확인 중': 'Checking',
+  '진행 업무': 'CURRENT', '대기 업무': 'QUEUED', '담당 모델': 'Assigned model',
+  '업무 지시를 기다리고 있습니다.': 'Standing by for an assignment.',
+  '모델을 연결하면 업무를 지시할 수 있습니다.': 'Connect this model to assign work.',
+  '서버에 다시 연결하는 중입니다.': 'Reconnecting to the local server.',
+  '아직 배정된 부서가 없습니다.': 'No departments assigned yet.',
+  '부서 편집에서 담당 모델을 변경할 수 있습니다.': 'Assign a model in the department editor.',
+});
+Object.assign(TRANSLATIONS.ja, {
+  'AI 조직도': 'AI組織図',
+  '모델과 부서를 연결하고, 당신의 AI 조직을 지휘하세요.': 'モデルと部署をつなぎ、あなたのAI組織を指揮。',
+  '조직 연결 현황': '組織の接続状況',
+  '본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.': 'モデルと部署のつながり、各部署が担当する業務を確認できます。',
+  '연결 모델과 담당 부서': '接続モデルと担当部署',
+  '부서 에이전트는 설정된 역할입니다. 각 모델은 업무를 지시할 때 실행됩니다.': '部署エージェントは設定された役割です。モデルは業務を指示したときに実行され、常時稼働するプロセスではありません。',
+  '본부장': '本部長', '지휘 · 최종 의사결정': '指揮 · 最終意思決定',
+  '연결된 모델': '接続モデル', '구성된 부서 에이전트': '設定済み部署', '실제 실행 작업': '実行中の業務',
+  '구성된 부서 에이전트 {count}개': '設定済みの部署エージェント {count}件',
+  '연결 관리': '接続を管理', '업무 지시': '業務を指示', '편집': '編集',
+  '실행 중': '実行中', '작업 대기': '実行待ち', '지시 대기': '指示待ち', '오프라인': 'オフライン', '확인 중': '確認中',
+  '진행 업무': '進行中の業務', '대기 업무': '待機中の業務', '담당 모델': '担当モデル',
+  '업무 지시를 기다리고 있습니다.': '業務の指示を待っています。',
+  '모델을 연결하면 업무를 지시할 수 있습니다.': 'モデルを接続すると業務を指示できます。',
+  '서버에 다시 연결하는 중입니다.': 'ローカルサーバーに再接続しています。',
+  '아직 배정된 부서가 없습니다.': '割り当てられた部署はまだありません。',
+  '부서 편집에서 담당 모델을 변경할 수 있습니다.': '部署の編集で担当モデルを変更できます。',
+});
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -231,6 +270,7 @@ function setConnected(value) {
   $('#offline-banner').hidden = value;
   $('#dispatch-submit').disabled = !value || dispatchPending;
   $('.stream-status').style.opacity = value ? '' : '.45';
+  renderOrganization();
 }
 
 function receiveState(incoming) {
@@ -272,6 +312,7 @@ async function connect() {
 }
 
 function render() {
+  renderOrganization();
   renderMetrics();
   renderDepartmentOptions();
   renderDepartments();
@@ -283,6 +324,63 @@ function render() {
   $('#workspace-path').title = state.settings.workspace || t('작업 폴더');
   $('#permission-description').textContent = t($('#write-permission').checked ? '파일 수정이 가능한 작업으로 실행합니다.' : '기본: 읽기 및 분석만');
   $('#prompt-count').textContent = `${num($('#dispatch-prompt').value.length)} / 12,000`;
+}
+
+function renderOrganization() {
+  const readyCount = connected ? state.providers.filter(provider => provider.status === 'ready' && provider.authenticated).length : 0;
+  const runningCount = state.tasks.filter(task => task.status === 'running' && !task.demo).length;
+  $('#org-summary').replaceChildren(...[
+    ['providers', `${readyCount}/2`, '연결된 모델'],
+    ['departments', String(state.departments.length), '구성된 부서 에이전트'],
+    ['running', connected ? String(runningCount) : '—', '실제 실행 작업'],
+  ].map(([metric, value, label]) => node('div', { class: 'org-summary-item', 'data-metric': metric }, node('strong', { class: 'org-summary-value' }, value), node('span', { class: 'org-summary-label' }, t(label)))));
+  $('#org-chart-root').replaceChildren(node('div', { class: 'org-commander-node org-commander-card' },
+    node('span', { class: 'org-commander-badge', 'aria-hidden': 'true' }, 'YOU'),
+    node('div', { class: 'org-commander-content' }, node('strong', { class: 'org-commander-name' }, t('본부장')), node('span', { class: 'org-commander-role' }, t('지휘 · 최종 의사결정'))),
+    node('span', { class: 'org-commander-status' }, 'COMMANDER')));
+  const branches = ['codex', 'claude'].map(providerId => {
+    const provider = state.providers.find(item => item.id === providerId);
+    const status = !connected ? 'offline' : provider?.status || 'checking';
+    const ready = status === 'ready' && provider?.authenticated;
+    const labels = { ready: '연결됨', missing: '설치 필요', login_required: '로그인 필요', error: '확인 필요', offline: '오프라인', checking: '확인 중' };
+    const departments = state.departments.filter(dept => dept.provider === providerId);
+    const providerLabel = providerId === 'codex' ? 'ChatGPT / Codex' : 'Claude Code';
+    const hub = node('section', { class: 'org-provider-node', 'data-provider': providerId, 'data-status': status, 'aria-label': `${providerLabel} · ${t(labels[status] || '확인 필요')}` },
+      node('div', { class: 'org-provider-heading' }, node('span', { class: 'org-provider-mark', 'aria-hidden': 'true' }, providerId === 'codex' ? 'GPT' : 'C'), node('h3', { class: 'org-provider-name' }, providerLabel),
+        node('span', { class: 'org-provider-status', 'data-status': status }, node('span', { class: `live-dot${ready ? '' : status === 'error' || status === 'offline' ? ' offline' : ' connecting'}`, 'aria-hidden': 'true' }), t(labels[status] || '확인 필요'))),
+      node('p', { class: 'org-provider-meta' }, t('구성된 부서 에이전트 {count}개', { count: departments.length })),
+      node('button', { class: 'org-provider-action', type: 'button', onclick: openSettings, 'aria-label': `${providerLabel} · ${t('연결 관리')}` }, t('연결 관리'), ' ↗'));
+    const children = node('ul', { class: 'org-department-children', 'aria-label': providerLabel });
+    if (!departments.length) children.append(node('li', { class: 'org-empty-branch' }, node('strong', {}, t('아직 배정된 부서가 없습니다.')), node('span', {}, t('부서 편집에서 담당 모델을 변경할 수 있습니다.'))));
+    for (const dept of departments) {
+      const tasks = state.tasks.filter(task => task.departmentId === dept.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const task = tasks.find(item => item.status === 'running') || tasks.find(item => item.status === 'queued');
+      const agentStatus = !connected ? 'offline' : task?.status === 'running' ? 'running' : task?.status === 'queued' ? 'queued' : ready ? 'idle' : 'unavailable';
+      const agentLabels = { running: '실행 중', queued: '작업 대기', idle: '지시 대기', unavailable: '연결 필요', offline: '오프라인' };
+      const taskLine = node('p', { class: 'org-agent-task', title: task?.title || '' });
+      if (task && connected) taskLine.append(node('small', { class: 'org-task-label' }, t(task.status === 'queued' ? '대기 업무' : '진행 업무')), node('span', {}, `${task.demo ? '[DEMO] ' : ''}${task.title}`));
+      else taskLine.append(node('span', {}, t(!connected ? '서버에 다시 연결하는 중입니다.' : ready ? '업무 지시를 기다리고 있습니다.' : '모델을 연결하면 업무를 지시할 수 있습니다.')));
+      children.append(node('li', { class: 'org-agent-card', 'data-department-id': dept.id, 'data-provider': providerId, 'data-status': agentStatus },
+        node('div', { class: 'org-agent-header' }, node('span', { class: 'org-agent-code' }, `DPT. ${dept.code || dept.id.toUpperCase().slice(0, 3)}`), node('span', { class: 'org-agent-status', 'data-status': agentStatus }, `${task?.demo && connected ? 'DEMO · ' : ''}${t(agentLabels[agentStatus])}`)),
+        node('h3', { class: 'org-agent-name' }, departmentName(dept)),
+        node('p', { class: 'org-agent-model' }, `${t(task ? '실행 모델' : '담당 모델')} · ${task ? task.provider === 'claude' ? 'Claude Code' : 'ChatGPT / Codex' : providerLabel}`),
+        node('p', { class: 'org-agent-role' }, departmentRole(dept)), taskLine,
+        node('div', { class: 'org-agent-actions' },
+          node('button', { class: 'org-agent-dispatch', type: 'button', onclick: () => assignDepartment(dept.id), 'aria-label': `${departmentName(dept)} · ${t('업무 지시')}` }, t('업무 지시'), ' ↗'),
+          node('button', { class: 'org-agent-edit', type: 'button', onclick: () => openDepartmentEditor(dept), 'aria-label': `${departmentName(dept)} · ${t('부서 편집')}` }, t('편집')))));
+    }
+    return node('li', { class: 'org-model-branch', 'data-provider': providerId }, hub, children);
+  });
+  $('#org-model-branches').replaceChildren(...branches);
+}
+
+function assignDepartment(departmentId) {
+  $('#dispatch-department').value = departmentId;
+  $('#dispatch-provider').value = '';
+  updateView('operations');
+  renderDepartments();
+  $('#dispatch-section').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  $('#dispatch-prompt').focus({ preventScroll: true });
 }
 
 function renderMetrics() {
@@ -443,7 +541,7 @@ function updateView(next) {
   $('.app-shell').dataset.view = view;
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const content = {
-    overview: ['COMMAND CENTER', '지휘 통제실', '지시하고, 연결하고, 모든 작업의 흐름을 확인하세요.'],
+    overview: ['AI ORGANIZATION', 'AI 조직도', '모델과 부서를 연결하고, 당신의 AI 조직을 지휘하세요.'],
     operations: ['OPERATIONS', '작업 관리', '부서별 작업을 확인하고 실행 결과를 검토하세요.'],
     departments: ['ORGANIZATION', '부서 관리', '부서의 역할과 담당 모델을 구성하세요.'],
     logs: ['ACTIVITY STREAM', '활동 로그', '모든 부서의 실행 기록을 실시간으로 확인하세요.']
@@ -571,7 +669,7 @@ function bindEvents() {
   });
   $('#refresh-providers').addEventListener('click', async () => {
     const button = $('#refresh-providers'); button.disabled = true; button.textContent = t('확인 중…');
-    try { const result = await api('/api/providers/refresh', { method: 'POST', body: {} }); if (result.providers) state.providers = result.providers; renderProviders(); renderMetrics(); renderDepartments(); toast(t('상태를 새로고침했습니다.')); }
+    try { const result = await api('/api/providers/refresh', { method: 'POST', body: {} }); if (result.providers) state.providers = result.providers; renderProviders(); renderMetrics(); renderDepartments(); renderOrganization(); toast(t('상태를 새로고침했습니다.')); }
     catch (error) { toast(`${t('요청을 처리하지 못했습니다.')} ${error.message}`, true); }
     finally { button.disabled = false; button.textContent = t('↻ 상태 새로고침'); }
   });

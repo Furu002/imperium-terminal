@@ -122,7 +122,7 @@ test('frontend restores the saved server language and persists Korean, English a
   const { window, document, backend, calls } = await loadUI(t, initial);
   const picker = document.querySelector('#language-select');
   assert.equal(document.documentElement.lang, 'ja');
-  assert.match(document.querySelector('#page-title').textContent, /コマンドセンター/);
+  assert.match(document.querySelector('#page-title').textContent, /AI組織図/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /どのような作業/);
   assert.match(document.querySelector('#department-grid').textContent, /戦略企画室/);
   assert.match(document.querySelector('#department-grid').textContent, /My custom research team/);
@@ -130,7 +130,7 @@ test('frontend restores the saved server language and persists Korean, English a
   change(window, picker, 'en');
   await settle();
   assert.equal(document.documentElement.lang, 'en');
-  assert.match(document.querySelector('#page-title').textContent, /Command center/);
+  assert.match(document.querySelector('#page-title').textContent, /AI Organization/);
   assert.match(document.querySelector('#department-grid').textContent, /Strategy/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /What needs to be done/);
   assert.equal(window.localStorage.getItem('hq.language'), 'en');
@@ -139,7 +139,7 @@ test('frontend restores the saved server language and persists Korean, English a
   change(window, picker, 'ko');
   await settle();
   assert.equal(document.documentElement.lang, 'ko');
-  assert.match(document.querySelector('#page-title').textContent, /지휘 통제실/);
+  assert.match(document.querySelector('#page-title').textContent, /AI 조직도/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /어떤 일을 맡길까요/);
   assert.equal(backend.settings.language, 'ko');
   const saves = calls.filter(call => call.url === '/api/settings');
@@ -208,4 +208,146 @@ test('model output, task titles, department names and streamed events are render
   assert.equal(window.HQ_XSS, undefined);
   assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
   assert.deepEqual(runtimeErrors.map(error => error.message), []);
+});
+
+function organizationTask(overrides = {}) {
+  return {
+    id: 'org-running-task', title: '신규 기능의 실행 계획 작성', prompt: '다음 기능의 실행 계획을 작성해줘.',
+    departmentId: 'strategy', provider: 'codex', status: 'running', priority: 'normal', permission: 'read-only',
+    demo: false, createdAt: new Date().toISOString(), startedAt: new Date().toISOString(), finishedAt: null,
+    output: '', error: null, logs: [], usage: { inputTokens: 0, outputTokens: 0 }, ...overrides,
+  };
+}
+
+test('organization is the first view and reflects the commander, real providers, and configured departments', async t => {
+  const initial = sampleState();
+  const { document, calls } = await loadUI(t, initial);
+  assert.equal(document.querySelector('.app-shell').dataset.view, 'overview');
+  assert.match(document.querySelector('#page-title').textContent, /AI 조직도/);
+  assert.equal(document.querySelectorAll('#org-chart-root > .org-commander-node').length, 1);
+  assert.equal(document.querySelector('.org-commander-name').textContent, '본부장');
+  assert.equal(document.querySelectorAll('#org-model-branches > .org-model-branch').length, 2);
+  assert.equal(document.querySelector('.org-provider-node[data-provider="codex"]').dataset.status, 'ready');
+  assert.equal(document.querySelector('.org-provider-node[data-provider="claude"]').dataset.status, 'missing');
+  const cards = [...document.querySelectorAll('.org-agent-card')];
+  assert.equal(cards.length, initial.departments.length);
+  for (const department of initial.departments) {
+    const card = document.querySelector(`.org-agent-card[data-department-id="${department.id}"]`);
+    assert.equal(card.closest('.org-model-branch').dataset.provider, department.provider);
+    assert.equal(card.dataset.provider, department.provider);
+    assert.equal(card.querySelector('.org-agent-name').textContent, department.name);
+    assert.equal(card.querySelector('.org-agent-role').textContent, department.role);
+    assert.equal(card.dataset.status, department.provider === 'codex' ? 'idle' : 'unavailable');
+  }
+  assert.match(document.querySelector('#org-summary [data-metric="providers"] .org-summary-value').textContent, /1\s*\/\s*2/);
+  assert.equal(Number(document.querySelector('#org-summary [data-metric="departments"] .org-summary-value').textContent), 4);
+  assert.equal(Number(document.querySelector('#org-summary [data-metric="running"] .org-summary-value').textContent), 0);
+  assert.equal(calls.filter(call => call.method !== 'GET').length, 0, 'organization overview is read-only until the commander issues a task');
+});
+
+test('organization cards follow streamed running, queued, and completed tasks without fabricating activity', async t => {
+  const initial = sampleState();
+  const { document, streams, calls } = await loadUI(t, initial);
+  const updated = clone(initial);
+  updated.tasks = [
+    organizationTask(),
+    organizationTask({ id: 'org-queued-task', departmentId: 'research', title: '프로젝트 자료 조사', status: 'queued', startedAt: null }),
+  ];
+  streams[0].state(updated);
+  await settle();
+  let strategy = document.querySelector('.org-agent-card[data-department-id="strategy"]');
+  const research = document.querySelector('.org-agent-card[data-department-id="research"]');
+  assert.equal(strategy.dataset.status, 'running');
+  assert.match(strategy.querySelector('.org-agent-task').textContent, /신규 기능의 실행 계획 작성/);
+  assert.equal(research.dataset.status, 'queued');
+  assert.match(research.querySelector('.org-agent-task').textContent, /프로젝트 자료 조사/);
+  assert.equal(document.querySelector('.org-agent-card[data-department-id="engineering"]').dataset.status, 'unavailable');
+  assert.equal(Number(document.querySelector('#org-summary [data-metric="running"] .org-summary-value').textContent), 1);
+
+  updated.tasks[0].status = 'completed';
+  updated.tasks[0].finishedAt = new Date().toISOString();
+  streams[0].state(updated);
+  await settle();
+  strategy = document.querySelector('.org-agent-card[data-department-id="strategy"]');
+  assert.equal(strategy.dataset.status, 'idle');
+  assert.equal(document.querySelector('.org-agent-card[data-department-id="research"]').dataset.status, 'queued');
+  assert.equal(Number(document.querySelector('#org-summary [data-metric="running"] .org-summary-value').textContent), 0);
+  assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
+});
+
+test('organization shows offline state when the server disconnects and restores actual provider state on reconnect', async t => {
+  const initial = sampleState();
+  const { window, document, streams, runtimeErrors } = await loadUI(t, initial);
+  assert.equal(document.querySelector('.org-agent-card[data-department-id="strategy"]').dataset.status, 'idle');
+  assert.equal(typeof streams[0].onerror, 'function');
+  streams[0].onerror(new window.Event('error'));
+  await settle();
+  assert.equal(document.querySelector('.org-provider-node[data-provider="codex"]').dataset.status, 'offline');
+  assert.equal(document.querySelector('.org-provider-node[data-provider="claude"]').dataset.status, 'offline');
+  for (const card of document.querySelectorAll('.org-agent-card')) assert.equal(card.dataset.status, 'offline');
+  streams[0].state(initial);
+  await settle();
+  assert.equal(document.querySelector('.org-provider-node[data-provider="codex"]').dataset.status, 'ready');
+  assert.equal(document.querySelector('.org-provider-node[data-provider="claude"]').dataset.status, 'missing');
+  assert.equal(document.querySelector('.org-agent-card[data-department-id="strategy"]').dataset.status, 'idle');
+  assert.equal(document.querySelector('.org-agent-card[data-department-id="engineering"]').dataset.status, 'unavailable');
+  assert.deepEqual(runtimeErrors.map(error => error.message), []);
+});
+
+test('a streamed department reassignment moves its card to the configured provider branch', async t => {
+  const initial = sampleState();
+  const { document, streams } = await loadUI(t, initial);
+  assert.equal(document.querySelector('.org-agent-card[data-department-id="engineering"]').closest('.org-model-branch').dataset.provider, 'claude');
+  const updated = clone(initial);
+  updated.departments.find(department => department.id === 'engineering').provider = 'codex';
+  streams[0].state(updated);
+  await settle();
+  const card = document.querySelector('.org-agent-card[data-department-id="engineering"]');
+  assert.equal(card.closest('.org-model-branch').dataset.provider, 'codex');
+  assert.equal(card.dataset.provider, 'codex');
+  assert.equal(card.dataset.status, 'idle');
+  assert.equal(document.querySelectorAll('.org-model-branch[data-provider="codex"] .org-agent-card').length, 3);
+  assert.equal(document.querySelectorAll('.org-model-branch[data-provider="claude"] .org-agent-card').length, 1);
+  assert.equal(document.querySelectorAll('.org-agent-card').length, 4);
+});
+
+test('organization dispatch buttons select a department and focus operations without sending a model request', async t => {
+  const { document, calls } = await loadUI(t);
+  const prompt = document.querySelector('#dispatch-prompt');
+  prompt.value = '아직 보내지 않은 본부 지시';
+  document.querySelector('.org-agent-card[data-department-id="research"] .org-agent-dispatch').click();
+  await settle();
+  assert.equal(document.querySelector('.app-shell').dataset.view, 'operations');
+  assert.equal(document.querySelector('#dispatch-department').value, 'research');
+  assert.equal(document.activeElement, prompt);
+  assert.equal(prompt.value, '아직 보내지 않은 본부 지시');
+  assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
+});
+
+test('organization translates its own labels while custom names and roles remain safe literal text', async t => {
+  const name = '<img src=x onerror="window.ORG_XSS=1">Custom team';
+  const role = '<script>window.ORG_XSS=2</script>Review & plan';
+  const initial = sampleState();
+  initial.settings.language = 'en';
+  initial.departments[0].name = name;
+  initial.departments[0].role = role;
+  const { window, document, calls } = await loadUI(t, initial);
+  assert.match(document.querySelector('#page-title').textContent, /AI Organization/);
+  assert.equal(document.querySelector('.org-commander-name').textContent, 'Commander');
+  assert.match(document.querySelector('.org-agent-card[data-department-id="engineering"] .org-agent-name').textContent, /Engineering/);
+  assert.match(document.querySelector('.org-agent-dispatch').textContent, /Assign work/);
+  for (const language of ['en', 'ja']) {
+    if (language !== 'en') { change(window, document.querySelector('#language-select'), language); await settle(); }
+    const card = document.querySelector('.org-agent-card[data-department-id="strategy"]');
+    assert.equal(card.querySelector('.org-agent-name').textContent, name);
+    assert.equal(card.querySelector('.org-agent-role').textContent, role);
+    assert.equal(card.querySelector('img'), null);
+    assert.equal(card.querySelector('script'), null);
+    assert.equal(window.ORG_XSS, undefined);
+  }
+  assert.match(document.querySelector('#page-title').textContent, /AI組織図/);
+  assert.equal(document.querySelector('.org-commander-name').textContent, '本部長');
+  assert.match(document.querySelector('.org-agent-card[data-department-id="engineering"] .org-agent-name').textContent, /開発本部/);
+  assert.match(document.querySelector('.org-agent-dispatch').textContent, /業務を指示/);
+  assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0);
 });

@@ -159,12 +159,25 @@ test('invalid input never enters the provider queue', async (t) => {
     const response = await f.request('/api/tasks', body);
     assert.ok(response.status >= 400 && response.status < 500, `expected validation error, got ${response.status}`);
   }
-  const oversized = await rawJSON(`${f.url}/api/tasks`, { prompt: 'x'.repeat(40000), departmentId: 'strategy' }, {
+  const oversized = await rawJSON(`${f.url}/api/tasks`, { prompt: 'x'.repeat(80000), departmentId: 'strategy' }, {
     'x-hq-token': f.token,
   });
   assert.equal(oversized.status, 413);
   assert.equal((await f.state()).tasks.length, 0);
   assert.equal(f.calls.length, 0);
+});
+
+test('a maximum-length Korean instruction fits the UTF-8 request limit', async (t) => {
+  const f = await fixture(t);
+  const prompt = '가'.repeat(12000);
+  const task = await f.submit({ prompt });
+  await eventually(() => f.calls.length === 1);
+  assert.equal(task.prompt, prompt);
+  assert.ok(f.calls[0].prompt.includes(prompt));
+  f.calls[0].finish();
+  const oversized = await f.request('/api/tasks', { prompt: prompt + '가', departmentId: 'strategy' });
+  assert.equal(oversized.status, 400);
+  assert.equal(f.calls.length, 1);
 });
 
 test('a disconnected provider is reported honestly and cannot receive work', async (t) => {

@@ -17,6 +17,7 @@ files:
   - public/**/*
   - desktop/**/*
   - build/icon.png
+  - THIRD_PARTY_NOTICES.md
   - package.json
   - '!**/*.map'
   - '!**/.env*'
@@ -69,3 +70,23 @@ mac:
 
 dmg:
   sign: false
+
+linux:
+  icon: build/icon.png
+  executableName: imperium-terminal
+  category: Development
+  synopsis: AI organization command terminal
+  maintainer: 'Sato Junichiro <75270320+Furu002@users.noreply.github.com>'
+  vendor: Sato Junichiro
+  desktop:
+    entry:
+      Name: IMPERIUM
+      Comment: AI organization command terminal
+      StartupWMClass: Imperium
+  target:
+    - target: deb
+      arch:
+        - x64
+    - target: AppImage
+      arch:
+        - x64
