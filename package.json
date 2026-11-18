@@ -1,0 +1,29 @@
+{
+  "name": "imperium-terminal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IMPERIUM — a local AI command terminal for Codex and Claude Code subscriptions.",
+  "main": "desktop/main.cjs",
+  "author": "Imperium",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "terminal": "node terminal.mjs",
+    "desktop": "electron .",
+    "build:win": "electron-builder --win portable --x64",
+    "build:mac": "electron-builder --mac dmg zip --x64 --arm64",
+    "icons": "node scripts/build-icons.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check server.mjs && node --check lib/store.mjs && node --check lib/providers.mjs && node --check public/app.js && node --check terminal.mjs"
+  },
+  "devDependencies": {
+    "electron": "^45.3.4",
+    "electron-builder": "^26.18.0",
+    "jsdom": "^31.0.1",
+    "sharp": "^0.35.5"
+  }
+}

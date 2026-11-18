@@ -1,0 +1,12 @@
+node_modules/
+.hq/
+.env*
+*.log
+test-results/
+dist/
+dist-mac/
+workspace/
+*.zip
+*.dmg
+*.exe
+build/icon-master*

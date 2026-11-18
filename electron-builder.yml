@@ -1,0 +1,51 @@
+appId: com.imperium.terminal
+productName: Imperium
+asar: true
+compression: normal
+npmRebuild: false
+forceCodeSigning: false
+publish: null
+artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - server.mjs
+  - lib/**/*
+  - public/**/*
+  - desktop/**/*
+  - build/icon.png
+  - package.json
+  - '!**/*.map'
+  - '!**/.env*'
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: portable
+      arch:
+        - x64
+
+portable:
+  requestExecutionLevel: user
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+dmg:
+  sign: false
