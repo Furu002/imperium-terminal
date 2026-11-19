@@ -195,6 +195,7 @@ let lastFeedSignature = '';
 let stream;
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
 let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false, collaborationMounted = false;
+let skillsMounted = false;
 let quotasMounted = false, quotaStamp;
 let dispatchExecution, departmentExecution, executionContext = '', executionSummary;
 function safeExecutionValue(widget) { try { return widget?.getValue() || {}; } catch { return {}; } }
@@ -243,6 +244,18 @@ Object.assign(TRANSLATIONS.ja, {
 Object.assign(TRANSLATIONS.en, { '대화': 'Conversations', '대화 이어가기': 'Continue a conversation', '같은 에이전트와 이전 맥락을 이어서 질문하세요.': 'Continue the conversation with the same agent and context.' });
 Object.assign(TRANSLATIONS.ja, { '대화': '会話', '대화 이어가기': '会話を続ける', '같은 에이전트와 이전 맥락을 이어서 질문하세요.': '同じエージェントと文脈を引き継いで質問します。' });
 // Capture original static text once so repeated language changes do not translate user content.
+Object.assign(TRANSLATIONS.en, {
+  '조직도': 'Organization', '스킬': 'Skills', '업무': 'Work', '기억': 'Memory', '설정': 'Settings', '도구': 'Tools', '작업 공간': 'Workspace', '스킬 라이브러리': 'Skill library', '워크플로': 'Workflow', '노드 워크플로': 'Node workflow',
+  '역할별 에이전트의 스킬과 담당 업무를 확인하세요.': 'See each agent’s skills, responsibilities and assignments.',
+  '프로젝트의 스킬을 등록하고 에이전트별로 장착하세요.': 'Register project skills and equip each agent.',
+  '에이전트의 실행 순서와 산출물 전달을 직접 연결하세요.': 'Connect agent execution order and deliverable handoffs.'
+});
+Object.assign(TRANSLATIONS.ja, {
+  '조직도': '組織図', '스킬': 'スキル', '업무': '業務', '기억': '記憶', '설정': '設定', '도구': 'ツール', '작업 공간': 'ワークスペース', '스킬 라이브러리': 'スキルライブラリ', '워크플로': 'ワークフロー', '노드 워크플로': 'ノードワークフロー',
+  '역할별 에이전트의 스킬과 담당 업무를 확인하세요.': '各エージェントのスキルと担当業務を確認します。',
+  '프로젝트의 스킬을 등록하고 에이전트별로 장착하세요.': 'プロジェクトのスキルを登録し、各エージェントに装着します。',
+  '에이전트의 실행 순서와 산출물 전달을 직접 연결하세요.': '実行順序と成果物の受け渡しを接続します。'
+});
 const staticText = [];
 const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 while (walker.nextNode()) {
@@ -445,6 +458,10 @@ function render() {
 }
 
 function renderOrganization() {
+  if (window.ImperiumOrganization) {
+    window.ImperiumOrganization.render(state, { language, connected, api, getState: () => state, onNavigate: updateView, onAssignDepartment: assignDepartment, onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')), toast });
+    return;
+  }
   const readyCount = connected ? state.providers.filter(provider => provider.status === 'ready' && provider.authenticated).length : 0;
   const runningCount = state.tasks.filter(task => task.status === 'running' && !task.demo).length;
   $('#org-summary').replaceChildren(...[
@@ -627,7 +644,7 @@ function renderMissions() {
       node('td', {}, node('span', { class: 'task-name', title: task.title }, task.title), subline),
       node('td', {}, node('span', { class: `provider-name ${task.provider}` }, providerName(task.provider)), node('span', { class: 'task-model-id', title: `${task.reportedModel ? (language === 'ja' ? 'CLI報告モデル' : language === 'en' ? 'CLI reported model' : 'CLI 보고 모델') : (language === 'ja' ? '指定モデル・実行モデル未報告' : language === 'en' ? 'Requested model · execution model unreported' : '요청 모델 · 실행 모델 미보고')} · ${task.reportedModel || task.modelId || 'CLI default'}` }, task.reportedModel || task.modelId || 'CLI default')),
       node('td', {}, statusTag(task)), node('td', {}, node('span', { class: 'elapsed-text', 'data-elapsed-task': task.id }, elapsed(task))), action);
-    const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); inspectorOutputView?.openFull(); };
+    const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); if (inspectorOutputView) inspectorOutputView.openFull(); else $('#inspector-section').scrollIntoView?.({ block: 'start' }); };
     row.addEventListener('click', choose);
     row.addEventListener('keydown', event => { if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); choose(); } });
     return row;
@@ -732,11 +749,15 @@ function renderInspector() {
 }
 
 function updateView(next) {
-  view = ['overview', 'operations', 'chat', 'collaboration', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
+  view = ['overview', 'skills', 'workflow', 'operations', 'chat', 'collaboration', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
   $('.app-shell').dataset.view = view;
+  const toolNavigation = $('.workbench-secondary-nav');
+  if (toolNavigation) toolNavigation.open = Boolean(toolNavigation.querySelector(`[data-view="${view}"]`));
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const content = {
-    overview: ['NODE WORKSPACE', '노드 워크스페이스', '노드를 직접 추가하고 이름표와 연결을 구성하세요.'],
+    overview: ['AGENTS / SKILLS / OWNERSHIP', '조직도', '역할별 에이전트의 스킬과 담당 업무를 확인하세요.'],
+    skills: ['PROJECT SKILL LIBRARY', '스킬 라이브러리', '프로젝트의 스킬을 등록하고 에이전트별로 장착하세요.'],
+    workflow: ['NODE WORKSPACE', '노드 워크플로', '에이전트의 실행 순서와 산출물 전달을 직접 연결하세요.'],
     operations: ['OPERATIONS', '작업 관리', '부서별 작업을 확인하고 실행 결과를 검토하세요.'],
     chat: ['CONVERSATIONS', '대화', '같은 에이전트와 이전 맥락을 이어서 질문하세요.'],
     collaboration: ['AGENT COLLABORATION', '협업 보드', '에이전트의 공유 결과와 실제 참조 기록을 확인하세요.'],
@@ -756,6 +777,13 @@ function updateView(next) {
 }
 
 function renderExtensions() {
+  if (state.server.csrfToken && window.ImperiumSkills) {
+    if (!skillsMounted && view === 'skills') {
+      skillsMounted = true;
+      window.ImperiumSkills.init({ container: $('#skills-section'), api, getState: () => state, toast });
+    }
+    if (skillsMounted) window.ImperiumSkills.render(state, { visible: view === 'skills' });
+  }
   if (window.ImperiumCollaboration && state.server.csrfToken) {
     if (!collaborationMounted && view === 'collaboration') {
       collaborationMounted = true;

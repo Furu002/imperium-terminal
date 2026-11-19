@@ -4,11 +4,15 @@
 
 **IMPERIUM**, Latin for command or authority, is a local operations terminal for building your own AI workspace. Add yourself, AI connections, roles, and memory to an empty canvas, then follow queues, execution status, tool events, and results from Codex, Claude Code, and other providers. A company organization chart is an optional layout; names and titles are yours to choose.
 
-Version 1.7.0 is a prototype prepared for public distribution. Verified version tags generate desktop installers and update metadata. Check [GitHub Releases](https://github.com/Furu002/imperium-terminal/releases) for assets actually published.
+Version 1.8.0 refreshes the interface and agent skill equipment. Verified version tags generate desktop installers and update metadata. Check [GitHub Releases](https://github.com/Furu002/imperium-terminal/releases) for assets actually published.
 
 The app runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
 ## Terminal workspace and linked knowledge
+
+The first screen is a role-based organization chart showing responsibilities, models, assignments, equipped skills and handoffs. Primary navigation is Organization, Skills, Work, Memory and Settings. The Tools menu retains the empty node workflow, conversations, collaboration, terminal, projects, usage and updates. `Ctrl/Cmd+K` opens the folded command line. Bundled Pretendard fonts work offline; results use at least 18px text.
+
+In Skills, register a UTF-8 `SKILL.md` inside the current project and equip an agent. Inspect the content and SHA-256 version. GitHub URLs are unverified attribution; remote repositories are not automatically installed. Files are limited to 32 KiB and combined per-agent instructions to 16 KiB. Changed files require removal and registration again. Equipment does not broaden permissions or prove successful use. Actual calls, document reads and model reports remain separate evidence. Removing a registration preserves its source file. The organization goal shares the existing dispatch draft; choose an agent and execution settings before running. Automatic goal decomposition, validation and final synthesis are not implemented yet.
 
 The user-selected [Bloomberg terminal reference](https://www.youtube.com/watch?v=BqgqwO11abk) informs the black canvas, thin panel borders, dense tables, amber headings, and green function keys. Navigate with the function strip and workspace tabs; `Ctrl/Cmd+K` focuses the function command line. `HELP` lists commands, `MEMORY` opens project knowledge, `TERM` opens the interactive terminal, and `FIND query` searches knowledge. `TASK instructions` only prepares the operation input; review the agent and execution settings before dispatching.
 

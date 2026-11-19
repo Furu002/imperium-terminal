@@ -1,6 +1,8 @@
-# IMPERIUM 1.5.0 — internal validation
+# IMPERIUM 1.8.0 — internal validation
 
 This is an internal prototype. Publishing this source commit does not publish an external application release.
+
+The 1.8 integration adds a role-based first screen, five primary navigation items, folded legacy tools, bundled Korean typography, and project-scoped local skill registration/equipment. Claude reviewed the actual integration. Cancellation while awaiting skill files now finalizes the owned run and releases scheduling locks; deleted-agent skill bindings are pruned. Regression tests use temporary files and controlled providers to verify both fixes, pinned skill instructions in runner input, metadata-only UI snapshots, unchanged permissions, source-file preservation, and project switching guards. Hidden Electron rendering checks cover organization at 390, 768, 1024 and 1440 pixels and navigation to Skills, Work, Workflow and Memory. These checks do not constitute a live multi-agent development benchmark.
 
 ## Implementation and review
 

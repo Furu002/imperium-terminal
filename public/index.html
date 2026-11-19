@@ -27,6 +27,8 @@
   <link rel="stylesheet" href="/access-review.css">
   <link rel="stylesheet" href="/conversations.css">
   <link rel="stylesheet" href="/collaboration.css">
+  <link rel="stylesheet" href="/agent-skills.css">
+  <link rel="stylesheet" href="/workbench-theme.css">
   <script src="/vendor/xterm.js" defer></script>
   <script src="/vendor/xterm-addon-fit.js" defer></script>
   <script src="/workspace.js" defer></script>
@@ -52,6 +54,8 @@
   <script src="/access-review.js" defer></script>
   <script src="/conversations.js" defer></script>
   <script src="/collaboration.js" defer></script>
+  <script src="/agent-skills.js" defer></script>
+  <script src="/organization-workbench.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -67,8 +71,15 @@
 
     <aside class="sidebar" aria-label="주 메뉴">
       <div class="sidebar-top"><span class="sidebar-label">WORKSPACE</span>
-        <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>NODES</span><kbd>F1</kbd></button>
-        <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>OPERATIONS</span><kbd>F2</kbd></button>
+      <nav class="workbench-primary-nav" aria-label="작업 공간">
+        <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>조직도</span><kbd>F1</kbd></button>
+        <button class="nav-button" data-view="skills" aria-label="스킬 라이브러리"><span class="nav-icon">◇</span><span>스킬</span></button>
+        <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>업무</span><kbd>F2</kbd></button>
+        <button class="nav-button" data-view="knowledge" aria-label="F11 프로젝트 기억"><span class="nav-icon">⟐</span><span>기억</span><kbd>F11</kbd></button>
+        <button class="nav-button" id="nav-settings" aria-label="F8 연결 및 설정"><span class="nav-icon">⚙</span><span>설정</span><kbd>F8</kbd></button>
+      </nav>
+      <details class="workbench-secondary-nav"><summary>도구</summary>
+        <button class="nav-button" data-view="workflow" aria-label="노드 워크플로"><span class="nav-icon">⌘</span><span>워크플로</span></button>
         <button class="nav-button" data-view="chat" aria-label="대화 이어가기"><span class="nav-icon">▣</span><span>CHAT</span></button>
         <button class="nav-button" data-view="collaboration" aria-label="협업 보드"><span class="nav-icon">⇄</span><span>TEAM</span></button>
         <button class="nav-button" data-view="departments" aria-label="F3 부서 관리"><span class="nav-icon">⌘</span><span>DEPARTMENTS</span><kbd>F3</kbd></button>
@@ -78,9 +89,8 @@
         <button class="nav-button" data-view="updates" aria-label="F7 업데이트"><span class="nav-icon">↻</span><span>UPDATES</span><kbd>F7</kbd></button>
         <button class="nav-button" data-view="projects" aria-label="F9 프로젝트"><span class="nav-icon">▱</span><span>PROJECTS</span><kbd>F9</kbd></button>
         <button class="nav-button" data-view="analytics" aria-label="F10 사용량과 성능"><span class="nav-icon">▥</span><span>ANALYTICS</span><kbd>F10</kbd></button>
-        <button class="nav-button" data-view="knowledge" aria-label="F11 프로젝트 기억"><span class="nav-icon">⟐</span><span>KNOWLEDGE</span><kbd>F11</kbd></button>
-      </div>
-      <div class="sidebar-bottom"><button class="nav-button" id="nav-settings" aria-label="F8 연결 및 설정"><span class="nav-icon">⚙</span><span>SETTINGS</span><kbd>F8</kbd></button><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.3.0</b></span></div>
+      </details></div>
+      <div class="sidebar-bottom"><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.8.0</b></span></div>
     </aside>
 
     <main class="main-content" id="main-content">
@@ -105,6 +115,7 @@
       <section id="knowledge-section" class="extension-section"></section>
       <section id="conversations-section" class="extension-section"></section>
       <section id="collaboration-section" class="extension-section"></section>
+      <section id="skills-section" class="extension-section" aria-label="스킬 라이브러리"></section>
       <section class="organization-panel" id="organization-section" aria-labelledby="organization-title">
         <div class="org-toolbar"><div class="org-heading-copy"><h2 class="org-title" id="organization-title">조직 연결 현황</h2><p class="org-subtitle">본부에서 모델과 부서의 연결, 현재 맡은 업무를 확인하세요.</p></div><div class="org-summary" id="org-summary" aria-label="조직 현황 요약"></div></div>
         <div class="org-chart-root" id="org-chart-root"></div>

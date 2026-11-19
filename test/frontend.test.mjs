@@ -265,7 +265,7 @@ test('frontend restores the saved server language and persists Korean, English a
   const { window, document, backend, calls } = await loadUI(t, initial);
   const picker = document.querySelector('#language-select');
   assert.equal(document.documentElement.lang, 'ja');
-  assert.match(document.querySelector('#page-title').textContent, /ノードワークスペース/);
+  assert.match(document.querySelector('#page-title').textContent, /組織図/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /どのような作業/);
   assert.match(document.querySelector('#department-grid').textContent, /戦略企画室/);
   assert.match(document.querySelector('#department-grid').textContent, /My custom research team/);
@@ -273,7 +273,7 @@ test('frontend restores the saved server language and persists Korean, English a
   change(window, picker, 'en');
   await settle();
   assert.equal(document.documentElement.lang, 'en');
-  assert.match(document.querySelector('#page-title').textContent, /Node workspace/);
+  assert.match(document.querySelector('#page-title').textContent, /Organization/);
   assert.match(document.querySelector('#department-grid').textContent, /Strategy/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /What needs to be done/);
   assert.equal(window.localStorage.getItem('hq.language'), 'en');
@@ -282,7 +282,7 @@ test('frontend restores the saved server language and persists Korean, English a
   change(window, picker, 'ko');
   await settle();
   assert.equal(document.documentElement.lang, 'ko');
-  assert.match(document.querySelector('#page-title').textContent, /노드 워크스페이스/);
+  assert.match(document.querySelector('#page-title').textContent, /조직도/);
   assert.match(document.querySelector('#dispatch-prompt').placeholder, /어떤 일을 맡길까요/);
   assert.equal(backend.settings.language, 'ko');
   const saves = calls.filter(call => call.url === '/api/settings');
@@ -393,7 +393,7 @@ test('organization is the first view and reflects the commander, real providers,
   const initial = sampleState();
   const { document, calls } = await loadUI(t, initial);
   assert.equal(document.querySelector('.app-shell').dataset.view, 'overview');
-  assert.match(document.querySelector('#page-title').textContent, /노드 워크스페이스/);
+  assert.match(document.querySelector('#page-title').textContent, /조직도/);
   assert.equal(document.querySelectorAll('#org-chart-root > .org-commander-node').length, 1);
   assert.equal(document.querySelector('.org-commander-name').textContent, '본부장');
   assert.equal(document.querySelectorAll('#org-model-branches > .org-model-branch').length, 2);
@@ -502,7 +502,7 @@ test('organization translates its own labels while custom names and roles remain
   initial.departments[0].name = name;
   initial.departments[0].role = role;
   const { window, document, calls } = await loadUI(t, initial);
-  assert.match(document.querySelector('#page-title').textContent, /Node workspace/);
+  assert.match(document.querySelector('#page-title').textContent, /Organization/);
   assert.equal(document.querySelector('.org-commander-name').textContent, 'Commander');
   assert.match(document.querySelector('.org-agent-card[data-department-id="engineering"] .org-agent-name').textContent, /Engineering/);
   assert.match(document.querySelector('.org-agent-dispatch').textContent, /Assign work/);
@@ -515,7 +515,7 @@ test('organization translates its own labels while custom names and roles remain
     assert.equal(card.querySelector('script'), null);
     assert.equal(window.ORG_XSS, undefined);
   }
-  assert.match(document.querySelector('#page-title').textContent, /ノードワークスペース/);
+  assert.match(document.querySelector('#page-title').textContent, /組織図/);
   assert.equal(document.querySelector('.org-commander-name').textContent, '本部長');
   assert.match(document.querySelector('.org-agent-card[data-department-id="engineering"] .org-agent-name').textContent, /開発本部/);
   assert.match(document.querySelector('.org-agent-dispatch').textContent, /業務を指示/);

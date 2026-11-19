@@ -1,8 +1,9 @@
 (function () {
   'use strict';
   const VIEWS = [
+    ['skills', 'SKILLS', '', '스킬', 'Skills', 'スキル'], ['workflow', 'FLOW', '', '워크플로', 'Workflow', 'ワークフロー'],
     ['collaboration', 'TEAM', '', '협업 보드', 'Collaboration', 'コラボレーション'],
-    ['overview', 'NODES', 'F1', '조직도', 'Nodes', 'ノード'], ['operations', 'TASK', 'F2', '작업', 'Tasks', 'タスク'],
+    ['overview', 'NODES', 'F1', '조직도', 'Organization', '組織図'], ['operations', 'TASK', 'F2', '작업', 'Tasks', 'タスク'],
     ['departments', 'AGENT', 'F3', '에이전트', 'Agents', 'エージェント'], ['logs', 'LOG', 'F4', '활동', 'Activity', 'ログ'],
     ['accounts', 'ACCOUNT', 'F5', 'AI 계정', 'Accounts', 'AIアカウント'], ['terminal', 'TERM', 'F6', '터미널', 'Terminal', 'ターミナル'],
     ['updates', 'UPDATE', 'F7', '업데이트', 'Updates', '更新'], ['projects', 'PROJECT', 'F9', '프로젝트', 'Projects', 'プロジェクト'],
@@ -36,7 +37,7 @@
   }
   function mount() {
     const app = document.querySelector('.app-shell'), topbar = app?.querySelector('.topbar'); if (!app || !topbar) return false;
-    host = h('section', { class: 'terminal-shell', 'aria-label': 'IMPERIUM FUNCTIONS' });
+    host = h('details', { class: 'terminal-shell', id: 'function-command', 'aria-label': 'IMPERIUM FUNCTIONS' });
     keys = h('nav', { class: 'terminal-functionbar', 'aria-label': 'FUNCTION KEYS' });
     input = h('input', { type: 'text', maxlength: '12000', autocomplete: 'off', spellcheck: 'false', 'data-terminal-command': '' });
     const go = h('button', { type: 'submit', class: 'terminal-go' });
@@ -48,8 +49,8 @@
     status = h('span', { class: 'terminal-session-status' }); projectName = h('span', { class: 'terminal-project-name' });
     message = h('span', { class: 'terminal-command-message', role: 'status', 'aria-live': 'polite' });
     help = h('section', { class: 'terminal-command-help', hidden: '', 'aria-label': tr('help') }); help.hidden = true;
-    host.append(keys, form, h('div', { class: 'terminal-workspace-strip' }, tabs, projectName, status), message, help); topbar.after(host);
-    document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) { event.preventDefault(); input.focus(); input.select(); } });
+    host.append(h('summary', { class: 'terminal-command-summary' }, h('span', { class: 'terminal-command-caption' }, 'COMMAND', h('kbd', {}, 'Ctrl K')), projectName, status), keys, form, h('div', { class: 'terminal-workspace-strip' }, tabs), message, help); topbar.after(host);
+    document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) { event.preventDefault(); host.open = true; input.focus(); input.select(); } });
     return true;
   }
   function render(incoming, options = {}) {
