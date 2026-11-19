@@ -4,11 +4,13 @@
 
 **IMPERIUM**, Latin for command or authority, is a local operations terminal for building your own AI workspace. Add yourself, AI connections, roles, and memory to an empty canvas, then follow queues, execution status, tool events, and results from Codex, Claude Code, and other providers. A company organization chart is an optional layout; names and titles are yours to choose.
 
-Version 1.8.0 refreshes the interface and agent skill equipment. Verified version tags generate desktop installers and update metadata. Check [GitHub Releases](https://github.com/Furu002/imperium-terminal/releases) for assets actually published.
+Version 1.8.1 adds an HTS-style output window to the refreshed interface and agent skill equipment. Verified releases generate desktop installers and update metadata. Check [GitHub Releases](https://github.com/Furu002/imperium-terminal/releases) for assets actually published.
 
 The app runs a local web server, viewed in a desktop window or your browser. It tracks tasks launched here; it does not observe existing ChatGPT or Claude conversations or sessions running in other terminals.
 
 ## Terminal workspace and linked knowledge
+
+Selecting work displays the result in the same-screen panel. **Window** opens a movable, resizable, nonmodal window inside the app. **Full screen** fills the app viewport; double-click its title bar to maximize or restore. **Dock** and **Close** return the reader to its panel. `Esc` restores full screen → window → panel. The background remains usable, and raw/read mode, text size, disclosures and reading position survive transitions while output keeps streaming. Project/conversation changes close their owned windows. On narrow screens, fold the task list and composer to prioritize results.
 
 The first screen is a role-based organization chart showing responsibilities, models, assignments, equipped skills and handoffs. Primary navigation is Organization, Skills, Work, Memory and Settings. The Tools menu retains the empty node workflow, conversations, collaboration, terminal, projects, usage and updates. `Ctrl/Cmd+K` opens the folded command line. Bundled Pretendard fonts work offline; results use at least 18px text.
 

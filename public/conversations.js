@@ -67,7 +67,7 @@
       let entry = turns.get(task.id);
       if (!entry) {
         const node = h('section', 'ic-turn'), status = h('div', 'ic-turn-status'), model = h('p', 'ic-model-notice'), loading = h('p', 'ic-detail-note');
-        const view = window.ImperiumOutput?.create({ expanded: true, onCopy: copy }); const fallback = view ? null : h('pre', 'ic-fallback');
+        const view = window.ImperiumOutput?.create({ expanded: true, displayControls: true, onCopy: copy }); const fallback = view ? null : h('pre', 'ic-fallback');
         node.append(status, model, view?.element || fallback, loading); entry = { node, status, model, view, fallback, loading }; turns.set(task.id, entry); timeline.append(node);
       }
       set(entry.status, `${tr(task.status === 'queued' ? 'queuedStatus' : task.status)} · ${providerName(task.provider)}`);

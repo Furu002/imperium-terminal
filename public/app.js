@@ -222,19 +222,21 @@ function syncDispatchExecution(force = false) {
   if (executionSummary) executionSummary.textContent = t('이번 작업 모델 설정');
 }
 const taskDetailCache = new Map(), taskDetailRequests = new Map(), projectDrafts = new Map();
-let inspectorOutputView, inspectorOutputIdentity = '';
+let inspectorOutputView, inspectorOutputIdentity = '', inspectorOutputWorkspace = '', operationControlsOpen = true;
 const taskDetailKey = task => `${task.id}:${task.status}:${task.finishedAt || ''}:${task.outputChars || task.output?.length || 0}`;
 function inspectedTask(task) {
   if (task && ACTIVE.has(task.status)) return { ...task, detailsTruncated: false };
   const cached = task && taskDetailCache.get(taskDetailKey(task)); return cached ? { ...task, output: cached.output, logs: cached.logs, detailsTruncated: false } : task;
 }
 Object.assign(TRANSLATIONS.en, {
+  '작업 목록·지시 작성': 'Task list & command',
   '대화·결과': 'Conversation & results',
   'AI 계정': 'AI accounts', '각자의 계정으로 모델을 등록하고 연결하세요.': 'Register models with your own account.', '터미널': 'Terminal', '프로젝트 폴더의 실제 셸을 사용합니다.': 'Use an interactive shell in your project directory.', '업데이트': 'Updates', '새 버전을 확인하고 설치하세요.': 'Check for a new version and install it.',
   '닫기': 'Close', '현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.': 'Export this project’s memory and all operation records. Shell content and login data are excluded.',
   'F5 AI 계정': 'F5 AI accounts', 'F6 터미널': 'F6 Terminal', 'F7 업데이트': 'F7 Updates'
 });
 Object.assign(TRANSLATIONS.ja, {
+  '작업 목록·지시 작성': 'タスク一覧・指示の作成',
   '대화·결과': '会話と結果',
   'AI 계정': 'AIアカウント', '각자의 계정으로 모델을 등록하고 연결하세요.': '自分のアカウントでモデルを登録・接続します。', '터미널': 'ターミナル', '프로젝트 폴더의 실제 셸을 사용합니다.': 'プロジェクトフォルダーの対話型シェルを使用します。', '업데이트': 'アップデート', '새 버전을 확인하고 설치하세요.': '新しいバージョンを確認してインストールします。',
   '닫기': '閉じる', '현재 프로젝트의 기억과 전체 작업 기록을 내보냅니다. 터미널 내용과 로그인 정보는 포함하지 않습니다.': '現在のプロジェクトの記憶と全タスク履歴を書き出します。シェル内容とログイン情報は含みません。',
@@ -272,7 +274,20 @@ $$('[aria-label],[placeholder],[title]').forEach(item => {
   }
 });
 
+function setOperationControls(open) {
+  operationControlsOpen = open;
+  $('#operation-controls-column').hidden = view === 'operations' && !open;
+  $('#toggle-operation-controls').setAttribute('aria-expanded', String(open));
+  $('.workspace-grid').dataset.controls = open ? 'open' : 'closed';
+}
+function showOperationControls() { setOperationControls(true); }
+
 function installControls() {
+  let compact;
+  const updateOperationBreakpoint = () => { const next = window.innerWidth <= 1000; if (next !== compact) { compact = next; setOperationControls(!compact); } };
+  updateOperationBreakpoint();
+  window.addEventListener('resize', updateOperationBreakpoint);
+  $('#toggle-operation-controls').addEventListener('click', () => setOperationControls(!operationControlsOpen));
   $('#offline-banner').after(node('div', { id: 'storage-banner', class: 'notice notice-warning', role: 'alert', hidden: '' }));
   $('.heading-actions').prepend(node('button', { id: 'project-switcher', class: 'button button-outline', type: 'button', onclick: () => updateView('projects') }, 'PROJECT'));
   const profile = node('div', { class: 'profile-settings' },
@@ -378,6 +393,7 @@ function receiveState(incoming) {
   const previousWorkspace = state.settings.workspace;
   let restoredDepartment = null;
   if (previousWorkspace && incoming.settings?.workspace !== previousWorkspace) {
+    inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = ''; inspectorOutputWorkspace = '';
     taskDetailRequests.clear();
     projectDrafts.set(previousWorkspace, { prompt: $('#dispatch-prompt').value, department: $('#dispatch-department').value, provider: $('#dispatch-provider').value, execution: safeExecutionValue(dispatchExecution) });
     const draft = projectDrafts.get(incoming.settings?.workspace);
@@ -513,6 +529,7 @@ function assignDepartment(departmentId) {
   $('#dispatch-department').value = departmentId;
   $('#dispatch-provider').value = '';
   updateView('operations');
+  showOperationControls();
   renderDepartments();
   $('#dispatch-section').scrollIntoView({ block: 'center', behavior: 'smooth' });
   $('#dispatch-prompt').focus({ preventScroll: true });
@@ -577,7 +594,7 @@ function renderDepartments() {
       node('div', { class: 'department-main' }, node('span', { class: 'department-icon', 'aria-hidden': 'true' }, icons[dept.id] || '◇'), node('div', {}, node('div', { class: 'department-name' }, departmentName(dept)), node('div', { class: 'department-model' }, state.providers.find(provider => provider.id === dept.provider)?.name || providerName(dept.provider)))),
       node('p', { class: `department-description${active ? ' running-task' : ''}`, title: active?.title || departmentRole(dept) }, active?.title || departmentRole(dept)),
       node('button', { class: 'department-edit', type: 'button', title: t('부서 편집'), 'aria-label': `${departmentName(dept)} · ${t('부서 편집')}`, onclick: event => { event.stopPropagation(); openDepartmentEditor(dept); } }, '↗'));
-    const choose = () => { $('#dispatch-department').value = dept.id; $('#dispatch-provider').value = ''; renderDepartments(); if (view !== 'departments') $('#dispatch-prompt').focus({ preventScroll: true }); };
+    const choose = () => { $('#dispatch-department').value = dept.id; $('#dispatch-provider').value = ''; renderDepartments(); if (view !== 'departments') { showOperationControls(); $('#dispatch-prompt').focus({ preventScroll: true }); } };
     card.addEventListener('click', choose);
     card.addEventListener('keydown', event => { if (event.target === card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); choose(); } });
     return card;
@@ -644,7 +661,7 @@ function renderMissions() {
       node('td', {}, node('span', { class: 'task-name', title: task.title }, task.title), subline),
       node('td', {}, node('span', { class: `provider-name ${task.provider}` }, providerName(task.provider)), node('span', { class: 'task-model-id', title: `${task.reportedModel ? (language === 'ja' ? 'CLI報告モデル' : language === 'en' ? 'CLI reported model' : 'CLI 보고 모델') : (language === 'ja' ? '指定モデル・実行モデル未報告' : language === 'en' ? 'Requested model · execution model unreported' : '요청 모델 · 실행 모델 미보고')} · ${task.reportedModel || task.modelId || 'CLI default'}` }, task.reportedModel || task.modelId || 'CLI default')),
       node('td', {}, statusTag(task)), node('td', {}, node('span', { class: 'elapsed-text', 'data-elapsed-task': task.id }, elapsed(task))), action);
-    const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); if (inspectorOutputView) inspectorOutputView.openFull(); else $('#inspector-section').scrollIntoView?.({ block: 'start' }); };
+    const choose = () => { selectedTaskId = task.id; renderMissions(); renderInspector(); if (!inspectorOutputView) $('#inspector-section').scrollIntoView?.({ block: 'nearest' }); };
     row.addEventListener('click', choose);
     row.addEventListener('keydown', event => { if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); choose(); } });
     return row;
@@ -695,7 +712,7 @@ function renderInspector() {
   let task = inspectedTask(state.tasks.find(item => item.id === selectedTaskId));
   $('#copy-output').disabled = !task?.output || task.detailsTruncated;
   if (!task) {
-    inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = '';
+    inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = ''; inspectorOutputWorkspace = '';
     container.replaceChildren(node('div', { class: 'inspector-empty' }, node('div', { class: 'inspector-empty-visual', 'aria-hidden': 'true' }, node('span'), node('span'), node('span')), node('strong', {}, t('작업을 선택하세요')), node('p', {}, t('작업 현황에서 항목을 선택하면'), node('br'), t('진행 과정과 결과를 확인할 수 있습니다.'))));
     return;
   }
@@ -716,12 +733,13 @@ function renderInspector() {
   const tags = node('div', { class: 'inspector-tags' }, node('span', {}, (department ? departmentName(department) : task.departmentName || task.departmentId)), node('span', {}, providerName(task.provider)), node('span', {}, t(task.permission === 'workspace-write' ? '파일 수정 허용됨' : '읽기 전용')));
   if (task.demo) tags.append(node('span', { class: 'demo-tag' }, 'DEMO'));
   const meta = node('div', { class: 'inspector-meta' }, node('div', { class: 'inspector-meta-top' }, node('span', {}, `#${task.id.slice(-8).toUpperCase()}`), statusTag(task)), node('h3', {}, task.title), tags);
-  const parts = [meta];
+  const parts = [meta]; let restoreOutputMode = 'panel';
   if (window.ImperiumOutput) {
     const identity = JSON.stringify([state.settings.workspace, task.id]);
     if (!inspectorOutputView || inspectorOutputIdentity !== identity) {
-      inspectorOutputView?.destroy(); inspectorOutputIdentity = identity;
-      inspectorOutputView = window.ImperiumOutput.create({ onCopy: copyText });
+      if (inspectorOutputWorkspace === state.settings.workspace) restoreOutputMode = inspectorOutputView?.getDisplayMode?.() || 'panel';
+      inspectorOutputView?.destroy(); inspectorOutputIdentity = identity; inspectorOutputWorkspace = state.settings.workspace;
+      inspectorOutputView = window.ImperiumOutput.create({ onCopy: copyText, displayControls: true });
     }
     inspectorOutputView.update({ task, language, provider: providerName(task.provider) });
     parts.push(inspectorOutputView.element);
@@ -743,7 +761,10 @@ function renderInspector() {
   }
   if (task.usage && (task.usage.inputTokens || task.usage.outputTokens)) parts.push(node('div', { class: 'inspector-usage' }, node('span', {}, t('입력 {count} 토큰', { count: num(task.usage.inputTokens) })), node('span', {}, t('출력 {count} 토큰', { count: num(task.usage.outputTokens) }))));
   if (task.status === 'failed') parts.push(node('div', { class: 'inspector-links' }, node('button', { class: 'text-button', type: 'button', onclick: openSettings }, t('연결 상태 확인'), ' ↗')));
-  container.replaceChildren(...parts);
+  for (const child of [...container.children]) if (!parts.includes(child)) child.remove();
+  parts.forEach((part, index) => { if (container.children[index] !== part) container.insertBefore(part, container.children[index] || null); });
+  if (restoreOutputMode === 'window') inspectorOutputView?.openWindow?.();
+  else if (restoreOutputMode === 'fullscreen') inspectorOutputView?.openFull?.();
   if (focusedControl?.isConnected) focusedControl.focus({ preventScroll: true });
   container.scrollTop = wasAtBottom && task.status === 'running' ? container.scrollHeight : oldScroll;
 }
@@ -751,6 +772,7 @@ function renderInspector() {
 function updateView(next) {
   view = ['overview', 'skills', 'workflow', 'operations', 'chat', 'collaboration', 'departments', 'logs', 'accounts', 'terminal', 'updates', 'projects', 'analytics', 'knowledge'].includes(next) ? next : 'overview';
   $('.app-shell').dataset.view = view;
+  setOperationControls(operationControlsOpen);
   const toolNavigation = $('.workbench-secondary-nav');
   if (toolNavigation) toolNavigation.open = Boolean(toolNavigation.querySelector(`[data-view="${view}"]`));
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
@@ -789,12 +811,12 @@ function renderExtensions() {
       collaborationMounted = true;
       window.ImperiumCollaboration.mount($('#collaboration-section'), { getState: () => state, api, isVisible: () => view === 'collaboration', onSelectTask: id => {
         if (!state.tasks.some(task => task.id === id)) return;
-        selectedTaskId = id; updateView('operations'); renderMissions(); renderInspector(); inspectorOutputView?.openFull();
+        selectedTaskId = id; updateView('operations'); renderMissions(); renderInspector();
       } });
     }
     if (collaborationMounted) window.ImperiumCollaboration.render(state, { visible: view === 'collaboration' });
   }
-  if (view === 'chat' && window.ImperiumConversations) {
+  if (window.ImperiumConversations && (view === 'chat' || conversationsMounted)) {
     if (!conversationsMounted) { conversationsMounted = true; window.ImperiumConversations.mount($('#conversations-section'), { getState: () => state, api, onChanged: async () => receiveState(await api('/api/state')) }); }
     window.ImperiumConversations.render(state);
   }
@@ -804,7 +826,7 @@ function renderExtensions() {
     selectedTaskId = id; updateView('operations'); renderMissions(); renderInspector();
     $('#inspector-section').scrollIntoView({ block: 'nearest' });
   } });
-  window.ImperiumTerminalShell?.render(state, { language, view, connected, onNavigate: updateView, onSettings: openSettings, onPrepareTask: text => { const prompt = $('#dispatch-prompt'); if (prompt.value.trim() && prompt.value.trim() !== text.trim()) return false; if (!prompt.value.trim()) { prompt.value = text; prompt.dispatchEvent(new Event('input')); } prompt.focus(); return true; } });
+  window.ImperiumTerminalShell?.render(state, { language, view, connected, onNavigate: updateView, onSettings: openSettings, onPrepareTask: text => { const prompt = $('#dispatch-prompt'); if (prompt.value.trim() && prompt.value.trim() !== text.trim()) return false; if (!prompt.value.trim()) { prompt.value = text; prompt.dispatchEvent(new Event('input')); } showOperationControls(); prompt.focus(); return true; } });
   window.ImperiumMascots?.render(state, { language });
   if (state.server.csrfToken && window.ImperiumQuotas) {
     if (!quotasMounted) { quotasMounted = true; quotaStamp = state.server.quotaUpdatedAt; window.ImperiumQuotas.mount($('#quotas-section'), { getState: () => state, api, compact: true }); }
@@ -933,14 +955,14 @@ function bindEvents() {
   });
   $('#dispatch-prompt').addEventListener('input', () => { $('#prompt-count').textContent = `${num($('#dispatch-prompt').value.length)} / 12,000`; $('#dispatch-error').hidden = true; });
   $('#write-permission').addEventListener('change', () => { $('#permission-description').textContent = t($('#write-permission').checked ? '파일 수정이 가능한 작업으로 실행합니다.' : '기본: 읽기 및 분석만'); });
-  $('#focus-dispatch').addEventListener('click', () => { $('#dispatch-section').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#dispatch-prompt').focus({ preventScroll: true }); });
-  $$('[data-prompt]').forEach(button => button.addEventListener('click', () => { $('#dispatch-prompt').value = t(button.dataset.prompt); $('#dispatch-prompt').dispatchEvent(new Event('input')); $('#dispatch-prompt').focus(); }));
+  $('#focus-dispatch').addEventListener('click', () => { showOperationControls(); $('#dispatch-section').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#dispatch-prompt').focus({ preventScroll: true }); });
+  $$('[data-prompt]').forEach(button => button.addEventListener('click', () => { $('#dispatch-prompt').value = t(button.dataset.prompt); $('#dispatch-prompt').dispatchEvent(new Event('input')); showOperationControls(); $('#dispatch-prompt').focus(); }));
 
   $('#dispatch-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (dispatchPending) return;
     const prompt = $('#dispatch-prompt').value.trim();
-    if (!prompt) { toast(t('지시할 내용을 입력해주세요.'), true); $('#dispatch-prompt').focus(); return; }
+    if (!prompt) { toast(t('지시할 내용을 입력해주세요.'), true); showOperationControls(); $('#dispatch-prompt').focus(); return; }
     if (!connected) { toast(t('연결된 뒤 다시 시도해주세요.'), true); return; }
     const departmentId = $('#dispatch-department').value;
     const department = state.departments.find(dept => dept.id === departmentId);
@@ -1045,7 +1067,7 @@ function bindEvents() {
     if (shortcuts[event.key]) { event.preventDefault(); if (!dialogOpen) updateView(shortcuts[event.key]); return; }
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !dialogOpen && document.activeElement === $('#dispatch-prompt')) { event.preventDefault(); $('#dispatch-form').requestSubmit(); return; }
     const editing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
-    if (event.key === '/' && !editing && !dialogOpen) { event.preventDefault(); if (view === 'departments' || view === 'logs') updateView('operations'); $('#task-search').focus(); }
+    if (event.key === '/' && !editing && !dialogOpen) { event.preventDefault(); if (view !== 'operations') updateView('operations'); showOperationControls(); $('#task-search').focus(); }
   });
 }
 

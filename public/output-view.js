@@ -15,6 +15,21 @@
   Object.assign(COPY.ko, { expand: '크게 읽기', fontDown: '글자 작게', fontUp: '글자 크게' });
   Object.assign(COPY.en, { expand: 'Read large', fontDown: 'Smaller text', fontUp: 'Larger text' });
   Object.assign(COPY.ja, { expand: '大きく読む', fontDown: '文字を小さく', fontUp: '文字を大きく' });
+  Object.assign(COPY.ko, { expand: '전체화면', window: '창 보기', dock: '패널로', restore: '창 복원', floating: '결과창이 열려 있습니다.', focusWindow: '결과창으로', dragWindow: '제목줄을 끌어 이동 · 두 번 클릭하여 전체화면 전환' });
+  Object.assign(COPY.en, { expand: 'Full screen', window: 'Window', dock: 'Dock', restore: 'Restore window', floating: 'The response is open in a window.', focusWindow: 'Focus response', dragWindow: 'Drag to move · double-click to toggle full screen' });
+  Object.assign(COPY.ja, { expand: '全画面', window: 'ウィンドウ', dock: 'パネルに戻す', restore: 'ウィンドウに戻す', floating: '回答ウィンドウを表示しています。', focusWindow: '回答を表示', dragWindow: 'ドラッグで移動・ダブルクリックで全画面切替' });
+  const floatingReaders = [];
+  let windowLayer = 100;
+  let inertApp, originalAppInert = false;
+  function syncWindowInert() {
+    const compact = window.innerWidth <= 640 || window.innerHeight <= 420;
+    const fullscreen = floatingReaders.some(entry => entry.mode() === 'fullscreen' || compact && entry.mode() === 'window'), foreground = floatingReaders.at(-1), app = document.querySelector('.app-shell');
+    if (fullscreen && app) { if (inertApp !== app) { if (inertApp) inertApp.inert = originalAppInert; inertApp = app; originalAppInert = app.inert === true; } app.inert = true; }
+    else if (inertApp) { inertApp.inert = originalAppInert; inertApp = null; }
+    for (const entry of floatingReaders) { const node = entry.node(); if (node) { node.inert = fullscreen && entry !== foreground; node.setAttribute('aria-modal', String(fullscreen && entry === foreground)); } }
+    const active = foreground?.node();
+    if (fullscreen && active && !active.contains(document.activeElement) && !document.querySelector('dialog[open]:not(.io-dialog)')) active.querySelector('button')?.focus({ preventScroll: true });
+  }
   const FONT_KEY = 'imperium.outputFontSize', readers = new Set();
   let fontWasChosen = false;
   function storedFontSize() {
@@ -140,33 +155,146 @@
   }
   function create(configuration = {}) {
     const element = h('div', 'io-conversation');
-    let current, language = 'ko', provider = '', previous, response, request, metadata, logs, dialog, expandedView, readingLimit = FIRST_CHUNK, rawLimit = RAW_CHUNK, rawSelected = false;
+    const host = h('div', 'io-output-host'); host.dataset.displayMode = 'panel'; host.append(element);
+    let current, language = 'ko', provider = '', previous, response, request, metadata, logs, dialog, dialogBody, windowHeader, windowTitle, windowActions, placeholder, resizeObserver, drag, savedRect, preferredRect, chromeSignature = '', displayMode = 'panel', disposed = false, lastFocus, panelScroll, windowScroll = 0, readingLimit = FIRST_CHUNK, rawLimit = RAW_CHUNK, rawSelected = false;
+    const windowEntry = { host, node: () => dialog, mode: () => displayMode };
     const copyOptions = () => ({ onCopy: configuration.onCopy, copied: words(language).copied, copyFailed: words(language).copyFailed });
     const fontForView = () => Math.min(28, outputFontSize + (configuration.expanded && !fontWasChosen ? 2 : 0));
     function applyFont() {
       const size = fontForView(), cssSize = `${size}px`;
       if (element.style.getPropertyValue('--io-body-size') !== cssSize) element.style.setProperty('--io-body-size', cssSize);
+      host.style.setProperty('--io-body-size', cssSize);
       for (const control of element.querySelectorAll('.io-font-down')) { control.disabled = size <= 14; control.setAttribute('aria-label', words(language).fontDown); control.title = words(language).fontDown; }
       for (const control of element.querySelectorAll('.io-font-up')) { control.disabled = size >= 28; control.setAttribute('aria-label', words(language).fontUp); control.title = words(language).fontUp; }
       for (const label of element.querySelectorAll('.io-font-size')) label.textContent = `${size}px`;
     }
     const reader = { applyFont }; readers.add(reader); applyFont();
-    function closeDialog() {
-      if (!dialog) return;
-      const previousDialog = dialog; dialog = null; expandedView?.destroy(); expandedView = null;
-      if (previousDialog.open && typeof previousDialog.close === 'function') previousDialog.close();
-      previousDialog.remove();
+    function foreignModal() { return Boolean(document.querySelector('dialog[open]:not(.io-dialog)')); }
+    function raise(focus = false) {
+      if (!dialog || disposed) return;
+      const index = floatingReaders.indexOf(windowEntry); if (index >= 0) floatingReaders.splice(index, 1); floatingReaders.push(windowEntry);
+      dialog.style.zIndex = String(++windowLayer);
+      syncWindowInert();
+      if (focus && !foreignModal()) windowActions?.querySelector('button')?.focus({ preventScroll: true });
     }
-    function expand() {
-      if (dialog || !current) return;
-      const w = words(language); dialog = h('dialog', 'io-dialog'); dialog.setAttribute('aria-label', w.answer);
-      const header = h('header', 'io-dialog-heading'); header.append(h('strong', '', current.title || w.answer), button(w.close, 'io-dialog-close', closeDialog));
-      expandedView = create({ ...configuration, expanded: true }); expandedView.update({ task: current, language, provider });
-      const body = h('div', 'io-dialog-body'); body.append(expandedView.element); dialog.append(header, body); document.body.append(dialog);
-      const openedDialog = dialog;
-      dialog.addEventListener('close', () => { if (dialog === openedDialog) closeDialog(); });
-      if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
-      header.querySelector('button').focus();
+    function dimensions() { return { width: Math.max(1, window.innerWidth || 1280), height: Math.max(1, window.innerHeight || 800) }; }
+    function fitRect(value = {}) {
+      const viewport = dimensions(), maxWidth = Math.max(1, viewport.width - 16), maxHeight = Math.max(1, viewport.height - 16);
+      const finite = (number, fallback) => Number.isFinite(number) ? number : fallback;
+      const width = Math.min(maxWidth, Math.max(Math.min(420, maxWidth), finite(value.width, Math.min(1060, maxWidth))));
+      const height = Math.min(maxHeight, Math.max(Math.min(260, maxHeight), finite(value.height, Math.min(760, maxHeight))));
+      return { width, height, left: Math.max(0, Math.min(viewport.width - width, finite(value.left, (viewport.width - width) / 2))), top: Math.max(0, Math.min(viewport.height - height, finite(value.top, (viewport.height - height) / 2))) };
+    }
+    function applyRect(value, remember = true) {
+      savedRect = fitRect(value);
+      if (remember || !preferredRect) preferredRect = { ...savedRect };
+      if (!dialog) return;
+      for (const key of ['left', 'top', 'width', 'height']) dialog.style.setProperty(`--io-window-${key}`, `${savedRect[key]}px`);
+      dialog.style.removeProperty('width'); dialog.style.removeProperty('height');
+    }
+    function selectionState() {
+      const selection = window.getSelection?.(); if (!selection?.rangeCount) return null;
+      const range = selection.getRangeAt(0); if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) return null;
+      return { start: range.startContainer, startOffset: range.startOffset, end: range.endContainer, endOffset: range.endOffset };
+    }
+    function restoreSelection(value) {
+      if (!value || !element.contains(value.start) || !element.contains(value.end)) return;
+      try { const range = document.createRange(); range.setStart(value.start, value.startOffset); range.setEnd(value.end, value.endOffset); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); } catch { /* Content may have changed while streaming. */ }
+    }
+    function readingSelection() {
+      const selection = window.getSelection?.(); if (!selection?.rangeCount || selection.isCollapsed) return null;
+      const range = selection.getRangeAt(0), areas = ['.io-reading', '.io-raw-view'];
+      for (const selector of areas) { const area = element.querySelector(selector); if (!area?.contains(range.startContainer) || !area.contains(range.endContainer)) continue; const prefix = document.createRange(); prefix.selectNodeContents(area); prefix.setEnd(range.startContainer, range.startOffset); const start = prefix.toString().length; prefix.setEnd(range.endContainer, range.endOffset); return { selector, start, end: prefix.toString().length, text: range.toString() }; }
+      return null;
+    }
+    function restoreReadingSelection(value) {
+      const area = value && element.querySelector(value.selector); if (!area) return;
+      const locate = (offset, preferNext = false) => { const walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT); let node; while ((node = walker.nextNode())) { if (offset < node.length || !preferNext && offset === node.length) return [node, offset]; offset -= node.length; } return null; };
+      const start = locate(value.start, true), end = locate(value.end); if (!start || !end) return;
+      try { const range = document.createRange(); range.setStart(...start); range.setEnd(...end); if (range.toString() !== value.text) return; const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); } catch {}
+    }
+    function scrollParent() {
+      for (let parent = element; parent; parent = parent.parentElement) if (/(auto|scroll)/.test(window.getComputedStyle(parent).overflowY)) return parent;
+      return document.scrollingElement || document.documentElement;
+    }
+    function stopDrag() {
+      if (drag) { try { windowHeader?.releasePointerCapture?.(drag.pointerId); } catch {} }
+      drag = null; dialog?.classList.remove('io-window-dragging');
+      document.removeEventListener('pointermove', moveDrag); document.removeEventListener('pointerup', stopDrag); document.removeEventListener('pointercancel', stopDrag);
+    }
+    function moveDrag(event) {
+      if (!drag || displayMode !== 'window' || event.pointerId !== drag.pointerId) return;
+      applyRect({ ...drag.rect, left: drag.rect.left + event.clientX - drag.x, top: drag.rect.top + event.clientY - drag.y }); event.preventDefault();
+    }
+    function beginDrag(event) {
+      if (displayMode !== 'window' || event.button !== 0 || event.target.closest('button,input,textarea,select,a') || foreignModal()) return;
+      raise(); drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, rect: { ...savedRect } };
+      try { windowHeader.setPointerCapture?.(event.pointerId); } catch {}
+      dialog.classList.add('io-window-dragging'); document.addEventListener('pointermove', moveDrag); document.addEventListener('pointerup', stopDrag); document.addEventListener('pointercancel', stopDrag); event.preventDefault();
+    }
+    function inlineControls() {
+      const target = element.querySelector('.io-message-actions'); if (!target) return;
+      target.replaceChildren();
+      if (configuration.displayControls !== false && displayMode === 'panel') target.append(button(words(language).window, 'io-window', () => setMode('window')), button(words(language).expand, 'io-expand', () => setMode('fullscreen')));
+    }
+    function windowChrome() {
+      if (!dialog) return;
+      const signature = JSON.stringify([language, current?.title, displayMode]); if (signature === chromeSignature) return; chromeSignature = signature;
+      const w = words(language); dialog.setAttribute('aria-label', w.answer); windowTitle.textContent = current?.title || w.answer;
+      windowHeader.title = w.dragWindow;
+      const focused = windowActions.contains(document.activeElement) ? document.activeElement.className : null;
+      windowActions.replaceChildren(button(w.dock, 'io-window-dock', () => dock()), button(w.restore, 'io-window-restore', () => setMode('window')), button(w.expand, 'io-window-fullscreen', () => setMode('fullscreen')), button(w.close, 'io-dialog-close', () => dock()));
+      windowActions.querySelector('.io-window-restore').hidden = displayMode === 'window';
+      windowActions.querySelector('.io-window-fullscreen').hidden = displayMode === 'fullscreen';
+      if (typeof focused === 'string' && !foreignModal()) [...windowActions.children].find(control => control.className === focused && !control.hidden)?.focus({ preventScroll: true });
+      if (placeholder) { placeholder.querySelector('span').textContent = w.floating; placeholder.querySelector('.io-window-focus').textContent = w.focusWindow; placeholder.querySelector('.io-dock').textContent = w.dock; }
+    }
+    function onViewportResize() { if (dialog) { applyRect(preferredRect || savedRect, false); syncWindowInert(); } }
+    function onWindowKey(event) {
+      if (event.key !== 'Escape' || !dialog || floatingReaders.at(-1) !== windowEntry || foreignModal() || displayMode !== 'fullscreen' && !dialog.contains(document.activeElement)) return;
+      event.preventDefault(); event.stopImmediatePropagation(); if (displayMode === 'fullscreen') setMode('window'); else dock();
+    }
+    function createDialog() {
+      lastFocus = document.activeElement; const scroller = scrollParent(), top = scroller?.scrollTop || 0;
+      const offset = scroller === element ? 0 : top + element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      panelScroll = { element: scroller, offset }; windowScroll = Math.max(0, top - offset);
+      const selection = selectionState();
+      dialog = h('dialog', 'io-dialog'); dialog.dataset.mode = displayMode; dialog.dataset.displayMode = displayMode; dialog.setAttribute('aria-modal', 'false'); chromeSignature = '';
+      windowHeader = h('header', 'io-dialog-heading io-window-drag-handle'); windowTitle = h('strong'); windowActions = h('div', 'io-window-actions'); windowHeader.append(windowTitle, windowActions);
+      windowHeader.addEventListener('pointerdown', beginDrag);
+      windowHeader.addEventListener('dblclick', event => { if (!event.target.closest('button,input,textarea,select,a') && !foreignModal()) setMode(displayMode === 'fullscreen' ? 'window' : 'fullscreen'); });
+      dialogBody = h('div', 'io-dialog-body'); dialogBody.append(element); dialog.append(windowHeader, dialogBody);
+      placeholder = h('div', 'io-window-placeholder'); placeholder.append(h('span'), button(words(language).focusWindow, 'io-window-focus', () => raise(true)), button(words(language).dock, 'io-dock', () => dock())); host.replaceChildren(placeholder);
+      dialog.addEventListener('pointerdown', () => raise());
+      dialog.addEventListener('close', () => { if (dialog) dock(false); });
+      document.body.append(dialog); applyRect(preferredRect || savedRect, false); windowChrome();
+      if (typeof dialog.show === 'function') dialog.show(); else dialog.setAttribute('open', '');
+      if (typeof ResizeObserver === 'function') { resizeObserver = new ResizeObserver(entries => { const viewport = dimensions(); if (!dialog || displayMode !== 'window' || drag || viewport.width <= 640 || viewport.height <= 420 || !dialog.style.width && !dialog.style.height) return; const box = entries[0]?.borderBoxSize, size = Array.isArray(box) ? box[0] : box; const bounds = dialog.getBoundingClientRect(); const width = size?.inlineSize || bounds.width, height = size?.blockSize || bounds.height; if (width > 0 && height > 0 && (Math.abs(width - savedRect.width) > 1 || Math.abs(height - savedRect.height) > 1)) applyRect({ ...savedRect, width, height }); }); resizeObserver.observe(dialog); }
+      window.addEventListener('resize', onViewportResize); document.addEventListener('keydown', onWindowKey);
+      dialogBody.scrollTop = windowScroll; restoreSelection(selection); raise(true);
+    }
+    function setMode(mode) {
+      if (disposed || !current) return;
+      if (mode === 'panel') { dock(); return; }
+      if (!['window', 'fullscreen'].includes(mode)) return;
+      const hadWindowFocus = Boolean(dialog?.contains(document.activeElement));
+      const selection = selectionState(), previousScroll = dialogBody?.scrollTop;
+      stopDrag(); displayMode = mode; host.dataset.displayMode = mode;
+      if (!dialog) createDialog();
+      else { dialog.dataset.mode = mode; dialog.dataset.displayMode = mode; applyRect(preferredRect || savedRect, false); windowChrome(); raise(hadWindowFocus); }
+      inlineControls(); applyFont(); if (Number.isFinite(previousScroll)) dialogBody.scrollTop = previousScroll; restoreSelection(selection);
+    }
+    function dock(restoreFocus = true) {
+      if (!dialog) { displayMode = 'panel'; host.dataset.displayMode = 'panel'; return; }
+      const selection = selectionState(), closing = dialog; windowScroll = dialogBody?.scrollTop || 0;
+      stopDrag(); resizeObserver?.disconnect(); resizeObserver = null; window.removeEventListener('resize', onViewportResize); document.removeEventListener('keydown', onWindowKey);
+      const index = floatingReaders.indexOf(windowEntry); if (index >= 0) floatingReaders.splice(index, 1);
+      dialog = null; dialogBody = null; displayMode = 'panel'; host.dataset.displayMode = 'panel'; host.replaceChildren(element); placeholder = null;
+      syncWindowInert();
+      if (closing.open && typeof closing.close === 'function') closing.close(); closing.remove(); inlineControls(); applyFont();
+      if (panelScroll?.element?.isConnected) panelScroll.element.scrollTop = Math.max(0, panelScroll.offset + windowScroll);
+      if (restoreFocus && !foreignModal()) { const foreground = floatingReaders.at(-1)?.node(); const target = document.querySelector('.app-shell')?.inert && foreground ? foreground.querySelector('button') : lastFocus?.isConnected ? lastFocus : element.querySelector('.io-window'); target?.focus({ preventScroll: true }); }
+      restoreSelection(selection);
     }
     function buildResponse() {
       const task = current, w = words(language), output = text(task.output);
@@ -175,7 +303,7 @@
       identity.lastChild.append(h('strong', '', provider || 'AI'), h('span', 'io-role', w.answer));
       identity.lastChild.append(h('span', 'io-model-label', task.reportedModel ? `${w.actualModel} · ${task.reportedModel}` : `${w.requestedModel} · ${task.modelId || w.defaultModel} · ${w.unreportedModel}`));
       const actions = h('div', 'io-message-actions');
-      if (!configuration.expanded) actions.append(button(w.expand, 'io-expand', expand));
+      if (configuration.displayControls !== false && displayMode === 'panel') actions.append(button(w.window, 'io-window', () => setMode('window')), button(w.expand, 'io-expand', () => setMode('fullscreen')));
       header.append(identity, actions); article.append(header);
       const toolbar = h('div', 'io-output-toolbar'), modes = h('div', 'io-output-modes');
       const read = button(w.reading, 'io-mode active', () => selectMode(false)), raw = button(w.raw, 'io-mode', () => selectMode(true));
@@ -237,13 +365,17 @@
       }); return details;
     }
     function update(value = {}) {
+      if (disposed) return;
+      const savedScroll = dialogBody?.scrollTop;
+      const selectedNodes = selectionState(), selectedText = readingSelection();
       const task = value.task || {}, nextLanguage = COPY[value.language] ? value.language : 'ko', nextProvider = text(value.provider);
       const old = previous;
       current = task; language = nextLanguage; provider = nextProvider;
       const languageChanged = !old || old.language !== language;
       if (!request || languageChanged || old.prompt !== task.prompt) {
-        request = h('article', 'inspector-prompt io-message io-request');
-        const header = h('header', 'io-message-heading'); header.append(h('span', 'io-avatar io-user-avatar', 'YOU'), h('strong', '', words(language).request));
+        const wasOpen = request?.open;
+        request = h('details', 'inspector-prompt io-message io-request io-request-disclosure'); request.open = Boolean(wasOpen);
+        const header = h('summary', 'io-message-heading'); header.append(h('span', 'io-avatar io-user-avatar', 'YOU'), h('strong', '', words(language).request), h('span', 'io-request-preview', text(task.prompt).replace(/\s+/g, ' ').slice(0, 90)));
         request.append(header, h('p', 'io-request-text', text(task.prompt)));
       }
       if (!response || languageChanged || old.output !== task.output || old.status !== task.status || old.error !== task.error || old.truncated !== task.detailsTruncated || old.provider !== provider || old.modelId !== task.modelId || old.reportedModel !== task.reportedModel) {
@@ -251,7 +383,7 @@
         response = buildResponse();
       }
       const detailsKey = JSON.stringify([task.modelId, task.reportedModel, task.reasoningEffort, task.speed, task.permission]);
-      if (!metadata || languageChanged || old.detailsKey !== detailsKey) metadata = buildDetails();
+      if (!metadata || languageChanged || old.detailsKey !== detailsKey) { const wasOpen = metadata?.open; metadata = buildDetails(); metadata.open = Boolean(wasOpen); }
       const records = Array.isArray(task.logs) ? task.logs : [];
       const logsKey = JSON.stringify([records.length, records[0]?.id, records.at(-1)?.id, records.at(-1)?.type, records.at(-1)?.source, text(records.at(-1)?.text).slice(-200)]);
       if (!logs || languageChanged || old.logsKey !== logsKey) { const wasOpen = logs?.open; logs = buildLogs(); logs.open = Boolean(wasOpen); }
@@ -259,10 +391,10 @@
       const desired = [request, response, metadata, logs];
       if (desired.some((node, index) => element.children[index] !== node)) element.replaceChildren(...desired);
       applyFont();
-      expandedView?.update(value);
-      if (dialog) { dialog.setAttribute('aria-label', words(language).answer); dialog.querySelector('.io-dialog-heading strong').textContent = task.title || words(language).answer; dialog.querySelector('.io-dialog-close').textContent = words(language).close; }
+      restoreSelection(selectedNodes); restoreReadingSelection(selectedText);
+      if (dialog) { windowChrome(); if (Number.isFinite(savedScroll)) dialogBody.scrollTop = savedScroll; }
     }
-    return { element, update, openFull: expand, expand, destroy() { closeDialog(); readers.delete(reader); element.remove(); previous = null; } };
+    return { element: host, update, openWindow: () => setMode('window'), openFull: () => setMode('fullscreen'), expand: () => setMode('fullscreen'), dock, getDisplayMode: () => displayMode, destroy() { if (disposed) return; dock(false); disposed = true; readers.delete(reader); host.remove(); element.remove(); previous = null; current = null; } };
   }
   window.ImperiumOutput = Object.freeze({ create, renderMarkdown, safeLink });
 }());

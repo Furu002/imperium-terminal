@@ -212,20 +212,21 @@ test('completed task logs retain original text while translating skill and publi
   } finally { ui.close(); }
 });
 
-test('readable defaults expose a public large-reader API and a nearly full-window dialog', () => {
+test('readable defaults expose explicit window and fullscreen reader controls', () => {
   const ui = fixture();
   try {
     const style = ui.document.createElement('style'); style.textContent = styles; ui.document.head.append(style);
     ui.update(task({ reportedModel: 'observed-model' }));
     assert.equal(ui.view.element.style.getPropertyValue('--io-body-size'), '18px');
-    assert.equal(ui.document.querySelector('.io-expand').textContent, 'Read large');
+    assert.equal(ui.document.querySelector('.io-expand').textContent, 'Full screen');
+    assert.equal(ui.document.querySelector('.io-window').textContent, 'Window');
     assert.equal(ui.document.querySelector('dialog'), null, 'streamed updates do not open a window');
     ui.view.openFull();
     const dialog = ui.document.querySelector('.io-dialog');
     assert.equal(dialog.open, true);
-    assert.equal(dialog.querySelector('.io-conversation').style.getPropertyValue('--io-body-size'), '20px');
-    assert.equal(Number.parseFloat(ui.dom.window.getComputedStyle(dialog).width), Math.min(1400, ui.dom.window.innerWidth - 32));
-    assert.equal(Number.parseFloat(ui.dom.window.getComputedStyle(dialog).height), ui.dom.window.innerHeight - 32);
+    assert.equal(dialog.querySelector('.io-conversation').style.getPropertyValue('--io-body-size'), '18px');
+    assert.equal(dialog.dataset.mode, 'fullscreen');
+    assert.equal(dialog.getAttribute('aria-modal'), 'true');
     assert.match(dialog.querySelector('.io-model-label').textContent, /observed-model/);
     assert.equal(dialog.querySelector('.io-expand'), null);
     ui.view.openFull(); assert.equal(ui.document.querySelectorAll('.io-dialog').length, 1);

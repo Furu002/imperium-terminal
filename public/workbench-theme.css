@@ -466,3 +466,123 @@ dialog:not(.io-dialog) { max-width: calc(100vw - 24px); max-height: calc(100dvh 
 @media (prefers-reduced-motion: reduce) {
   .app-shell *, .app-shell *::before, .app-shell *::after { scroll-behavior: auto; transition-duration: 0s; }
 }
+
+/* Work and answer share the remaining viewport; selecting a task never requires
+   searching below the command form. Activity/accounts remain in their tool views. */
+.app-shell[data-view=operations] > .main-content { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
+.app-shell[data-view=operations] :is(.page-heading,#quotas-section,.lp-live-progress,.metrics-strip,.notice) { flex:none; margin-top:0; margin-bottom:0; }
+.app-shell[data-view=operations] .page-heading { gap:10px; }
+.app-shell[data-view=operations] .lp-live-progress { max-height:20dvh; overflow:auto; }
+.app-shell[data-view=operations] #quotas-section .iq-expanded-body { max-height:22dvh; overflow:auto; }
+.app-shell[data-view=operations] .metrics-strip { min-height:0; }
+.app-shell[data-view=operations] .metrics-strip .metric { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:4px 8px; min-height:44px; padding:6px 10px; }
+.app-shell[data-view=operations] .metric-label { font-size:12px; }
+.app-shell[data-view=operations] .metric > div { gap:6px; margin:0; }
+.app-shell[data-view=operations] .metric strong { font-size:21px; line-height:1.3; }
+.app-shell[data-view=operations] .metric-detail { display:none; }
+.app-shell[data-view=operations] .workspace-grid { display:grid; grid-template-columns:minmax(280px,3fr) minmax(0,7fr); align-items:stretch; justify-items:stretch; flex:1 1 0%; gap:12px; width:100%; max-width:none; min-width:0; min-height:0; overflow:hidden; }
+#toggle-operation-controls { display:none; }
+.app-shell[data-view=operations] .primary-column { display:flex; flex-direction:column; grid-column:1; grid-row:1; gap:12px; width:100%; max-width:none; min-width:0; min-height:0; align-self:stretch; justify-self:stretch; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; container:operation-controls / inline-size; }
+.app-shell[data-view=operations] .primary-column > .panel { flex:none; min-height:0; }
+.app-shell[data-view=operations] .secondary-column { display:flex; flex-direction:column; grid-column:2; grid-row:1; align-items:stretch; align-self:stretch; justify-self:stretch; width:100%; max-width:none; min-width:0; min-height:0; overflow:hidden; }
+.app-shell[data-view=operations] .secondary-column > :is(#activity-section,.connection-summary) { display:none; }
+.app-shell[data-view=operations] #inspector-section { display:flex; flex-direction:column; flex:1 1 0%; order:0; grid-column:auto; grid-row:auto; align-self:stretch; width:100%; max-width:none; min-width:0; min-height:0; height:100%; overflow:hidden; }
+.app-shell[data-view=operations] #inspector-section > .panel-heading { flex:none; }
+.app-shell[data-view=operations] #inspector-content { display:flex; flex-direction:column; flex:1 1 0%; min-width:0; min-height:0; height:auto; max-height:none; overflow:hidden; padding:0; }
+.app-shell[data-view=operations] #inspector-content > .inspector-empty { flex:1 1 0%; min-height:0; padding:20px; overflow:auto; }
+.app-shell[data-view=operations] .inspector-meta { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; flex:none; min-width:0; margin:0; padding:8px 12px; }
+.app-shell[data-view=operations] .inspector-meta-top { display:flex; grid-column:2; grid-row:1; align-items:center; gap:8px; font-size:12px; }
+.app-shell[data-view=operations] .inspector-meta h3 { grid-column:1; grid-row:1; min-width:0; margin:0; color:var(--text); font:600 14px/1.5 var(--font-sans); overflow-wrap:anywhere; }
+.app-shell[data-view=operations] .inspector-tags { grid-column:1/-1; grid-row:2; display:flex; flex-wrap:wrap; gap:4px 8px; margin:0; font-size:12px; line-height:1.5; }
+.app-shell[data-view=operations] .operation-progress { flex:none; min-width:0; margin:0; padding:6px 12px; gap:4px; border-width:0 0 1px; border-color:var(--line); font:12px/1.5 var(--font-sans); }
+.app-shell[data-view=operations] .operation-progress-track { height:3px; }
+.app-shell[data-view=operations] .inspector-memory,.app-shell[data-view=operations] .inspector-usage { flex:none; margin:0; padding:6px 12px; font-size:12px; line-height:1.5; }
+.app-shell[data-view=operations] #inspector-content > .io-output-host { flex:1 1 0%; min-height:0; overflow:hidden; }
+.app-shell[data-view=operations] .io-output-host > .io-conversation { flex:1 1 0%; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+.app-shell[data-view=operations] .io-output-host > .io-window-placeholder { flex:1 1 0%; min-height:0; overflow:auto; }
+.app-shell[data-view=operations] .mission-table-wrap { min-width:0; max-height:min(28dvh,300px); }
+.app-shell[data-view=operations] .mission-table { width:100%; min-width:0; table-layout:fixed; }
+.app-shell[data-view=operations] .mission-table :is(th,td) { padding-inline:8px; }
+.app-shell[data-view=operations] .mission-table th:nth-child(2) { width:auto; }
+.app-shell[data-view=operations] .mission-table th:nth-child(4) { width:84px; }
+.app-shell[data-view=operations] .mission-table .action-col { width:36px; }
+.app-shell[data-view=operations] .mission-table .task-name { white-space:normal; overflow-wrap:anywhere; }
+.app-shell[data-view=operations] .mission-toolbar { align-items:stretch; gap:6px; padding:8px; }
+.app-shell[data-view=operations] .filter-tabs { width:100%; gap:3px; }
+.app-shell[data-view=operations] .filter-tab { flex:1 1 auto; padding:5px 6px; min-height:32px; font-size:12px; }
+.app-shell[data-view=operations] .search-wrap { width:100%; }
+.app-shell[data-view=operations] .dispatch-context { display:flex; flex-direction:column; align-items:stretch; padding:12px; gap:10px; }
+.app-shell[data-view=operations] .dispatch-context label,.app-shell[data-view=operations] .dispatch-context select { width:100%; min-width:0; }
+.app-shell[data-view=operations] .dispatch-footer { padding:10px 12px; gap:10px; }
+.app-shell[data-view=operations] .dispatch-submit { margin-left:auto; flex-wrap:wrap; }
+.app-shell[data-view=operations] .panel-heading { padding:9px 12px; }
+@container operation-controls (max-width:480px) {
+  .mission-table :is(th,td):first-child,
+  .mission-table :is(th,td):nth-child(3),
+  .mission-table :is(th,td).elapsed-col,
+  .mission-table :is(th,td):nth-child(5) { display:none; }
+}
+@media (max-width:1000px) {
+  .app-shell[data-view=operations] .page-heading { align-items:center; gap:8px; }
+  .app-shell[data-view=operations] .page-heading > div:first-child { flex:none; }
+  .app-shell[data-view=operations] .page-heading .eyebrow,
+  .app-shell[data-view=operations] .page-heading p { display:none; }
+  .app-shell[data-view=operations] .page-heading h1 { margin:0; font-size:21px; }
+  .app-shell[data-view=operations] .heading-actions { width:auto; gap:6px; }
+  .app-shell[data-view=operations] .heading-actions .button { min-height:34px; padding:6px 8px; font-size:13px; }
+  .app-shell[data-view=operations] .metrics-strip { display:flex; flex-wrap:nowrap; overflow:auto; }
+  .app-shell[data-view=operations] .metrics-strip .metric { flex:0 0 auto; flex-wrap:nowrap; justify-content:flex-start; min-width:210px; min-height:38px; padding:5px 8px; gap:8px; white-space:nowrap; }
+  .app-shell[data-view=operations] .metric-label { white-space:nowrap; }
+  .app-shell[data-view=operations] .workspace-grid { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:8px; }
+  .app-shell[data-view=operations] #toggle-operation-controls { display:flex; align-items:center; justify-content:space-between; grid-column:1; grid-row:1; min-width:0; min-height:36px; width:100%; padding:6px 10px; color:var(--text); background:var(--panel-raised); border:1px solid #455267; border-radius:5px; font:500 14px/1.5 var(--font-sans); text-align:left; }
+  .app-shell[data-view=operations] #toggle-operation-controls[aria-expanded=true] { color:#ffbc53; border-color:#886b36; }
+  .app-shell[data-view=operations] .primary-column { grid-column:1; grid-row:2; max-height:35dvh; }
+  .app-shell[data-view=operations] .secondary-column { grid-column:1; grid-row:2; }
+  .app-shell[data-view=operations] .workspace-grid[data-controls=open] { grid-template-rows:auto minmax(0,2.5fr) minmax(0,7.5fr); }
+  .app-shell[data-view=operations] .workspace-grid[data-controls=open] .secondary-column { grid-row:3; }
+  .app-shell[data-view=operations] .io-request-disclosure > .io-message-heading { padding:8px 12px; flex-wrap:nowrap; gap:8px; }
+  .app-shell[data-view=operations] .io-request-disclosure:not([open]) .io-request-preview { display:block; flex:1 1 0%; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .app-shell[data-view=operations] .io-response { padding-top:12px; }
+}
+@media (max-width:768px) {
+  .app-shell[data-view=operations] > .topbar { min-height:44px; padding:6px 10px; gap:8px; }
+  .app-shell[data-view=operations] .brand-copy > span { display:none; }
+  .app-shell[data-view=operations] .brand-mark { width:26px; height:26px; }
+  .app-shell[data-view=operations] > .sidebar { padding:4px 8px; gap:4px; }
+  .app-shell[data-view=operations] .sidebar-label,
+  .app-shell[data-view=operations] .sidebar-bottom { display:none; }
+  .app-shell[data-view=operations] #function-command > summary { min-height:36px; padding:5px 10px; gap:2px 8px; }
+  .app-shell[data-view=operations] > .im-model-activity { min-height:36px; padding-block:0; }
+  .app-shell[data-view=operations] .im-model-avatar { height:34px; }
+  .app-shell[data-view=operations] .metrics-strip .metric { min-height:38px; padding:5px 8px; gap:8px; }
+  .app-shell[data-view=operations] .metric-label { font-size:12px; overflow-wrap:anywhere; }
+  .app-shell[data-view=operations] .metric > div > span { font-size:12px; }
+  .app-shell[data-view=operations] .io-conversation .io-message { padding:14px 12px; }
+}
+
+/* Keep these mode overrides last: earlier feature/mobile sheets used to give
+   every reader the same centred modal geometry and nested vertical scrollbars. */
+.io-dialog[data-mode] { box-sizing:border-box; background:var(--bg); color:var(--text); font-family:var(--font-sans); }
+.io-dialog[data-mode=window] { position:fixed; inset:auto; left:var(--io-window-left,24px); top:var(--io-window-top,24px); width:var(--io-window-width,min(1060px,calc(100vw - 48px))); height:var(--io-window-height,min(760px,calc(100dvh - 48px))); min-width:min(420px,calc(100vw - 16px)); min-height:min(260px,calc(100dvh - 16px)); max-width:calc(100vw - max(0px,var(--io-window-left,24px))); max-height:calc(100dvh - max(0px,var(--io-window-top,24px))); margin:0; padding:0; transform:none; resize:both; overflow:hidden; border:1px solid #647187; border-radius:7px; z-index:1000; }
+.io-dialog[data-mode=fullscreen] { position:fixed; inset:0!important; left:0!important; top:0!important; width:100vw!important; height:100dvh!important; min-width:0!important; min-height:0!important; max-width:none!important; max-height:none!important; margin:0!important; padding:0; transform:none; resize:none; overflow:hidden; border:0; border-radius:0; z-index:1100; }
+.io-dialog[data-mode] .io-dialog-heading { flex:0 0 auto; min-height:52px; padding:9px 12px; flex-wrap:wrap; gap:8px 12px; background:var(--panel-raised); border-color:#455267; }
+.io-dialog[data-mode] .io-dialog-heading > strong { font-size:16px; }
+.io-dialog[data-mode] .io-window-actions button { min-height:34px; padding:6px 10px; border-radius:4px; font-size:13px; }
+.io-dialog[data-mode] .io-dialog-body { display:block; flex:1 1 0%; min-width:0; min-height:0; max-height:none; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; background:var(--bg); }
+.io-dialog[data-mode] .io-conversation { width:100%; max-width:1120px; height:auto; min-height:0; max-height:none; overflow:visible; margin:0 auto; font-size:var(--io-body-size,18px); }
+.io-dialog[data-mode] .io-message { padding:20px 28px; }
+.io-dialog[data-mode] .io-markdown { font-size:var(--io-body-size,18px); line-height:1.85; }
+.io-dialog[data-mode] .io-request-disclosure { padding:0; }
+.io-dialog[data-mode] .io-request-disclosure > .io-message-heading { margin:0; padding:12px 20px; }
+.io-dialog[data-mode] .io-request-text,.io-dialog[data-mode] .io-log-body,.io-dialog[data-mode] .io-log-entry pre,.io-dialog[data-mode] .io-reading,.io-dialog[data-mode] .io-raw-view { height:auto; max-height:none; overflow:visible; }
+.io-dialog[data-mode] .io-code-block pre { height:auto; max-height:none; overflow-x:auto; overflow-y:visible; }
+.io-conversation .io-request-disclosure { padding:0; }
+.io-window-placeholder { background:var(--bg); color:var(--muted); }
+@media (max-width:640px), (max-height:420px) {
+  .io-dialog[data-mode=window] { inset:0!important; left:0!important; top:0!important; width:100vw!important; height:100dvh!important; min-width:0!important; min-height:0!important; max-width:none!important; max-height:none!important; margin:0!important; border:0; border-radius:0; resize:none; }
+  .io-dialog[data-mode] .io-dialog-heading { min-height:48px; padding:8px 10px; gap:6px 8px; }
+  .io-dialog[data-mode] .io-window-actions button { min-height:34px; padding:6px 8px; font-size:12px; }
+  .io-dialog[data-mode] .io-message { padding:16px 12px; }
+  .io-dialog[data-mode] .io-request-disclosure { padding:0; }
+  .io-dialog[data-mode] .io-request-disclosure > .io-message-heading { padding:10px 12px; }
+}

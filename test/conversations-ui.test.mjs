@@ -177,3 +177,27 @@ test('removing a registered connection blocks follow-ups without silently fallin
     assert.match(ui.root.textContent, /Response 1/);
   } finally { ui.close(); }
 });
+
+test('chat exposes explicit window controls, streams the same turn and closes its window on conversation selection', () => {
+  const ui = fixture(initial({ tasks: [turn('1', 'one', { status: 'running' }), turn('2', 'two')] }));
+  try {
+    assert.equal(ui.document.querySelector('.io-dialog'), null); assert.ok(ui.root.querySelector('.ic-turn .io-window')); assert.ok(ui.root.querySelector('.ic-turn .io-expand'));
+    ui.root.querySelector('.ic-turn .io-window').click(); assert.equal(ui.document.querySelector('.io-dialog').dataset.mode, 'window');
+    ui.render(initial({ tasks: [turn('1', 'one', { status: 'running', output: 'Streaming response for the same turn' }), turn('2', 'two')] }));
+    assert.equal(ui.document.querySelector('.io-dialog .io-markdown').textContent, 'Streaming response for the same turn'); assert.ok(ui.root.querySelector('.io-dock'));
+    ui.select('2'); assert.equal(ui.document.querySelector('.io-dialog'), null); assert.match(ui.root.textContent, /Response 2/); assert.equal(ui.calls.length, 0);
+  } finally { ui.close(); }
+});
+
+test('turn pagination, project changes and unmount destroy an explicitly opened result window', () => {
+  const tasks = Array.from({ length: 25 }, (_, index) => turn(String(index), 'one'));
+  const ui = fixture(initial({ conversations: [conversation('one')], tasks }));
+  try {
+    ui.root.querySelectorAll('.ic-turn .io-expand')[19].click(); assert.equal(ui.document.querySelector('.io-dialog').dataset.mode, 'fullscreen');
+    ui.root.querySelector('.ic-page').click(); assert.equal(ui.document.querySelector('.io-dialog'), null);
+    ui.root.querySelector('.ic-turn .io-window').click(); assert.ok(ui.document.querySelector('.io-dialog'));
+    ui.render(initial({ settings: { workspace: 'C:\\Different window project', language: 'en' }, conversations: [], tasks: [] })); assert.equal(ui.document.querySelector('.io-dialog'), null);
+    ui.render(initial({ conversations: [conversation('one')], tasks: [turn('1', 'one')] })); ui.root.querySelector('.ic-turn .io-window').click(); assert.ok(ui.document.querySelector('.io-dialog'));
+    ui.close(); assert.equal(ui.document.querySelector('.io-dialog'), null);
+  } finally { if (ui.dom.window.document) ui.close(); }
+});

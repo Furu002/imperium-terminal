@@ -3,10 +3,11 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const [html, script, outputScript] = await Promise.all([
+const [html, script, outputScript, conversationsScript] = await Promise.all([
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/output-view.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/conversations.js', import.meta.url), 'utf8'),
 ]);
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -35,12 +36,13 @@ function sampleState(overrides = {}) {
   };
 }
 
-async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {} } = {}) {
+async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {}, conversations = false, viewportWidth, beforeApp } = {}) {
   const virtualConsole = new VirtualConsole();
   const runtimeErrors = [];
   virtualConsole.on('jsdomError', error => runtimeErrors.push(error));
   const dom = new JSDOM(html, { url: 'http://127.0.0.1:4310/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
   const { window } = dom;
+  if (typeof viewportWidth === 'number') Object.defineProperty(window, 'innerWidth', { value: viewportWidth, writable: true, configurable: true });
   const calls = [];
   const streams = [];
   const clipboardWrites = [];
@@ -87,7 +89,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails =
     } else throw new Error(`Unexpected mocked request: ${method} ${url}`);
     return { ok: true, status: 200, json: async () => clone(data) };
   };
-  window.eval(outputScript); window.eval(script);
+  beforeApp?.(window); window.eval(outputScript); if (conversations) window.eval(conversationsScript); window.eval(script);
   await settle();
   assert.deepEqual(runtimeErrors.map(error => error.message), [], 'the app should initialize without runtime errors');
   t.after(() => { dom.window.close(); });
@@ -378,6 +380,69 @@ test('the inspector integrates readable conversation, exact code copying and a p
   streams[0].state(sampleState({ settings: { ...initial.settings, workspace: 'C:\\Different Project' }, tasks: [completedTask('other-task', 'Other result', 'Other project output')] })); await settle();
   assert.equal(document.querySelector('.io-dialog'), null);
   assert.equal(document.querySelector('.io-markdown').textContent, 'Other project output');
+});
+
+test('operation selection stays in the panel, preserves an explicit window mode across tasks, and closes it on project changes', async t => {
+  const a = completedTask('task-a', 'First selected task', 'First result'), b = completedTask('task-b', 'Second selected task', 'Second result');
+  const initial = sampleState({ tasks: [a, b] }); const { document, window, streams, calls, runtimeErrors } = await loadUI(t, initial);
+  document.querySelector('[data-view="operations"]').click();
+  const select = title => [...document.querySelectorAll('#mission-rows tr')].find(row => row.querySelector('.task-name')?.textContent === title).click();
+  select(b.title); assert.equal(document.querySelector('.io-dialog'), null); assert.equal(document.querySelector('#inspector-content .io-markdown').textContent, b.output);
+  document.querySelector('#inspector-content .io-window').click(); assert.equal(document.querySelector('.io-dialog').dataset.mode, 'window');
+  streams[0].state(sampleState({ tasks: [a, { ...b, output: 'Second result streamed' }] })); await settle();
+  assert.equal(document.querySelector('.io-dialog .io-markdown').textContent, 'Second result streamed'); assert.ok(document.querySelector('#inspector-content .io-dock'));
+  select(a.title); assert.equal(document.querySelectorAll('.io-dialog').length, 1); assert.equal(document.querySelector('.io-dialog').dataset.mode, 'window'); assert.equal(document.querySelector('.io-dialog .io-markdown').textContent, a.output);
+  document.querySelector('.io-window-fullscreen').click(); select(b.title); assert.equal(document.querySelector('.io-dialog').dataset.mode, 'fullscreen');
+  document.querySelector('.io-dialog-close').click(); assert.equal(document.querySelector('.io-dialog'), null); assert.equal(document.querySelector('#inspector-content .io-markdown').textContent, 'Second result streamed');
+  document.querySelector('#inspector-content .io-window').click();
+  streams[0].state(sampleState({ settings: { ...initial.settings, workspace: 'C:\\Another output project' }, tasks: [completedTask('task-c', 'Other project', 'Only new project result')] })); await settle();
+  assert.equal(document.querySelector('.io-dialog'), null); assert.equal(document.querySelector('#inspector-content .io-markdown').textContent, 'Only new project result');
+  assert.equal(calls.filter(call => call.url === '/api/tasks' && call.method === 'POST').length, 0); assert.deepEqual(runtimeErrors.map(error => error.message), []);
+});
+
+test('same-task streamed snapshots keep the panel reader host connected without removing or reinserting it', async t => {
+  const selected = completedTask('stable-reader-task', 'Stable panel result', 'Selected panel text', { status: 'running', finishedAt: null });
+  const initial = sampleState({ tasks: [selected] }), { document, window, streams } = await loadUI(t, initial);
+  const container = document.querySelector('#inspector-content'), host = container.querySelector('.io-output-host'), changes = [];
+  const observer = new window.MutationObserver(records => changes.push(...records)); observer.observe(container, { childList: true }); t.after(() => observer.disconnect());
+  streams[0].state(clone(initial)); await settle();
+  streams[0].state(sampleState({ tasks: [{ ...selected, output: 'Selected panel text\nAdditional streamed content' }] })); await settle();
+  assert.equal(container.querySelector('.io-output-host'), host); assert.equal(host.isConnected, true);
+  assert.ok(changes.length > 0, 'metadata and progress may update while the reader stays attached');
+  assert.equal(changes.some(record => [...record.removedNodes, ...record.addedNodes].includes(host)), false, 'the output host must never be detached or reinserted');
+  assert.match(host.textContent, /Additional streamed content/);
+});
+
+test('compact operation controls preserve user choices within a breakpoint and reopen before dispatch focus', async t => {
+  const initial = sampleState(); let terminal;
+  const { window, document, streams, calls } = await loadUI(t, initial, 'en', { viewportWidth: 390, beforeApp: win => { win.ImperiumTerminalShell = { render(state, callbacks) { terminal = callbacks; } }; } });
+  const toggle = document.querySelector('#toggle-operation-controls'), column = document.querySelector('#operation-controls-column'), grid = document.querySelector('.workspace-grid');
+  const resize = width => { window.innerWidth = width; window.dispatchEvent(new window.Event('resize')); };
+  document.querySelector('[data-view="operations"]').click(); assert.equal(column.hidden, true); assert.equal(toggle.getAttribute('aria-expanded'), 'false'); assert.equal(grid.dataset.controls, 'closed'); assert.equal(toggle.getAttribute('aria-controls'), column.id); assert.match(toggle.textContent, /Task list & command/);
+  toggle.click(); streams[0].state(clone(initial)); await settle(); resize(500); assert.equal(column.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  toggle.click(); resize(1024); assert.equal(column.hidden, false, 'crossing into wide mode restores its open default');
+  toggle.click(); resize(1100); assert.equal(column.hidden, true, 'ordinary wide resize keeps the explicit closed choice');
+  resize(800); assert.equal(column.hidden, true); assert.equal(terminal.onPrepareTask('Prepared terminal task'), true); assert.equal(column.hidden, false); assert.equal(document.activeElement.id, 'dispatch-prompt'); assert.equal(document.querySelector('#dispatch-prompt').value, 'Prepared terminal task');
+  toggle.click(); document.querySelector('.org-agent-dispatch').click(); assert.equal(column.hidden, false); assert.equal(document.activeElement.id, 'dispatch-prompt');
+  toggle.click(); document.querySelector('#focus-dispatch').click(); assert.equal(column.hidden, false); assert.equal(document.activeElement.id, 'dispatch-prompt');
+  toggle.click(); document.querySelector('[data-view="departments"]').click(); assert.equal(column.hidden, false, 'collapsing operations must not hide another view inside the primary column'); document.querySelector('[data-view="operations"]').click(); assert.equal(column.hidden, true, 'returning to operations restores the existing choice');
+  change(window, document.querySelector('#language-select'), 'ja'); await settle(); assert.match(toggle.textContent, /タスク一覧・指示の作成/);
+  assert.equal(calls.filter(call => call.url === '/api/tasks' && call.method === 'POST').length, 0);
+});
+
+test('an open conversation result keeps streaming after navigation and closes on a project switch outside chat', async t => {
+  const base = sampleState(), workspace = base.settings.workspace;
+  const task = completedTask('chat-task', 'Conversation task', 'Initial conversation result', { workspace, conversationId: 'chat-one' });
+  const initial = sampleState({ tasks: [task], conversations: [{ id: 'chat-one', workspace, departmentId: 'strategy', provider: 'codex', modelId: '', permission: 'read-only', transport: 'native-cli', createdAt: task.createdAt, updatedAt: task.createdAt }] });
+  const { document, streams, calls, runtimeErrors } = await loadUI(t, initial, undefined, { conversations: true });
+  document.querySelector('[data-view="chat"]').click(); document.querySelector('.ic-turn .io-window').click();
+  assert.equal(document.querySelector('.io-dialog').dataset.mode, 'window');
+  document.querySelector('[data-view="operations"]').click();
+  streams[0].state({ ...initial, tasks: [{ ...task, output: 'Conversation result streamed outside chat' }] }); await settle();
+  assert.equal(document.querySelector('.io-dialog .io-markdown').textContent, 'Conversation result streamed outside chat');
+  streams[0].state(sampleState({ settings: { ...base.settings, workspace: 'C:\\New conversation project' }, tasks: [], conversations: [] })); await settle();
+  assert.equal(document.querySelector('.io-dialog'), null); assert.doesNotMatch(document.body.textContent, /Conversation result streamed outside chat/);
+  assert.equal(calls.filter(call => call.url === '/api/tasks' && call.method === 'POST').length, 0); assert.deepEqual(runtimeErrors.map(error => error.message), []);
 });
 
 function organizationTask(overrides = {}) {

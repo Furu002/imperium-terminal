@@ -1,6 +1,8 @@
-# IMPERIUM 1.8.0 — internal validation
+# IMPERIUM 1.8.1 — internal validation
 
 This is an internal prototype. Publishing this source commit does not publish an external application release.
+
+The 1.8.1 output reader keeps a stable inline host and moves the same reader DOM between its panel and a nonmodal app-internal window. Window bounds, drag completion, Escape ordering, unrelated modal focus, multi-window focus, live response updates, source copying, selection, and owner cleanup are covered by regression tests. Hidden Electron rendering additionally checks real resize observation, full-viewport geometry and restore, background input, selected paragraph preservation during SSE, scroll preservation and narrow layouts. These are application UI checks with fixture output, without model calls.
 
 The 1.8 integration adds a role-based first screen, five primary navigation items, folded legacy tools, bundled Korean typography, and project-scoped local skill registration/equipment. Claude reviewed the actual integration. Cancellation while awaiting skill files now finalizes the owned run and releases scheduling locks; deleted-agent skill bindings are pruned. Regression tests use temporary files and controlled providers to verify both fixes, pinned skill instructions in runner input, metadata-only UI snapshots, unchanged permissions, source-file preservation, and project switching guards. Hidden Electron rendering checks cover organization at 390, 768, 1024 and 1440 pixels and navigation to Skills, Work, Workflow and Memory. These checks do not constitute a live multi-agent development benchmark.
 
