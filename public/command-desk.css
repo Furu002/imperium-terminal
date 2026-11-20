@@ -336,8 +336,20 @@
 .mission-table tbody tr.selected { background: var(--desk-active); }
 .mission-table :is(.task-id, .task-time) { font-family: var(--font); }
 .mission-table .task-model { color: var(--cyan); }
-.mission-table .task-name { font-size: 14px; }
-.mission-table .task-department { color: var(--muted); }
+.app-shell[data-view=operations] .mission-table .task-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mission-table .task-department {
+  display: flex;
+  max-width: 100%;
+  margin: 0;
+  color: var(--muted);
+}
 .empty-terminal { display: none; }
 .app-shell[data-view=operations] .dispatch-context { padding: 8px 10px; gap: 6px; }
 .app-shell[data-view=operations] .dispatch-context select { min-height: 35px; border-radius: 3px; }
