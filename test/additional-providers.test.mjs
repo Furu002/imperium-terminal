@@ -323,6 +323,28 @@ test('slow CLI cancellation waits for close after the escalation timer', async t
   assert.equal(exits[0].code, 130);
 });
 
+test('Windows direct process exit finishes after bounded pipe drain even without close', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = childProcess(), exits = [];
+  const run = createAdditionalProviderRunner({
+    locate: async () => target, probe: async () => ({ code: 0, stdout: help, stderr: '' }), platform: 'win32',
+    spawnProcess: (_command, _args, options) => { assert.equal(options.detached, false); return child; },
+  });
+  await run({ provider: 'copilot', prompt: '상태 확인', onExit: result => exits.push(result) });
+  child.stdout.write('{"type":"assistant.message","data":{"content":"완료"}}\n');
+  child.emit('exit', 0);
+  child.stdout.write('{"type":"assistant.usage","data":{"inputTokens":5,"outputTokens":8}}');
+  assert.deepEqual(exits, []);
+  t.mock.timers.tick(1000);
+  assert.equal(child.stdout.destroyed, true);
+  assert.equal(child.stderr.destroyed, true);
+  child.emit('close', 0);
+  assert.equal(exits.length, 1);
+  assert.equal(exits[0].code, 0);
+  assert.equal(exits[0].output, '완료');
+  assert.deepEqual(exits[0].usage, { inputTokens: 5, outputTokens: 8 });
+});
+
 test('cancelling Gemini during setup removes prepared context without starting the CLI', async () => {
   const controller = new AbortController();
   let cleaned = false;

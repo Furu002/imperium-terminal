@@ -338,6 +338,30 @@ test('cancellation escalates a slow CLI and waits for the real close event', asy
   assert.equal(exits[0].code, 130);
 });
 
+test('direct process exit bounds pipe draining and preserves the final buffered usage', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = fakeChild(), groups = [], exits = [];
+  const run = createProviderRunner({
+    locate: async () => ({ command: '/bin/codex', prefix: [] }), platform: 'linux',
+    spawnProcess: (_command, _args, options) => { assert.equal(options.detached, true); return child; },
+    signalProcessGroup: (pid, signal) => groups.push([pid, signal]),
+  });
+  const handle = await run({ provider: 'codex', prompt: '상태 확인', onExit: result => exits.push(result) });
+  handle.cancel();
+  child.emit('exit', null);
+  child.stdout.write('{"type":"turn.completed","usage":{"input_tokens":7,"output_tokens":9}}');
+  assert.deepEqual(exits, []);
+  t.mock.timers.tick(1000);
+  assert.deepEqual(groups, [[-child.pid, 'SIGTERM'], [-child.pid, 'SIGKILL']]);
+  assert.equal(child.stdout.destroyed, true);
+  assert.equal(child.stderr.destroyed, true);
+  child.emit('close', null);
+  assert.equal(exits.length, 1);
+  assert.equal(exits[0].code, 130);
+  assert.equal(exits[0].usage.inputTokens, 7);
+  assert.equal(exits[0].usage.outputTokens, 9);
+});
+
 test('cancellation during CLI discovery prevents a new process from spawning', async () => {
   const controller = new AbortController();
   const run = createProviderRunner({
