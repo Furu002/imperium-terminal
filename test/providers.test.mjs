@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import path from 'node:path';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createEventParser, createJsonLineReader, createProviderRunner, providerArguments, subscriptionEnvironment, locateProvider, isNativeSessionId } from '../lib/providers.mjs';
 
@@ -49,7 +49,9 @@ test('Windows Codex runs native npm binaries directly across package layouts', a
       await mkdir(path.dirname(executable), { recursive: true });
       if (layout !== 'legacy') await writeFile(path.join(platformRoot, 'package.json'), '{}');
       await writeFile(executable, 'test fixture');
-      assert.deepEqual(await locateProvider('codex', options), { command: executable, prefix: [] });
+      const found = await locateProvider('codex', options);
+      assert.deepEqual(found.prefix, []);
+      assert.equal(await realpath(found.command), await realpath(executable));
     });
   }
 });
