@@ -29,6 +29,31 @@ test('current Claude npm packages resolve both native binaries and the modern wr
   assert.deepEqual(await locateProvider('claude', { searchDirectories: [root], platform: 'win32' }), { command: native, prefix: [] });
 });
 
+test('Windows Codex runs native npm binaries directly across package layouts', async t => {
+  for (const { layout, arch, target } of [
+    { layout: 'nested', arch: 'x64', target: 'x86_64-pc-windows-msvc' },
+    { layout: 'hoisted', arch: 'arm64', target: 'aarch64-pc-windows-msvc' },
+    { layout: 'legacy', arch: 'x64', target: 'x86_64-pc-windows-msvc' },
+  ]) {
+    await t.test(layout, async t => {
+      const root = await mkdtemp(path.join(tmpdir(), 'imperium-provider-'));
+      t.after(async () => { if (!path.resolve(root).startsWith(path.join(path.resolve(tmpdir()), 'imperium-provider-'))) throw new Error('Unexpected test path'); await rm(root, { recursive: true, force: true }); });
+      const packageRoot = path.join(root, 'node_modules', '@openai', 'codex');
+      const wrapper = path.join(packageRoot, 'bin', 'codex.js');
+      await mkdir(path.dirname(wrapper), { recursive: true });
+      await writeFile(wrapper, '// test fixture');
+      const options = { searchDirectories: [root], platform: 'win32', arch };
+      assert.deepEqual(await locateProvider('codex', options), { command: process.execPath, prefix: [wrapper] });
+      const platformRoot = layout === 'legacy' ? packageRoot : path.join(layout === 'nested' ? packageRoot : root, 'node_modules', '@openai', `codex-win32-${arch}`);
+      const executable = path.join(platformRoot, 'vendor', target, layout === 'legacy' ? 'codex' : 'bin', 'codex.exe');
+      await mkdir(path.dirname(executable), { recursive: true });
+      if (layout !== 'legacy') await writeFile(path.join(platformRoot, 'package.json'), '{}');
+      await writeFile(executable, 'test fixture');
+      assert.deepEqual(await locateProvider('codex', options), { command: executable, prefix: [] });
+    });
+  }
+});
+
 test('subscription environment removes keys without changing the parent environment', () => {
   const env = { PATH: '/bin', OPENAI_API_KEY: 'secret', anthropic_api_key: 'secret', CLAUDE_CODE_OAUTH_TOKEN: 'secret', OPENAI_BASE_URL: 'https://example.test', KEEP: 'yes' };
   const result = subscriptionEnvironment(env);
