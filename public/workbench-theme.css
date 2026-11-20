@@ -83,27 +83,6 @@ kbd { font: 12px/1.4 var(--font); color: var(--muted); border: 1px solid #455267
 .statusbar { min-height: 28px; height: 28px; padding: 0 12px; gap: 12px; background: #0c1017; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; letter-spacing: 0; }
 .statusbar > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Commands stay reachable in a native disclosure instead of repeated nav rows. */
-#function-command.terminal-shell, .app-shell > #function-command { display: block; height: auto; min-height: 0; max-height: 42dvh; overflow: auto; background: #10151d; border-bottom: 1px solid var(--line); font: 14px/1.5 var(--font-sans); }
-#function-command > summary { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 5px 14px; cursor: pointer; color: var(--muted); list-style: none; }
-#function-command > summary::-webkit-details-marker { display: none; }
-#function-command > summary::before { content: '›'; color: var(--orange); font-size: 20px; line-height: 1; }
-#function-command[open] > summary::before { content: '⌄'; }
-#function-command[open] > summary { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--line); }
-#function-command .terminal-project-name { display: inline; font-size: 13px; max-width: 35vw; }
-#function-command .terminal-session-status { color: var(--muted); font-size: 12px; }
-.terminal-functionbar, .terminal-tabs { flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: var(--bg); overflow: visible; }
-.terminal-functionbar > button, .terminal-tabs button { display: inline-flex; align-items: center; gap: 7px; height: auto; min-height: 34px; padding: 6px 9px; background: var(--panel); border: 1px solid #455267; border-radius: 5px; color: var(--muted); font: 13px/1.5 var(--font-sans); }
-.terminal-functionbar > button.active, .terminal-tabs button.active { color: #ffbc53; background: #2a2113; border-color: #87632d; }
-.terminal-functionbar > button:hover, .terminal-tabs button:hover { background: var(--panel-raised); color: var(--text); }
-.terminal-functionbar kbd { color: var(--muted); font-size: 12px; }
-.terminal-commandbar { min-height: 46px; gap: 6px; padding: 8px 12px; flex-wrap: wrap; background: var(--panel); border-color: var(--line); }
-.terminal-commandbar input { height: 36px; min-width: 120px; padding: 6px 9px; color: var(--text); background: var(--bg); border: 1px solid #647187; border-radius: 5px; font-size: 14px; }
-.terminal-commandbar button { height: 36px; font-size: 13px; border-radius: 5px; margin-left: 0; }
-.terminal-command-prompt, .terminal-command-help p, .terminal-command-help > button { font-size: 13px; }
-.terminal-workspace-strip { gap: 10px; background: var(--panel); }
-.terminal-command-help { max-height: 60dvh; border-color: var(--line); background: var(--panel); border-radius: 6px; }
-.terminal-command-message { font-size: 13px; max-width: min(600px, 90vw); background: var(--panel); border-radius: 5px; }
 .im-model-activity { min-height: 36px; height: auto; padding: 0 12px; background: var(--bg); border-color: var(--line); font-family: var(--font-sans); }
 .im-model-heading, .im-model-status { font-size: 12px; }
 .im-model-avatar { min-width: 150px; height: 34px; padding-right: 14px; border-color: var(--line); }
@@ -371,9 +350,6 @@ dialog:not(.io-dialog) { max-width: calc(100vw - 24px); max-height: calc(100dvh 
   .sidebar-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: 8px; margin-top: 0; min-height: 18px; }
   .local-badge, .sidebar-version { display: flex; align-items: baseline; gap: 4px; margin: 0; font-size: 12px; line-height: 1.4; white-space: nowrap; }
   .local-badge > span:last-child { display: inline; margin: 0; font-size: 12px; line-height: 1.4; }
-  #function-command > summary { gap: 8px; padding-inline: 12px; flex-wrap: wrap; }
-  #function-command .terminal-project-name { max-width: 42vw; }
-  .terminal-command-prompt { font-size: 12px; }
   .terminal-tabs button, .terminal-functionbar > button { font-size: 13px; }
   .im-model-activity { padding-inline: 8px; gap: 8px; }
   .im-model-heading { max-width: 76px; font-size: 12px; }
@@ -551,7 +527,6 @@ dialog:not(.io-dialog) { max-width: calc(100vw - 24px); max-height: calc(100dvh 
   .app-shell[data-view=operations] > .sidebar { padding:4px 8px; gap:4px; }
   .app-shell[data-view=operations] .sidebar-label,
   .app-shell[data-view=operations] .sidebar-bottom { display:none; }
-  .app-shell[data-view=operations] #function-command > summary { min-height:36px; padding:5px 10px; gap:2px 8px; }
   .app-shell[data-view=operations] > .im-model-activity { min-height:36px; padding-block:0; }
   .app-shell[data-view=operations] .im-model-avatar { height:34px; }
   .app-shell[data-view=operations] .metrics-strip .metric { min-height:38px; padding:5px 8px; gap:8px; }

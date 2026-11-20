@@ -5,24 +5,35 @@
   const nodeKey = id => `node:${String(id)}`;
   const provenance = edge => edge.provenance === 'keyword' ? 'keyword' : edge.provenance === 'wikilink' ? 'wiki' : 'manual';
   const source = node => node.confidence === 'user' ? 'user' : node.source === 'agent' || node.confidence === 'unverified' ? 'agent' : 'unknown';
-  const STYLES = [
-    { selector: 'node', style: { 'background-color': '#B0B0B0', width: 12, height: 12, label: 'data(label)', color: '#FFFFFF', 'font-family': '"Pretendard", "Pretendard JP", "JetBrains Mono", sans-serif', 'font-size': 16, 'text-valign': 'bottom', 'text-margin-y': 8, 'text-background-color': '#000000', 'text-background-opacity': .85, 'text-background-padding': 2, 'min-zoomed-font-size': 5, 'border-width': 0, 'overlay-opacity': 0 } },
-    { selector: 'node.user', style: { 'background-color': '#00B7EB' } },
-    { selector: 'node.agent', style: { 'background-color': '#00D77A' } },
-    { selector: 'node.pinned', style: { 'border-width': 3, 'border-color': '#FF9F00', 'border-opacity': .9, 'border-style': 'double' } },
-    { selector: 'node.chosen', style: { 'background-color': '#FF9F00', color: '#FF9F00', width: 19, height: 19, 'font-size': 18, 'min-zoomed-font-size': 0, 'z-index': 5 } },
-    { selector: 'edge', style: { width: .8, 'line-color': '#B0B0B0', opacity: .22, 'curve-style': 'bezier', 'overlay-opacity': 0 } },
-    { selector: 'edge.wiki', style: { 'line-color': '#00B7EB', opacity: .65 } },
-    { selector: 'edge.manual', style: { 'line-color': '#FFFFFF', opacity: .65 } },
-    { selector: '.muted', style: { opacity: .1, 'text-opacity': .2 } },
-    { selector: 'edge.neighbor', style: { 'line-color': '#FF9F00', width: 2, opacity: 1, 'z-index': 4 } },
-  ];
+  function graphStyles(host) {
+    // Cytoscape draws into canvas, so pass resolved colors instead of CSS var() expressions.
+    const css = window.getComputedStyle(host);
+    const color = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+    const background = color('--bg', '#050505');
+    const text = color('--text', '#f2f2f2');
+    const muted = color('--muted', '#b8b8b8');
+    const amber = color('--orange', '#ffad32');
+    const cyan = color('--cyan', '#6bd5ee');
+    const green = color('--green', '#61e89b');
+    return [
+      { selector: 'node', style: { 'background-color': muted, width: 12, height: 12, label: 'data(label)', color: text, 'font-family': '"Pretendard", "Pretendard JP", "JetBrains Mono", sans-serif', 'font-size': 16, 'text-valign': 'bottom', 'text-margin-y': 8, 'text-background-color': background, 'text-background-opacity': .85, 'text-background-padding': 2, 'min-zoomed-font-size': 5, 'border-width': 0, 'overlay-opacity': 0 } },
+      { selector: 'node.user', style: { 'background-color': cyan } },
+      { selector: 'node.agent', style: { 'background-color': green } },
+      { selector: 'node.pinned', style: { 'border-width': 3, 'border-color': amber, 'border-opacity': .9, 'border-style': 'double' } },
+      { selector: 'node.chosen', style: { 'background-color': amber, color: amber, width: 19, height: 19, 'font-size': 18, 'min-zoomed-font-size': 0, 'z-index': 5 } },
+      { selector: 'edge', style: { width: .8, 'line-color': muted, opacity: .22, 'curve-style': 'bezier', 'overlay-opacity': 0 } },
+      { selector: 'edge.wiki', style: { 'line-color': cyan, opacity: .65 } },
+      { selector: 'edge.manual', style: { 'line-color': text, opacity: .65 } },
+      { selector: '.muted', style: { opacity: .1, 'text-opacity': .2 } },
+      { selector: 'edge.neighbor', style: { 'line-color': amber, width: 2, opacity: 1, 'z-index': 4 } },
+    ];
+  }
 
   function create(host, options = {}) {
     const factory = options.cytoscapeFactory || window.cytoscape;
     if (typeof factory !== 'function') throw new Error('Cytoscape.js is unavailable');
     let disposed = false, topology = '', currentLayout, observer, pendingFit = false;
-    const cy = factory({ container: host, elements: [], style: STYLES, layout: { name: 'preset' }, minZoom: .025, maxZoom: 4, boxSelectionEnabled: false, autounselectify: true, hideEdgesOnViewport: false, textureOnViewport: false, pixelRatio: 'auto' });
+    const cy = factory({ container: host, elements: [], style: graphStyles(host), layout: { name: 'preset' }, minZoom: .025, maxZoom: 4, boxSelectionEnabled: false, autounselectify: true, hideEdgesOnViewport: false, textureOnViewport: false, pixelRatio: 'auto' });
     const alive = () => !disposed && !cy.destroyed();
     const fitPadding = () => Math.max(10, Math.min(32, Math.round(Math.min(host.clientWidth || cy.width(), host.clientHeight || cy.height()) * .07)));
     function cancelLayout() { currentLayout?.stop(); currentLayout = null; if (alive()) cy.nodes().stop(true, false); }

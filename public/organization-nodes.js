@@ -50,14 +50,49 @@
       const element=document.createElementNS(edges.namespaceURI,'path');element.setAttribute('class',type==='membership'?'on-edge-organization on-edge-membership':'on-edge-handoff');element.dataset.edgeType=type;element.dataset.source=source;element.dataset.target=target;element.setAttribute('fill','none');element.setAttribute('d',shape);if(type==='handoff')element.setAttribute('marker-end',`url(#${arrowId})`);return element;
     }
     const arrowId='on-arrow-'+Math.random().toString(36).slice(2);
+    let mapColors;
     function drawEdges(){
       const connections=handoffs(),signature=JSON.stringify([[...nodes].map(([id,element])=>[id,positions[id],nodeSize(element)]),connections]);
       if(signature===edgeSignature)return;edgeSignature=signature;
       const defs=document.createElementNS(edges.namespaceURI,'defs'),marker=document.createElementNS(edges.namespaceURI,'marker'),arrow=document.createElementNS(edges.namespaceURI,'path');
-      marker.id=arrowId;marker.setAttribute('viewBox','0 0 10 10');marker.setAttribute('refX','9');marker.setAttribute('refY','5');marker.setAttribute('markerWidth','6');marker.setAttribute('markerHeight','6');marker.setAttribute('orient','auto-start-reverse');arrow.setAttribute('d','M 0 0 L 10 5 L 0 10 z');arrow.setAttribute('fill','#ff9f00');marker.append(arrow);defs.append(marker);
+      marker.id=arrowId;marker.setAttribute('viewBox','0 0 10 10');marker.setAttribute('refX','9');marker.setAttribute('refY','5');marker.setAttribute('markerWidth','6');marker.setAttribute('markerHeight','6');marker.setAttribute('orient','auto-start-reverse');arrow.setAttribute('d','M 0 0 L 10 5 L 0 10 z');arrow.setAttribute('fill','currentColor');marker.append(arrow);defs.append(marker);
       const lines=[defs];for(const id of nodes.keys())if(id!=='owner')lines.push(path('owner',id,'membership'));for(const edge of connections)lines.push(path(edge.source,edge.target,'handoff'));edges.replaceChildren(...lines.filter(Boolean));
     }
-    function drawMap(){if(typeof window.CanvasRenderingContext2D!=='function')return;const context=minimap.getContext('2d');if(!context)return;const box=bounds(),scale=Math.min(132/(box.width+80),78/(box.height+80)),mapPoint=(x,y)=>({x:6+(x-box.x+40)*scale,y:6+(y-box.y+40)*scale});context.clearRect(0,0,144,90);context.fillStyle='#0c1119';context.fillRect(0,0,144,90);for(const [id,element]of nodes){const p=positions[id],size=nodeSize(element),point=mapPoint(p.x,p.y);context.fillStyle=id===selected?'#ff9f00':id==='owner'?'#c18b3c':'#61758a';context.fillRect(point.x,point.y,Math.max(2,size.width*scale),Math.max(2,size.height*scale));}const visible=mapPoint(-viewport.pan.x/viewport.zoom,-viewport.pan.y/viewport.zoom),size=stageSize();context.strokeStyle='#edf0f5';context.lineWidth=1;context.strokeRect(visible.x,visible.y,size.width/viewport.zoom*scale,size.height/viewport.zoom*scale);}
+    function drawMap() {
+      if (typeof window.CanvasRenderingContext2D !== 'function') return;
+      const context = minimap.getContext('2d');
+      if (!context) return;
+      // The palette is fixed for the current page. Read it once, outside the drag loop.
+      if (!mapColors) {
+        const style = window.getComputedStyle(root);
+        const color = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+        mapColors = {
+          background: color('--on-panel', '#0d0d0d'),
+          selected: color('--on-orange', '#ffad32'),
+          owner: color('--on-owner-line', '#94692a'),
+          agent: color('--on-membership', '#8a8a8a'),
+          viewport: color('--on-text', '#f2f2f2'),
+        };
+      }
+      const box = bounds();
+      const scale = Math.min(132 / (box.width + 80), 78 / (box.height + 80));
+      const mapPoint = (x, y) => ({ x: 6 + (x - box.x + 40) * scale, y: 6 + (y - box.y + 40) * scale });
+      context.clearRect(0, 0, 144, 90);
+      context.fillStyle = mapColors.background;
+      context.fillRect(0, 0, 144, 90);
+      for (const [id, element] of nodes) {
+        const position = positions[id];
+        const size = nodeSize(element);
+        const point = mapPoint(position.x, position.y);
+        context.fillStyle = id === selected ? mapColors.selected : id === 'owner' ? mapColors.owner : mapColors.agent;
+        context.fillRect(point.x, point.y, Math.max(2, size.width * scale), Math.max(2, size.height * scale));
+      }
+      const visible = mapPoint(-viewport.pan.x / viewport.zoom, -viewport.pan.y / viewport.zoom);
+      const size = stageSize();
+      context.strokeStyle = mapColors.viewport;
+      context.lineWidth = 1;
+      context.strokeRect(visible.x, visible.y, size.width / viewport.zoom * scale, size.height / viewport.zoom * scale);
+    }
     function draw(){frame=null;if(disposed)return;world.style.transform=`translate(${viewport.pan.x}px,${viewport.pan.y}px) scale(${viewport.zoom})`;stage.style.backgroundPosition=`${viewport.pan.x}px ${viewport.pan.y}px`;stage.style.backgroundSize=`${24*viewport.zoom}px ${24*viewport.zoom}px`;for(const [id,element]of nodes){const point=positions[id];element.style.left=point.x+'px';element.style.top=point.y+'px';element.classList.toggle('on-node-selected',id===selected);}zoomLabel.textContent=Math.round(viewport.zoom*100)+'%';drawEdges();drawMap();for(const [key,value]of Object.entries(buttons)){value.button.textContent=tr(value.label);value.button.disabled=key==='retry'?(loading||saving||Boolean(pointer)||!connected||!blocked||failureKind==='conflict'):key==='reload'?(loading||saving||Boolean(pointer)||!connected):['connections','inspector'].includes(key)?false:!loaded||loading;}buttons.retry.button.hidden=!blocked||failureKind==='conflict';buttons.inspector.button.setAttribute('aria-pressed',String(inspectorOpen));root.setAttribute('aria-label',tr('canvas'));stage.setAttribute('aria-label',tr('canvas'));hint.textContent=tr('hint');legend.replaceChildren(h('span',{class:'on-membership-legend'},tr('membership')),h('span',{class:'on-handoff-legend'},tr('handoff')));}
     function schedule(){if(frame!==undefined&&frame!==null)return;frame=window.requestAnimationFrame?requestAnimationFrame(draw):setTimeout(draw,0);}
     function fit(ids){const box=bounds(ids),size=stageSize(),zoom=clamp(Math.min(1,(size.width-64)/Math.max(1,box.width),(size.height-64)/Math.max(1,box.height)),.15,3);viewport={zoom,pan:{x:(size.width-box.width*zoom)/2-box.x*zoom,y:(size.height-box.height*zoom)/2-box.y*zoom}};schedule();}

@@ -1,22 +1,24 @@
 /* IMPERIUM command desk. Route visibility and output window geometry remain
    with the feature modules. The same navigation controls serve all widths. */
 :root {
-  --bg: #090d13;
-  --panel: #0f151f;
-  --panel-raised: #151e2a;
-  --line: #303d4e;
-  --line-soft: #202b38;
-  --text: #edf3f9;
-  --muted: #b2bfce;
-  --dim: #96a6b8;
-  --orange: #ffb260;
-  --cyan: #79d9f1;
-  --green: #84dcaf;
-  --red: #ffaca9;
-  --desk-header: #0c121b;
-  --desk-active: #26211c;
-  --desk-hover: #192635;
-  --desk-control-line: #495b70;
+  --bg: #050505;
+  --panel: #0d0d0d;
+  --panel-raised: #181818;
+  --line: #3b3b3b;
+  --line-soft: #262626;
+  --text: #f2f2f2;
+  --muted: #b8b8b8;
+  --dim: #a3a3a3;
+  --orange: #ffad32;
+  --cyan: #6bd5ee;
+  --green: #61e89b;
+  --red: #ff7676;
+  --desk-header: #0a0a0a;
+  --desk-active: #2b1d08;
+  --desk-hover: #222222;
+  --desk-control-line: #686868;
+  --desk-stripe: #131313;
+  --desk-accent-line: #81612e;
   --desk-frame-radius: 3px;
 }
 
@@ -58,25 +60,39 @@
 
 #function-command.terminal-shell {
   z-index: 8;
-  max-height: min(38dvh, 320px);
-  background: #111b27;
+  max-height: none;
+  overflow: visible;
+  background: var(--panel-raised);
 }
-#function-command > summary,
-.app-shell[data-view=operations] #function-command > summary {
-  min-height: 33px;
-  padding: 3px 12px;
-  gap: 10px;
-  flex-wrap: nowrap;
+.terminal-command-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 10px;
 }
-#function-command .terminal-command-caption { color: var(--orange); font-family: var(--font); }
-#function-command .terminal-command-caption kbd { margin-left: 7px; color: var(--muted); }
-#function-command .terminal-project-name { max-width: min(54vw, 640px); }
+.terminal-command-context { display:flex; align-items:center; gap:10px; min-width:0; }
+#function-command .terminal-project-name { max-width: min(22vw, 420px); color:var(--muted); }
 #function-command .terminal-session-status { color: var(--green); }
 #function-command .terminal-session-status[data-state=offline] { color: var(--red); }
 #function-command .terminal-session-status[data-state=local] { color: var(--cyan); }
-.terminal-functionbar, .terminal-tabs { gap: 4px; padding: 5px 8px; }
-.terminal-functionbar > button, .terminal-tabs button, .terminal-commandbar button { border-radius: 2px; }
-.terminal-commandbar input { border-radius: 2px; }
+#function-command .terminal-commandbar { gap:5px; min-height:0; flex-wrap:nowrap; padding:0; border:0; background:none; }
+.terminal-command-prompt { padding:0 4px 0 0; color:var(--orange); font:600 13px/1.3 var(--font); }
+#function-command .terminal-commandbar input { min-width:0; height:32px; border-color:var(--desk-accent-line); border-radius:2px; color:var(--orange); caret-color:var(--orange); }
+#function-command .terminal-commandbar input::placeholder { color:var(--dim); }
+#function-command .terminal-commandbar input:focus { border-color:var(--orange); outline-color:var(--orange); }
+#function-command .terminal-commandbar button { min-width:0; height:32px; padding-inline:9px; border-radius:2px; }
+#function-command .terminal-help-button { border-color:var(--desk-control-line); color:var(--text); background:var(--panel); }
+#function-command .terminal-help-button[aria-expanded=true] { color:var(--orange); border-color:var(--orange); background:var(--desk-active); }
+#function-command .terminal-command-help {
+  inset: calc(100% + 1px) auto auto 10px;
+  width:min(400px, calc(100vw - 20px));
+  border-color:var(--desk-control-line);
+  border-radius:2px;
+}
+#function-command .terminal-command-help > button[aria-current=page] { background:var(--desk-active); color:var(--orange); }
+#function-command .terminal-command-message { top:calc(100% + 1px); }
 
 /* Primary routes stay visible. Tools is the same native disclosure with a
    bounded overlay, so opening the catalog does not squeeze the desk. */
@@ -224,9 +240,9 @@
   min-height: 36px;
   gap: 10px;
   padding: 0 10px;
-  background: #0a111a;
+  background: var(--bg);
 }
-.im-model-heading { color: var(--cyan); }
+.im-model-heading { color: var(--orange); }
 .im-model-list { height: auto; }
 .im-model-avatar,
 .app-shell[data-view=operations] .im-model-avatar {
@@ -246,7 +262,7 @@
 .app-shell > .main-content { padding: 9px 12px; }
 .page-heading { margin-bottom: 8px; }
 .page-heading h1 { margin-top: 1px; font-size: 22px; }
-.page-heading .eyebrow { color: var(--cyan); font-size: 11px; }
+.page-heading .eyebrow { color: var(--orange); font-size: 11px; }
 .page-heading p { margin-top: 2px; font-size: 13px; }
 .page-heading .title-cursor,
 .panel-heading .section-number,
@@ -261,6 +277,11 @@
   border-radius: var(--desk-frame-radius);
 }
 .button-primary { border-color: var(--orange); }
+.app-shell :is(#language-select, .dispatch-context select, .prompt-wrap) {
+  border-color: var(--desk-control-line);
+}
+.app-shell[data-view=operations] #toggle-operation-controls { border-color: var(--desk-control-line); }
+.app-shell[data-view=operations] #toggle-operation-controls[aria-expanded=true] { color:var(--orange); border-color:var(--desk-accent-line); }
 .button-quiet:hover,
 .button-outline:hover { background: var(--desk-hover); color: var(--text); }
 :is(.panel, .organization-panel, .connection-summary, .metrics-strip, .iq-disclosure,
@@ -278,10 +299,10 @@
   padding: 5px 10px;
   background: var(--panel-raised);
 }
-.panel-heading h2 { font-size: 15px; }
+.panel-heading h2 { color: var(--orange); font-size: 15px; }
 .panel-footer { min-height: 30px; padding: 4px 9px; }
 .iq-compact-summary { min-height: 32px; padding: 4px 9px; }
-.iq-compact-heading { color: var(--cyan); }
+.iq-compact-heading { color: var(--orange); }
 .lp-heading { min-height: 34px; padding: 5px 8px; }
 .dialog-heading { background: var(--panel-raised); }
 .settings-dialog select, .settings-dialog .text-input,
@@ -312,7 +333,7 @@
 }
 .app-shell[data-view=operations] .filter-tab.active {
   color: var(--orange);
-  border-color: #825a35;
+  border-color: var(--desk-accent-line);
   background: var(--desk-active);
   box-shadow: inset 0 -1px var(--orange);
 }
@@ -322,8 +343,8 @@
 .mission-table th {
   height: 29px;
   padding-block: 4px;
-  color: var(--cyan);
-  background: #111b28;
+  color: var(--orange);
+  background: var(--panel-raised);
   border-color: var(--line);
 }
 .mission-table td {
@@ -331,11 +352,15 @@
   padding-block: 4px;
   border-color: var(--line-soft);
 }
-.mission-table tbody tr:nth-child(even) { background: #111b26; }
+.mission-table tbody tr:nth-child(even) { background: var(--desk-stripe); }
 .mission-table tbody tr:not(.selected):hover { background: var(--desk-hover); }
 .mission-table tbody tr.selected { background: var(--desk-active); }
-.mission-table :is(.task-id, .task-time) { font-family: var(--font); }
-.mission-table .task-model { color: var(--cyan); }
+.mission-table :is(.task-short-id, .elapsed-text, .task-model-id, .status-tag) { font-family: var(--font); }
+.mission-table .task-model-id { color: var(--cyan); }
+.app-shell[data-view=operations] :is(.mission-table, .inspector-meta) .status-tag.running,
+.app-shell[data-view=operations] :is(.mission-table, .inspector-meta) .status-tag.completed { color:var(--green); border-color:#365740; background:#0d1c11; }
+.app-shell[data-view=operations] :is(.mission-table, .inspector-meta) .status-tag.queued { color:var(--orange); border-color:var(--desk-accent-line); background:var(--desk-active); }
+.app-shell[data-view=operations] :is(.mission-table, .inspector-meta) :is(.status-tag.failed, .status-tag.interrupted) { color:var(--red); border-color:#754242; background:#211111; }
 .app-shell[data-view=operations] .mission-table .task-name {
   display: block;
   max-width: 100%;
@@ -410,12 +435,9 @@
 .on-inspector button:hover:not(:disabled),
 .iw-workspace button:not(.iw-port):hover:not(:disabled) { background: var(--desk-hover); }
 .on-toolbar .on-connections { color: var(--cyan); }
-.on-stage, .iw-stage {
-  background-color: #0a111b;
-  background-image: radial-gradient(#7893ab62 .8px, transparent .8px);
-}
+.iw-stage { background-color: var(--bg); background-image: radial-gradient(#7775 .8px, transparent .8px); }
+.iw-node { background:var(--panel); border-color:var(--desk-control-line); }
 .on-node-list > .org-agent-card.on-node {
-  border-color: #506175;
   border-radius: 4px;
   box-shadow: 0 4px 12px #0004;
 }
@@ -424,12 +446,10 @@
 .on-node .org-agent-actions button { border-radius: 3px; }
 .on-node .org-agent-task { border-top: 0; }
 .on-world > .org-chart-root.on-node > .org-commander-node {
-  border-color: #967043;
   border-radius: 4px;
-  background: #211b16;
 }
 .on-minimap { border-radius: 3px; }
-.on-hint { color: var(--muted); background: #0a111bea; border-color: var(--line); }
+.on-hint { color: var(--muted); border-color: var(--line); }
 .iw-toolbar, .iw-footer { min-height: 36px; padding: 5px 8px; }
 .iw-node { border-radius: 3px; }
 .iw-inspector-heading { min-height: 35px; padding: 6px 10px; }
@@ -467,7 +487,7 @@
 .ik-knowledge :is(.ik-panel-label, .ik-graph-counts) { color: var(--cyan); }
 .ia-comparison-table th, .ia-chart-table th { background: var(--panel-raised); color: var(--cyan); }
 .ia-comparison-table td, .ia-chart-table td { border-color: var(--line-soft); }
-.ia-comparison-table tbody tr:nth-child(even) { background: #111b26; }
+.ia-comparison-table tbody tr:nth-child(even) { background: var(--desk-stripe); }
 .ia-panel-heading, .ib-panel h3 { padding-block: 7px; }
 .ia-analytics .ia-grid { gap: 8px; }
 .ib-grid, .ip-layout, .isk-layout { gap: 9px; }
@@ -485,12 +505,11 @@
     padding: 4px 8px;
     gap: 6px;
   }
-  #function-command > summary, .app-shell[data-view=operations] #function-command > summary {
-    padding-inline: 8px;
-    gap: 5px;
-  }
-  #function-command .terminal-project-name { max-width: 37vw; }
-  #function-command .terminal-session-status { max-width: 27vw; overflow: hidden; text-overflow: ellipsis; }
+  .terminal-command-rail { grid-template-columns:minmax(0, 1fr); gap:3px; padding:4px 7px; }
+  .terminal-command-context { justify-content:space-between; gap:5px; }
+  #function-command .terminal-project-name { margin:0; max-width:45vw; font-size:11px; }
+  #function-command .terminal-session-status { max-width:49vw; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
+  .terminal-command-shortcut { display:none; }
   .app-shell > .sidebar,
   .app-shell[data-view=operations] > .sidebar {
     padding: 0 4px;

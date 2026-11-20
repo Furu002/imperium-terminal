@@ -559,6 +559,7 @@ export function createHQServer({
         '/task-harness.js': ['task-harness.js', 'text/javascript; charset=utf-8'],
         '/task-harness.css': ['task-harness.css', 'text/css; charset=utf-8'],
         '/command-desk.css': ['command-desk.css', 'text/css; charset=utf-8'],
+        '/terminal-palette.css': ['terminal-palette.css', 'text/css; charset=utf-8'],
         '/agent-skills.js': ['agent-skills.js', 'text/javascript; charset=utf-8'],
         '/agent-skills.css': ['agent-skills.css', 'text/css; charset=utf-8'],
         ...Object.fromEntries(['workspace', 'accounts', 'terminal-pane', 'updates', 'projects', 'analytics', 'knowledge', 'quotas', 'execution-options', 'terminal-shell'].flatMap(name => [[`/${name}.css`, [`${name}.css`, 'text/css; charset=utf-8']], [`/${name}.js`, [`${name}.js`, 'text/javascript; charset=utf-8']]])),

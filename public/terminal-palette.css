@@ -1,0 +1,203 @@
+/* Apply the desk palette to the tool surfaces with their own styles.
+   Keep project swatches, graph encodings and ANSI colors independent. */
+
+.ia-provider-card, .ia-register-form, .ia-registered-section,
+.ip-tile, .ip-create, .ip-edit, .isk-panel, .isk-skill,
+.ia-connection, .ia-wizard, .isk-dialog, .imp-updates,
+.ar-panel, .settings-dialog, .department-dialog {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--text);
+}
+.ia-wizard-heading, .ia-wizard-steps, .ia-wizard-navigation,
+.settings-dialog .dialog-heading, .department-dialog .dialog-heading,
+.ar-review-heading, .ik-create-heading {
+  background: var(--panel-raised);
+  border-color: var(--line);
+}
+.ia-heading, .ip-heading, .isk-heading, .ib-heading,
+.ia-scope-note, .ip-notes, .isk-register, .isk-preview {
+  border-color: var(--line);
+}
+.ia-field, .ip-field, .isk-field, .ar-label,
+.settings-dialog .settings-label, .department-dialog .settings-label {
+  color: var(--orange);
+}
+.ia-command, .ip-path, .isk-preview pre, .ar-patch,
+.settings-dialog .provider-command {
+  background: var(--bg);
+  border-color: var(--line);
+}
+.ia-provider-mark, .iq-provider-mark, .settings-dialog .provider-card {
+  background: var(--panel-raised);
+  border-color: var(--line);
+  color: var(--text);
+}
+.ia-provider-version, .ia-scope-note strong, .ia-field-help,
+.ip-help, .isk-help, .ar-help, .settings-description, .field-help {
+  color: var(--muted);
+}
+.ia-model-heading, .ia-model-heading button, .ia-command-kind,
+.imp-updates__facts dt, .imp-updates__notes-title,
+.ar-review-heading h2, .ar-matrix tbody th {
+  color: var(--orange);
+}
+.ia-accounts :is(input:not([type=checkbox]), select),
+.ia-wizard select,
+.ip-projects input:not([type=color]):not([type=checkbox]),
+.isk-skills :is(input:not([type=checkbox]), select), .ar-select,
+.settings-dialog .text-input, .department-dialog .text-input,
+.ic-compose-controls > select, .ic-composer .ic-prompt {
+  background: var(--bg);
+  border-color: var(--desk-control-line, var(--line));
+  color: var(--text);
+}
+.ia-accounts input::placeholder, .ip-projects input::placeholder,
+.ic-composer .ic-prompt::placeholder { color: var(--dim); }
+.ia-accounts :is(input, select):focus, .ia-wizard select:focus,
+.ip-projects input:focus, .ic-composer .ic-prompt:focus { border-color: var(--orange); }
+.ip-tile.ip-active, .isk-equip-row.equipped,
+.ar-review-dialog .ar-tab.active {
+  background: var(--desk-active);
+  border-color: var(--orange);
+}
+.ip-tile { border-left-color: var(--ip-color, var(--orange)); }
+.isk-skill.selected { border-color: var(--orange); }
+.isk-skills .isk-primary, .ic-composer .ic-send {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--bg);
+}
+.isk-skills .isk-primary:hover:not(:disabled), .ic-composer .ic-send:hover:not(:disabled),
+.imperium-terminal__button.is-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--orange) 85%, var(--text));
+  border-color: var(--orange);
+  color: var(--bg);
+}
+.isk-skills .isk-danger, .imp-updates .imp-updates__button--danger,
+.ic-message.ic-error { color: var(--red); }
+.isk-error, .ib-error { color: var(--red) !important; }
+.isk-message, .ia-message:not(.ia-error), .ip-message:not(.ip-error) { color: var(--green); }
+
+.imp-updates__status, .imp-updates__facts, .imp-updates__desktop-only,
+.imp-updates__confirm, .imp-updates__notes-body {
+  background: var(--bg);
+  border-color: var(--line);
+}
+.imp-updates__notice, .ar-review-notice {
+  background: var(--desk-active);
+  color: var(--orange);
+  border-color: var(--orange);
+}
+.imp-updates__error {
+  background: color-mix(in srgb, var(--red) 9%, var(--bg));
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.ib-collaboration, #conversations-section.ic-chat, .ic-timeline {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--line);
+}
+.ib-search input, .ib-collaboration :is(.ib-task, .ib-artifact) {
+  border-color: var(--line-soft);
+}
+.ib-search input { background: var(--panel); color: var(--text); }
+.ib-task strong, .ib-trace-targets summary { color: var(--cyan); }
+.ib-task[data-status=running] .ib-status { color: var(--green); }
+.ib-task[data-status=queued] .ib-status { color: var(--orange); }
+.ib-task[data-status=failed] .ib-status { color: var(--red); }
+.ib-collaboration .ib-artifact { background: var(--panel) !important; }
+.ib-collaboration .ib-artifact.selected {
+  background: var(--desk-active) !important;
+  box-shadow: inset 3px 0 var(--orange);
+}
+.ib-collaboration .ib-artifact:focus-visible { outline-offset: -2px; }
+.ib-unverified { color: var(--orange) !important; }
+.ic-sidebar .ic-conversation:hover { background: var(--desk-hover); }
+.ic-sidebar .ic-conversation.selected { background: var(--desk-active); }
+.ic-pages > span, .ic-detail-note, .ic-defaults, .ic-compose-context { color: var(--muted); }
+.ic-compose-controls > select, .ic-model-notice { border-color: var(--line); }
+.ic-model-notice { color: var(--orange); background: var(--desk-active); }
+.ic-defaults.ic-blocked { color: var(--red); }
+
+.ik-knowledge, .ik-create-dialog {
+  --ik-bg: var(--bg);
+  --ik-panel: var(--panel);
+  --ik-line: var(--line);
+  --ik-text: var(--text);
+  --ik-muted: var(--muted);
+  --ik-link: var(--cyan);
+}
+.ik-create-dialog, .ik-graph-accessibility, .ik-graph-unavailable {
+  background: var(--panel);
+  border-color: var(--line);
+}
+.ik-graph-accessibility, .ik-knowledge .ik-result-copy small { color: var(--muted); }
+
+.imperium-terminal__toolbar, .imperium-terminal__meta { border-color: var(--line); }
+.imperium-terminal__dot { background: var(--dim); }
+.imperium-terminal__dot.is-running { background: var(--green); box-shadow: none; }
+.imperium-terminal__draft {
+  background: var(--desk-active);
+  border-color: var(--orange);
+}
+.imperium-terminal__error { border-color: var(--red); }
+
+.io-conversation {
+  --io-line: var(--line);
+  --io-text: var(--text);
+  --io-muted: var(--muted);
+}
+.io-conversation .io-request-disclosure, .io-conversation .io-details,
+.io-conversation .io-output-modes,
+.io-window-actions button, .io-conversation .io-window,
+.io-window-placeholder button {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--text);
+}
+.io-request-disclosure > .io-message-heading::before { color: var(--orange); }
+.io-request-preview, .io-details > summary, .io-conversation .io-waiting { color: var(--muted); }
+.io-conversation .io-model-label { color: var(--cyan); }
+.io-conversation .io-mode.active { color: var(--orange); background: var(--desk-active); border-color: var(--orange); }
+.io-conversation .io-expand { background: var(--orange); border-color: var(--orange); color: var(--bg); }
+.io-conversation .io-expand:hover { background: color-mix(in srgb, var(--orange) 85%, var(--text)); border-color: var(--orange); color: var(--bg); }
+.io-dialog[data-mode=window] { border-color: var(--line); }
+.io-dialog[data-mode] :is(.io-dialog-heading, .io-window-actions) { border-color: var(--line); }
+.io-dialog[data-mode] .io-dialog-heading > strong { color: var(--text); }
+.io-window-actions button:hover, .io-conversation .io-window:hover {
+  background: var(--desk-hover);
+  border-color: var(--dim);
+  color: var(--text);
+}
+.io-window-actions .io-window-fullscreen { border-color: var(--orange); color: var(--orange); }
+.io-window-actions .io-dialog-close:hover, .io-conversation .io-error {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 9%, var(--bg));
+  color: var(--red);
+}
+.io-window-placeholder button { border-color: var(--desk-control-line, var(--line)); }
+.io-code-block, .io-markdown :not(pre) > code, .io-table-wrap :is(th, td) { border-color: var(--line); }
+.io-code-toolbar, .io-table-wrap th { background: var(--panel-raised); color: var(--orange); }
+.io-markdown a { color: var(--cyan); }
+.io-markdown blockquote { border-color: var(--orange); background: var(--panel); }
+.ith-editor > summary:hover, .ith-report > summary:hover { background: var(--panel-raised); }
+.ith-form :is(input:not([type=checkbox]), textarea) { border-color: var(--desk-control-line, var(--line)); }
+
+.iq-provider-title h3, .iq-window-heading > strong { color: var(--text); }
+.iq-window, .iq-credits, .iq-credit-buckets, .iq-extra-usage, .iq-card-footer,
+.iq-expanded-body, .iq-compact-provider + .iq-compact-provider {
+  border-color: var(--line);
+}
+.iq-provider-reason, .iq-compact-unknown, .iq-compact-status, .iq-source { color: var(--muted); }
+.iq-meter { background: var(--line-soft); }
+.iq-meter-fill:not(.iq-meter-used) { background: var(--green); }
+.iq-window-expired .iq-meter-fill, .iq-stale .iq-meter-fill { background: var(--dim); }
+.iq-meter-used { background: var(--orange); }
+.ia-analytics { --ia-line: var(--line); --ia-muted: var(--muted); }
+.ia-analytics .ia-metrics, .ia-chart-table, .ia-footnote { background: var(--panel); border-color: var(--line); }
+.ia-chart-stage { background: var(--bg); }
+.ia-analytics .ia-comparison-table tbody tr:nth-child(even) { background: var(--panel-raised); }
+.ia-analytics .ia-panel-label, .ia-metric-note, .ia-caption, .ia-disclaimer { color: var(--muted); }

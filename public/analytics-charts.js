@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const COLORS = Object.freeze({ black: '#000000', amber: '#FF9F00', cyan: '#00B7EB', green: '#00D77A', red: '#FF4D4F', white: '#F2F2F2', muted: '#A0A0A0', grid: '#252525' });
+  const COLORS = Object.freeze({ black: '#050505', amber: '#FFAD32', cyan: '#00B7EB', green: '#00D77A', red: '#FF4D4F', white: '#F2F2F2', muted: '#B8B8B8', grid: '#262626' });
 
   // Chart.js is bundled locally. No analytics, provider or CDN requests are made here.
   function createManager({ container, Chart: injectedChart } = {}) {
