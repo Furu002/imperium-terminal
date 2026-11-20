@@ -192,6 +192,7 @@ let view = 'overview';
 let feedPaused = false;
 let dispatchPending = false;
 let lastFeedSignature = '';
+let lastMissionSignature = '';
 let stream;
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
 let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false, collaborationMounted = false;
@@ -475,7 +476,7 @@ function render() {
 
 function renderOrganization() {
   if (window.ImperiumOrganization) {
-    window.ImperiumOrganization.render(state, { language, connected, api, getState: () => state, onNavigate: updateView, onAssignDepartment: assignDepartment, onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')), toast });
+    window.ImperiumOrganization.render(state, { language, connected, api, getState: () => state, onNavigate: next => { updateView(next); if (next === 'operations') showOperationControls(); }, onAssignDepartment: assignDepartment, onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')), toast });
     return;
   }
   const readyCount = connected ? state.providers.filter(provider => provider.status === 'ready' && provider.authenticated).length : 0;
@@ -638,6 +639,9 @@ function progressView(task) {
 
 function renderMissions() {
   const search = $('#task-search').value.trim().toLocaleLowerCase();
+  const signature = JSON.stringify([language, currentFilter, search, selectedTaskId, state.departments.map(dept => [dept.id, dept.name]), state.tasks.map(task => [task.id, task.title, task.departmentId, task.departmentName, task.provider, task.status, task.progress?.source, task.progress?.percent, task.priority, task.demo, task.createdAt, task.startedAt, task.finishedAt, task.modelId, task.reportedModel, ...(search ? [task.prompt] : [])])]);
+  if (signature === lastMissionSignature) return;
+  lastMissionSignature = signature;
   const attention = state.tasks.filter(task => ['failed', 'interrupted'].includes(task.status));
   $('#mission-total').textContent = `${state.tasks.length} OPERATIONS`;
   $('#filter-all-count').textContent = String(state.tasks.length);
@@ -834,7 +838,7 @@ function renderExtensions() {
     if (state.server.quotaUpdatedAt !== quotaStamp) { quotaStamp = state.server.quotaUpdatedAt; if (quotaStamp) void window.ImperiumQuotas.refresh(); }
   }
   if (state.server.csrfToken) syncDispatchExecution();
-  window.ImperiumWorkspace?.render(state, { language, t, connected, onAssignDepartment: assignDepartment, onOpenCollaboration: () => updateView('collaboration'), onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')) });
+  window.ImperiumWorkspace?.render(state, { language, t, connected, visible: view === 'workflow', onAssignDepartment: assignDepartment, onOpenCollaboration: () => updateView('collaboration'), onOpenSettings: () => updateView('accounts'), onEditDepartment: openDepartmentEditor, onChanged: async () => receiveState(await api('/api/state')) });
   if (state.server.csrfToken && window.ImperiumAccounts) {
     if (!accountsMounted) {
       accountsMounted = true;

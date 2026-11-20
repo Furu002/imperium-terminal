@@ -40,6 +40,7 @@
   let graph = { nodes: [], edges: [] }, memories = [], memoryLoaded = false, project = null, loaded = false, loading = false, dirty = false, saving = false, errorMessage = '';
   let selected = null, pendingSource = null, drag = null, zoom = 1, pan = { x: 0, y: 0 }, saveTimer, progressTimer, requestGeneration = 0, inspectorSignature = '', loadedGraphHash = '', savingPromise = Promise.resolve(true);
   let agentExecutionControls, removalDialog;
+  let visible = true, fitPending = false, memoryRefreshNeeded = false, memoryRefreshRequest = 0;
   const workflowDrafts = new Map();
   Object.assign(WORDS.en, { '협업 보드': 'Collaboration board', '연결 에이전트 실행': 'Run connected agents', '실행 대상': 'Agents to run', '시작 에이전트': 'Starting agent', '파일 수정은 접근 설정과 모든 대상 모델이 허용할 때만 선택할 수 있습니다.': 'File edits can be enabled only when the access policy and every target provider allow them.', '실행 불가': 'Not ready', '그래프 저장이 끝난 뒤 다시 실행하세요.': 'Wait for graph changes to be saved, then run again.' });
   Object.assign(WORDS.ja, { '협업 보드': '共同作業ボード', '연결 에이전트 실행': '接続したエージェントを実行', '실행 대상': '実行対象', '시작 에이전트': '開始エージェント', '파일 수정은 접근 설정과 모든 대상 모델이 허용할 때만 선택할 수 있습니다.': 'アクセス設定とすべての対象モデルが許可する場合のみ、ファイル編集を有効にできます。', '실행 불가': '実行不可', '그래프 저장이 끝난 뒤 다시 실행하세요.': 'グラフの保存が完了してから再実行してください。' });
@@ -92,6 +93,7 @@
     return wrapper;
   }
   function updateProgressDisplays() {
+    if (!visible) return;
     if (!host) return;
     host.querySelectorAll('[data-progress-task-id]').forEach(element => { const task = (state.tasks || []).find(item => item.id === element.dataset.progressTaskId); if (task) element.replaceWith(renderTaskProgress(task, element.dataset.compact === 'true')); });
   }
@@ -142,18 +144,28 @@
     };
   }
   async function load() {
-    if (loading) return;
-    loading = true; const generation = ++requestGeneration;
+    if (loading || !visible) return;
+    loading = true; const generation = ++requestGeneration, memoryRequest = memoryRefreshRequest; memoryRefreshNeeded = false;
     announce(tr('불러오는 중…'));
     const results = await Promise.allSettled([request('/api/graph'), request('/api/memory')]);
     if (generation !== requestGeneration) return;
     loading = false;
     if (results[0].status === 'fulfilled') { graph = sanitize(results[0].value.graph || results[0].value); loadedGraphHash = JSON.stringify(graph); }
-    if (results[1].status === 'fulfilled') { memories = results[1].value.nodes || results[1].value.memory?.nodes || []; memoryLoaded = true; }
+    if (results[1].status === 'fulfilled' && (memoryRequest === memoryRefreshRequest || !memoryLoaded)) { memories = results[1].value.nodes || results[1].value.memory?.nodes || []; memoryLoaded = true; }
     ensureOrganization(); loaded = true;
     if (results.some(result => result.status === 'rejected')) announce(results.filter(result => result.status === 'rejected').map(result => result.reason.message).join(' · '), true);
     else announce(tr('저장됨'));
-    renderScene(); fit();
+    fitPending = true; renderScene(); if (visible) { fit(); fitPending = false; if (memoryRefreshNeeded) void refreshMemories(); }
+  }
+  async function refreshMemories() {
+    if (!host || !project) return;
+    if (!visible) { memoryRefreshNeeded = true; return; }
+    const key = project, generation = requestGeneration, serial = ++memoryRefreshRequest; memoryRefreshNeeded = false;
+    try {
+      const result = await request('/api/memory', 'GET', undefined, key);
+      if (key !== project || generation !== requestGeneration || serial !== memoryRefreshRequest) return;
+      memories = result.nodes || result.memory?.nodes || []; memoryLoaded = true; ensureOrganization(); inspectorSignature = ''; renderScene();
+    } catch (error) { if (key === project && generation === requestGeneration && serial === memoryRefreshRequest) announce(error.message, true); }
   }
   function scheduleSave() { dirty = true; announce(tr('저장 중…')); clearTimeout(saveTimer); saveTimer = setTimeout(persist, 350); }
   async function persist() {
@@ -197,7 +209,7 @@
     window.addEventListener('pointercancel', endPointer);
     stage.addEventListener('dragover', event => { if (event.dataTransfer?.types?.includes('application/x-imperium-node')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } });
     stage.addEventListener('drop', event => { event.preventDefault(); try { const value = JSON.parse(event.dataTransfer.getData('application/x-imperium-node')); addLibraryNode(value.type, value.referenceId, toWorld(event.clientX, event.clientY)); } catch { /* Ignore unrelated external drag data. */ } });
-    window.addEventListener('resize', () => { if (loaded && !drag) renderScene(); });
+    window.addEventListener('resize', () => { if (visible && loaded && !drag) renderScene(); });
     if (!progressTimer) progressTimer = setInterval(updateProgressDisplays, 15000);
     inspector.addEventListener('focusout', () => setTimeout(() => { if (!inspector.contains(document.activeElement)) renderInspector(true); }, 0));
     return true;
@@ -219,7 +231,7 @@
     if (!errorMessage && !saving && !dirty && loaded) announce(tr('저장됨'));
   }
   function renderScene() {
-    if (!host) return;
+    if (!host || !visible) return;
     renderToolbar();
     emptyOverlay.hidden = graph.nodes.length > 0 || !loaded;
     emptyOverlay.replaceChildren(h('span', { class: 'iw-empty-symbol', 'aria-hidden': 'true' }, '⌘'), h('h3', {}, tr('빈 워크스페이스')), h('p', {}, tr('필요한 에이전트와 기억을 직접 추가하세요.')), h('div', {}, h('button', { type: 'button', 'data-iw-action': 'empty-add', class: 'iw-accent-button', onclick: openNodeLibrary }, '+ ', tr('노드 추가')), h('button', { type: 'button', 'data-iw-action': 'template', onclick: loadTemplate }, tr('회사 조직도 템플릿 불러오기'))));
@@ -271,7 +283,7 @@
     zoom = next; pan = { x: point.x - before.x * zoom, y: point.y - before.y * zoom }; transform();
   }
   function fit() {
-    if (!graph.nodes.length || !stage) return;
+    if (!graph.nodes.length || !stage || !visible) return;
     const bounds = stage.getBoundingClientRect(), width = bounds.width || 900, height = bounds.height || 600;
     const left = Math.min(...graph.nodes.map(item => item.x)), top = Math.min(...graph.nodes.map(item => item.y));
     const right = Math.max(...graph.nodes.map(item => item.x + dimensions(item.type).width)), bottom = Math.max(...graph.nodes.map(item => item.y + dimensions(item.type).height));
@@ -558,15 +570,18 @@
     memoryDialog.append(h('div', { class: 'iw-memory-dialog-heading' }, h('div', {}, h('h2', {}, tr('기억 선택')), h('p', {}, tr('기억을 선택하거나 새로 작성하세요.'))), close), list, form); document.body.append(memoryDialog); memoryDialog.showModal();
   }
   function render(incoming, callbacks = {}) {
-    state = incoming || {}; options = { ...options, ...callbacks };
+    state = incoming || {}; options = { ...options, ...callbacks }; visible = callbacks.visible !== false;
+    if (!host && !visible) return;
     if (!host && !mount()) return;
     const key = state.settings?.workspace;
     if (!key) { renderScene(); announce(tr('불러오는 중…')); return; }
-    if (project !== key) { project = key; removalDialog?.close(); removalDialog?.remove(); memoryDialog?.close(); libraryPanel?.remove(); libraryPanel = null; graph = { nodes: [], edges: [] }; loaded = false; loading = false; dirty = false; selected = null; inspectorSignature = ''; requestGeneration++; clearTimeout(saveTimer); memories = []; memoryLoaded = false; ensureOrganization(); renderScene(); load(); return; }
+    if (project !== key) { project = key; removalDialog?.close(); removalDialog?.remove(); memoryDialog?.close(); memoryDialog?.remove(); memoryDialog = null; libraryPanel?.remove(); libraryPanel = null; graph = { nodes: [], edges: [] }; loaded = false; loading = false; dirty = false; selected = null; pendingSource = null; drag = null; stage?.classList.remove('iw-dragging', 'iw-panning'); inspectorSignature = ''; requestGeneration++; memoryRefreshRequest++; clearTimeout(saveTimer); memories = []; memoryLoaded = false; memoryRefreshNeeded = false; fitPending = false; ensureOrganization(); if (!visible) { world.querySelectorAll('.iw-node').forEach(node => node.remove()); edgesLayer.replaceChildren(); inspector.replaceChildren(); } renderScene(); if (visible) void load(); return; }
     ensureOrganization();
     if (state.graph && loaded && !dirty && !saving && !drag) { const hash = JSON.stringify(sanitize(state.graph)); if (hash !== loadedGraphHash) { graph = sanitize(state.graph); loadedGraphHash = hash; ensureOrganization(); } }
-    renderScene();
+    if (!visible) return;
+    if (!loaded) { renderScene(); if (!loading) void load(); return; }
+    renderScene(); if (fitPending) { fit(); fitPending = false; } if (memoryRefreshNeeded && !loading) void refreshMemories();
   }
   window.ImperiumWorkspace = { render, reload: async () => { if (!host || !project) return; loading = false; await load(); }, fit, getGraph: () => JSON.parse(JSON.stringify(graph)) };
-  window.addEventListener('imperium:memory-changed', () => { const key = project; request('/api/memory').then(result => { if (key !== project) return; memories = result.nodes || result.memory?.nodes || []; memoryLoaded = true; ensureOrganization(); inspectorSignature = ''; renderScene(); }).catch(error => announce(error.message, true)); });
+  window.addEventListener('imperium:memory-changed', () => { void refreshMemories(); });
 })();

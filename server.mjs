@@ -11,6 +11,7 @@ import { createProgressReader, estimateHistoricalETA } from './lib/progress.mjs'
 import { canonicalMemoryWorkspace } from './lib/memory.mjs';
 import { createUISnapshot } from './lib/ui-snapshot.mjs';
 import { createAgentSkills } from './lib/agent-skills.mjs';
+import { createOrganizationLayout } from './lib/organization-layout.mjs';
 import { resolveExecutionOptions } from './lib/execution-options.mjs';
 import { validateAccessSettings, accessSettingsChanged, assertTaskPermission } from './lib/access-policy.mjs';
 import { validateConversationRequest, assignConversation, pruneConversations, captureConversationMetadata, conversationRunContext, redactConversationSessions } from './lib/conversations.mjs';
@@ -50,6 +51,7 @@ export function createHQServer({
   const store = createStore({ dataDir, workspace: path.resolve(workspace), onStorageChange: () => notify() });
   const { state } = store;
   const agentSkills = agentSkillManager || createAgentSkills({ dataDir, getWorkspace: () => state.settings.workspace, getDepartments: () => state.departments });
+  const organizationLayout = createOrganizationLayout({ dataDir, getWorkspace: () => state.settings.workspace, getDepartments: () => state.departments });
   state.server.csrfToken = randomBytes(32).toString('hex');
   state.server.projectParent = projectParent || null;
   const active = new Map();
@@ -333,6 +335,12 @@ export function createHQServer({
       const route = url.pathname;
       if (route.startsWith('/api/agent-memory/')) { await extensions.handleAgent(req, res, route, url); return; }
       validRequest(req);
+      if (route === '/api/organization-layout' && req.method === 'GET') return json(res, 200, await organizationLayout.get({ workspace: url.searchParams.get('workspace') || state.settings.workspace }));
+      if (route === '/api/organization-layout' && req.method === 'PUT') {
+        const result = await organizationLayout.put(await bodyJSON(req, 128 * 1024));
+        state.server.organizationLayoutRevision = (state.server.organizationLayoutRevision || 0) + 1;
+        notify(); return json(res, 200, result);
+      }
       if (route === '/api/skills' && req.method === 'GET') return json(res, 200, await agentSkills.list({ workspace: url.searchParams.get('workspace') || state.settings.workspace }));
       const skillBindingMatch = /^\/api\/skills\/bindings\/([\w-]+)$/.exec(route);
       const skillMatch = /^\/api\/skills\/([\w-]+)$/.exec(route);
@@ -535,6 +543,8 @@ export function createHQServer({
         '/organization.css': ['organization.css', 'text/css; charset=utf-8'],
         '/workbench-theme.css': ['workbench-theme.css', 'text/css; charset=utf-8'],
         '/organization-workbench.js': ['organization-workbench.js', 'text/javascript; charset=utf-8'],
+        '/organization-nodes.js': ['organization-nodes.js', 'text/javascript; charset=utf-8'],
+        '/organization-nodes.css': ['organization-nodes.css', 'text/css; charset=utf-8'],
         '/agent-skills.js': ['agent-skills.js', 'text/javascript; charset=utf-8'],
         '/agent-skills.css': ['agent-skills.css', 'text/css; charset=utf-8'],
         ...Object.fromEntries(['workspace', 'accounts', 'terminal-pane', 'updates', 'projects', 'analytics', 'knowledge', 'quotas', 'execution-options', 'terminal-shell'].flatMap(name => [[`/${name}.css`, [`${name}.css`, 'text/css; charset=utf-8']], [`/${name}.js`, [`${name}.js`, 'text/javascript; charset=utf-8']]])),

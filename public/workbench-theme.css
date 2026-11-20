@@ -49,7 +49,7 @@ kbd { font: 12px/1.4 var(--font); color: var(--muted); border: 1px solid #455267
 .app-shell > .sidebar, .app-shell.im-has-model-activity > .sidebar { grid-area: navigation; }
 .app-shell > .main-content, .app-shell.im-has-model-activity > .main-content { grid-area: work; }
 .app-shell > .statusbar, .app-shell.im-has-model-activity > .statusbar { grid-area: status; }
-.topbar { min-height: 56px; height: auto; padding: 10px 18px; gap: 16px; flex-wrap: wrap; background: #0c1017; border-bottom: 1px solid var(--line); }
+.topbar { min-height: 48px; height: auto; padding: 6px 14px; gap: 14px; flex-wrap: wrap; background: #0c1017; border-bottom: 1px solid var(--line); }
 .brand { gap: 10px; min-width: 0; }
 .brand-mark { width: 30px; height: 30px; }
 .brand-copy strong { color: var(--orange); font: 650 20px/1.2 var(--font-sans); letter-spacing: .07em; }
@@ -62,12 +62,12 @@ kbd { font: 12px/1.4 var(--font); color: var(--muted); border: 1px solid #455267
 .profile-button { min-height: 36px; padding-left: 12px; font-size: 14px; gap: 8px; }
 .avatar { width: 30px; height: 30px; border-radius: 6px; color: var(--orange); background: var(--panel-raised); border-color: var(--line); font-size: 14px; }
 .language-picker select, #language-select { height: auto; min-height: 32px; padding: 4px 7px; border-color: #455267; border-radius: 5px; background: var(--panel); font-size: 13px; }
-.app-shell > .sidebar { min-height: 0 !important; height: 100%; padding: 18px 8px 12px; gap: 20px; overflow: auto; background: #0c1017; border-right: 1px solid var(--line); }
+.app-shell > .sidebar { min-height: 0 !important; height: 100%; padding: 12px 8px 10px; gap: 14px; overflow: auto; background: #0c1017; border-right: 1px solid var(--line); }
 .sidebar-top { max-height: none; overflow: visible; }
 .sidebar-label { display: block; margin: 0 10px 12px; color: var(--muted); font-size: 12px; letter-spacing: .08em; }
 .workbench-primary-nav { display: flex; flex-direction: column; gap: 6px; }
 .sidebar .nav-button { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; width: 100%; height: auto; min-height: 44px; gap: 8px; padding: 10px 9px; border: 0; border-radius: 5px; color: var(--muted); font: 500 14px/1.5 var(--font-sans); }
-.sidebar .nav-button > span:nth-child(2) { display: inline; min-width: 0; font-size: inherit; white-space: normal; overflow-wrap: anywhere; }
+.sidebar .nav-button > span:nth-child(2) { display: block; min-width: 0; font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar .nav-button .nav-icon { flex: 0 0 17px; width: 17px; font-size: 18px; color: inherit; }
 .sidebar .nav-button kbd { position: static; min-width: 0; margin-left: auto; padding: 0; border: 0; font-size: 11px; color: inherit; }
 .sidebar .nav-button:hover { background: var(--panel-raised); color: var(--text); }
@@ -85,7 +85,7 @@ kbd { font: 12px/1.4 var(--font); color: var(--muted); border: 1px solid #455267
 
 /* Commands stay reachable in a native disclosure instead of repeated nav rows. */
 #function-command.terminal-shell, .app-shell > #function-command { display: block; height: auto; min-height: 0; max-height: 42dvh; overflow: auto; background: #10151d; border-bottom: 1px solid var(--line); font: 14px/1.5 var(--font-sans); }
-#function-command > summary { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 7px 18px; cursor: pointer; color: var(--muted); list-style: none; }
+#function-command > summary { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 5px 14px; cursor: pointer; color: var(--muted); list-style: none; }
 #function-command > summary::-webkit-details-marker { display: none; }
 #function-command > summary::before { content: '›'; color: var(--orange); font-size: 20px; line-height: 1; }
 #function-command[open] > summary::before { content: '⌄'; }
@@ -104,14 +104,14 @@ kbd { font: 12px/1.4 var(--font); color: var(--muted); border: 1px solid #455267
 .terminal-workspace-strip { gap: 10px; background: var(--panel); }
 .terminal-command-help { max-height: 60dvh; border-color: var(--line); background: var(--panel); border-radius: 6px; }
 .terminal-command-message { font-size: 13px; max-width: min(600px, 90vw); background: var(--panel); border-radius: 5px; }
-.im-model-activity { min-height: 40px; height: auto; padding: 3px 12px; background: var(--bg); border-color: var(--line); font-family: var(--font-sans); }
+.im-model-activity { min-height: 36px; height: auto; padding: 0 12px; background: var(--bg); border-color: var(--line); font-family: var(--font-sans); }
 .im-model-heading, .im-model-status { font-size: 12px; }
-.im-model-avatar { min-width: 150px; height: 36px; padding-right: 14px; border-color: var(--line); }
+.im-model-avatar { min-width: 150px; height: 34px; padding-right: 14px; border-color: var(--line); }
 .im-model-name { font-size: 13px; }
 
 /* Common readable content and controls. Feature visibility remains router-owned. */
-.app-shell > .main-content { min-width: 0; min-height: 0; padding: 18px; overflow: auto; background: var(--bg); scrollbar-gutter: stable; }
-.page-heading { min-height: 0; gap: 14px; align-items: center; margin-bottom: 18px; }
+.app-shell > .main-content { min-width: 0; min-height: 0; padding: 12px 16px; overflow: auto; background: var(--bg); scrollbar-gutter: stable; }
+.page-heading { min-height: 0; gap: 10px; align-items: center; margin-bottom: 12px; }
 .page-heading h1 { margin-top: 3px; color: var(--text); font: 600 24px/1.35 var(--font-sans); letter-spacing: -.035em; }
 .page-heading .eyebrow { color: var(--muted); font-size: 12px; line-height: 1.5; letter-spacing: .04em; }
 .page-heading p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-top: 5px; }
@@ -558,6 +558,126 @@ dialog:not(.io-dialog) { max-width: calc(100vw - 24px); max-height: calc(100dvh 
   .app-shell[data-view=operations] .metric-label { font-size:12px; overflow-wrap:anywhere; }
   .app-shell[data-view=operations] .metric > div > span { font-size:12px; }
   .app-shell[data-view=operations] .io-conversation .io-message { padding:14px 12px; }
+}
+
+/* Shared spacing and control sizing: compact chrome, unchanged reading type. */
+.page-heading h1 { margin-top:0; line-height:1.3; }
+.page-heading .eyebrow { line-height:1.3; }
+.page-heading p { margin-top:3px; line-height:1.5; }
+.app-shell > .main-content > .extension-section { width:100%; max-width:100%; min-width:0; }
+.heading-actions, .ia-heading-actions, .ip-heading-actions, .ik-heading-actions, .isk-row-actions { align-items:center; }
+.ia-heading, .ip-heading, .isk-heading { min-width:0; flex-wrap:wrap; gap:8px 14px; padding-bottom:10px; margin-bottom:12px; }
+.ia-heading > div, .ip-heading > div, .isk-heading > div { min-width:0; }
+.ia-heading h2, .ip-heading h2, .isk-heading h2 { margin:0 0 3px; line-height:1.4; }
+.ia-heading p, .ip-heading p, .isk-heading p { line-height:1.5; }
+.ia-accounts .ia-layout, .ip-layout { min-width:0; gap:12px; }
+.ia-accounts .ia-layout > *, .ip-layout > *, .isk-layout > *, .ia-grid > *, .ib-grid > * { min-width:0; max-width:100%; }
+.ia-accounts button, .ia-wizard button, .ip-projects button, .imp-updates__button { min-height:36px; padding:7px 10px; border-radius:5px; font:500 14px/1.5 var(--font-sans); }
+.ia-accounts input:not([type=checkbox]), .ia-accounts select, .ia-wizard select,
+.ip-projects input:not([type=checkbox]):not([type=color]), .isk-skills input:not([type=checkbox]), .isk-skills select { min-width:0; max-width:100%; min-height:38px; height:auto; padding:8px 10px; border-radius:5px; font:16px/1.5 var(--font-sans); }
+.ia-provider-card, .ia-register-form, .ia-registered-section, .ip-tile, .ip-create, .ip-edit, .isk-panel, .isk-skill { min-width:0; border-color:var(--line); background:var(--panel); border-radius:6px; }
+.ia-provider-card { padding:12px; }
+.ia-provider-heading, .ia-provider-name, .ip-tile-head, .isk-skill-head { min-width:0; flex-wrap:wrap; }
+.ia-provider-name h4, .ia-register-form > h3, .ia-registered-section > h3, .ip-tile h4 { font-size:16px; line-height:1.5; }
+.ia-provider-card p, .ia-card-note, .ia-field, .ip-field, .ip-help, .ip-notes p { font-size:13px; line-height:1.6; }
+.ia-command, .ia-registered-card, .ia-registered-main { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+.ia-command pre, .ia-command code, .ip-path { max-width:100%; font-size:13px; overflow-wrap:anywhere; }
+.ie-options select, .ie-options input { min-width:0; max-width:100%; min-height:36px; height:auto; padding:7px 9px; border-radius:5px; font:15px/1.5 var(--font-sans); }
+.ie-field, .ie-field > span { min-width:0; font-size:13px; }
+.execution-task-settings > summary { min-height:34px; padding:6px 10px; font-size:13px; line-height:1.5; }
+.dispatch-submit .button-primary { min-height:36px; padding:8px 12px; font-size:14px; }
+.ip-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr)); gap:12px; }
+.ip-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.isk-skills { min-width:0; padding:0; color:var(--text); background:transparent; font-size:16px; }
+.isk-panel { padding:12px; }
+.isk-layout { gap:12px; }
+.isk-equip-row { min-width:0; min-height:42px; }
+.isk-equip-row span { flex-wrap:wrap; min-width:0; gap:4px 10px; }
+.isk-equip-row small { white-space:normal; }
+.isk-message:empty { min-height:0; margin:0; }
+.imp-updates { width:100%; min-width:0; padding:14px; border-color:var(--line); border-radius:6px; font-size:16px; line-height:1.65; }
+.imp-updates__title { margin-bottom:4px; font-size:22px; }
+.imp-updates__lead, .imp-updates__desktop-only { font-size:14px; line-height:1.6; }
+.imp-updates__facts { grid-template-columns:max-content minmax(0,1fr); gap:6px 16px; font-size:14px; }
+.imp-updates__facts dd, .imp-updates__status-text { min-width:0; overflow-wrap:anywhere; }
+.imp-updates__notes-body { max-height:none; overflow:visible; font-size:16px; line-height:1.65; }
+.imp-updates__actions, .imp-updates__confirm { display:flex; flex-wrap:wrap; gap:8px; }
+.ik-heading { min-width:0; gap:8px 12px; padding:8px 10px; }
+.ik-heading-actions { flex-wrap:wrap; }
+.ik-explanation { margin-bottom:8px; line-height:1.5; }
+.ik-body > .ik-inspector, .ik-results-list { overscroll-behavior:contain; }
+.settings-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; }
+#settings-dialog, #department-dialog, .ia-wizard, .isk-dialog, .org-agent-dialog, .iw-memory-dialog { box-sizing:border-box; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow:auto; }
+.dialog-body :is(input,select,textarea), .ia-wizard :is(input,select,textarea) { max-width:100%; }
+.dialog-body pre { max-width:100%; overflow:auto; }
+.dialog-body code { overflow-wrap:anywhere; }
+.ar-matrix { display:block; max-width:100%; overflow:auto; }
+
+/* The shell supplies the terminal height; xterm keeps ownership of cell size. */
+.app-shell[data-view=terminal] > .main-content { display:flex; flex-direction:column; min-height:0; gap:8px; overflow:hidden; }
+.app-shell[data-view=terminal] :is(.page-heading,#quotas-section,.lp-live-progress,.notice) { flex:none; margin-top:0; margin-bottom:0; }
+.app-shell[data-view=terminal] .lp-live-progress { max-height:20dvh; overflow:auto; }
+.app-shell[data-view=terminal] #terminal-section { flex:1 1 0%; min-height:0; height:auto; }
+.app-shell[data-view=terminal] .imperium-terminal { min-height:0; height:100%; max-height:none; border-color:var(--line); border-radius:6px; font-size:14px; }
+.imperium-terminal__toolbar { gap:6px; padding:6px 8px; }
+.imperium-terminal__select, .imperium-terminal__button, .imperium-terminal__draft-input { min-height:34px; height:34px; max-width:100%; padding:5px 9px; border-radius:4px; font-size:14px; }
+.imperium-terminal__select { min-width:min(150px,100%); }
+.imperium-terminal__meta { min-width:0; flex-wrap:wrap; gap:4px 8px; font-size:12px; }
+.imperium-terminal__stage { min-height:160px; }
+.imperium-terminal__draft-label, .imperium-terminal__draft-hint, .imperium-terminal__error { font-size:13px; }
+
+/* Home actions, goal disclosure and node canvas use one remaining work area. */
+.app-shell[data-view=overview] > .main-content { display:flex; flex-direction:column; min-height:0; gap:6px; padding:8px 14px; overflow:hidden; }
+.app-shell[data-view=overview] :is(.page-heading,#quotas-section,.lp-live-progress,.notice) { flex:none; margin-top:0; margin-bottom:0; }
+.app-shell[data-view=overview] .page-heading { min-height:36px; }
+.app-shell[data-view=overview] .lp-live-progress { max-height:20dvh; overflow:auto; }
+.app-shell[data-view=overview] #quotas-section .iq-expanded-body { max-height:20dvh; overflow:auto; }
+.app-shell[data-view=overview] #organization-section.org-workbench { display:flex!important; flex-direction:column; flex:1 1 0%; min-height:0; margin:0; overflow:hidden; }
+.app-shell[data-view=overview] .org-toolbar { flex:none; min-height:0; padding:6px 12px; gap:6px 12px; }
+.app-shell[data-view=overview] .org-toolbar-actions { gap:6px; }
+.app-shell[data-view=overview] .org-subtitle { font-size:13px; }
+.app-shell[data-view=overview] .org-goal { flex:none; min-height:0; max-height:24dvh; margin:0 12px 8px; padding:10px; overflow:auto; }
+.app-shell[data-view=overview] .org-goal textarea { height:72px; min-height:72px; }
+.app-shell[data-view=overview] .org-goal-actions { gap:6px; margin-top:6px; }
+.app-shell[data-view=overview] .org-goal-note { font-size:12px; line-height:1.5; }
+.app-shell[data-view=overview] .org-role-note { flex:none; margin:0; padding:4px 12px 6px; font-size:12px; line-height:1.5; }
+.app-shell[data-view=overview] .org-nodes-host { display:flex; flex-direction:column; flex:1 1 0%; min-width:0; min-height:0; }
+@media (min-width:901px) {
+  /* Explicit goal editing may need more space than a short display can hold. */
+  .app-shell[data-view=overview] #organization-section.org-workbench:has(> .org-goal:not([hidden])) { overflow:auto; }
+  .app-shell[data-view=overview] .org-workbench:has(> .org-goal:not([hidden])) .org-nodes-host { flex:1 0 430px; min-height:430px; }
+}
+@media (min-width:769px) {
+  .app-shell[data-view=chat] > .main-content { padding-block:10px; gap:8px; }
+  .app-shell[data-view=chat] .page-heading { margin:0; }
+}
+@media (max-width:1000px) {
+  .ia-accounts .ia-layout, .ip-layout, .isk-layout { grid-template-columns:minmax(0,1fr); }
+  .ia-account-sidebar { display:flex; flex-direction:column; }
+}
+@media (max-width:900px) {
+  .app-shell[data-view=overview] > .main-content { display:block; overflow:auto; }
+  .app-shell[data-view=overview] #organization-section.org-workbench { display:flex!important; flex:none; min-height:0; overflow:visible; }
+  .app-shell[data-view=overview] .org-nodes-host { display:block; flex:none; min-height:0; }
+}
+@media (max-width:768px) {
+  .topbar { min-height:48px; padding:6px 12px; }
+  .app-shell > .main-content { padding:10px 12px; }
+  .page-heading { gap:8px; margin-bottom:12px; }
+  .ia-heading, .ip-heading, .isk-heading { margin-bottom:10px; }
+  .ia-heading-actions, .ip-heading-actions, .ik-heading-actions { justify-content:flex-start; }
+  .ia-accounts button, .ip-projects button, .imp-updates__button { min-height:38px; }
+  .imp-updates { padding:12px; }
+  .imp-updates__facts { grid-template-columns:minmax(0,1fr); gap:3px; }
+  .imp-updates__facts dd { margin-bottom:8px; }
+  .imp-updates__notes-body { max-width:100%; }
+  .settings-dialog .dialog-body, .department-dialog .dialog-body, .ia-wizard .dialog-body { padding:12px; }
+  .settings-actions .button, .ia-wizard button, .isk-dialog button { min-height:40px; }
+  .isk-heading { flex-wrap:wrap; }
+  .imperium-terminal__toolbar { align-items:stretch; }
+  .imperium-terminal__select { flex:1 1 140px; min-width:0; }
+  .app-shell[data-view=terminal] > .main-content { overflow:auto; }
+  .app-shell[data-view=terminal] #terminal-section { flex:1 0 360px; min-height:360px; }
 }
 
 /* Keep these mode overrides last: earlier feature/mobile sheets used to give

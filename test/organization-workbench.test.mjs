@@ -35,10 +35,16 @@ test('roles are direct cards with actual owner and all configured providers; no 
 
 test('goal and dispatch share one draft and retain focus, selection and text through SSE and language rerenders', t => {
   const ui = fixture(t), goal = ui.document.querySelector('.org-goal-input'), dispatch = ui.document.querySelector('#dispatch-prompt');
+  const toggle = ui.document.querySelector('.org-goal-toggle'), panel = ui.document.querySelector('#org-goal-panel');
+  assert.equal(panel.hidden, true); assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  toggle.click(); assert.equal(panel.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true'); assert.equal(ui.document.activeElement, goal);
   goal.focus(); goal.value = 'Build a safe product'; goal.setSelectionRange(4, 10); goal.dispatchEvent(new ui.window.Event('input', { bubbles: true }));
   assert.equal(dispatch.value, goal.value);
   ui.render({ ...ui.state, tasks: [work('active', 'fe', { status: 'running' })] }, { language: 'ja' });
   assert.equal(ui.document.querySelector('.org-goal-input'), goal); assert.equal(ui.document.activeElement, goal); assert.equal(goal.selectionStart, 4); assert.equal(goal.value, 'Build a safe product');
+  assert.equal(panel.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  toggle.click(); assert.equal(panel.hidden, true); assert.equal(toggle.getAttribute('aria-expanded'), 'false'); assert.equal(goal.value, 'Build a safe product');
+  toggle.click(); assert.equal(panel.hidden, false); assert.equal(ui.document.activeElement, goal); assert.equal(goal.value, 'Build a safe product'); assert.equal(dispatch.value, goal.value);
   dispatch.value = 'Prepared elsewhere'; dispatch.dispatchEvent(new ui.window.Event('input')); assert.equal(goal.value, 'Prepared elsewhere');
   ui.document.querySelector('.org-goal-actions button').click(); assert.deepEqual(ui.navigations, ['operations']);
   assert.equal(ui.calls.some(call => call.path === '/api/tasks'), false);

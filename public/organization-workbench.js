@@ -18,6 +18,7 @@
   let state = {}, options = {}, language = 'ko', host, heading, subtitle, summary, owner, list, goalInput, goalLabel, goalButton, goalNote, addButton, refreshButton, roleNote, dialog, execution;
   let workspace = '', generation = 0, skills = null, skillStatus = 'waiting', skillsStamp = '', pendingSkills = '', skillEvent = 0;
   const cards = new Map();
+  let nodeCanvas, goalPanel, goalToggle;
   const tr = (key, values = {}) => (TEXT[key]?.[language === 'en' ? 1 : language === 'ja' ? 2 : 0] || key).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
   const h = (tag, attributes = {}, ...children) => {
     const element = document.createElement(tag);
@@ -51,7 +52,16 @@
     goalNote = h('p', { class: 'org-goal-note' });
     owner = h('div', { class: 'org-chart-root', id: 'org-chart-root' });
     list = h('ul', { class: 'org-model-branches', id: 'org-model-branches' }); roleNote = h('p', { class: 'org-role-note' });
-    host.replaceChildren(h('div', { class: 'org-toolbar' }, h('div', { class: 'org-heading-copy' }, heading, subtitle), summary, h('div', { class: 'org-toolbar-actions' }, refreshButton, addButton)), h('section', { class: 'org-goal' }, goalLabel, goalInput, h('div', { class: 'org-goal-actions' }, goalNote, goalButton)), owner, list, roleNote);
+    goalPanel = h('section', { class: 'org-goal', id: 'org-goal-panel', hidden: '' }, goalLabel, goalInput, h('div', { class: 'org-goal-actions' }, goalNote, goalButton));
+    goalToggle = h('button', { type: 'button', class: 'button button-quiet org-goal-toggle', 'aria-controls': 'org-goal-panel', 'aria-expanded': 'false', onclick: () => { goalPanel.hidden = !goalPanel.hidden; goalToggle.setAttribute('aria-expanded', String(!goalPanel.hidden)); if (!goalPanel.hidden) goalInput.focus(); } });
+    host.replaceChildren(h('div', { class: 'org-toolbar' }, h('div', { class: 'org-heading-copy' }, heading, subtitle), summary, h('div', { class: 'org-toolbar-actions' }, goalToggle, refreshButton, addButton)), goalPanel, owner, list, roleNote);
+    if (window.ImperiumOrganizationNodes) {
+      const canvasHost = h('div', { class: 'org-nodes-host' }); roleNote.before(canvasHost);
+      nodeCanvas = window.ImperiumOrganizationNodes.create({ container: canvasHost, owner, list, api: (route, config) => request(route, config), getState: () => options.getState?.() || state,
+        onEditConnections: () => options.onNavigate?.('workflow'), onEditAgent: id => { const role = roleById(id); if (role) options.onEditDepartment?.(role); }, onAssignAgent: id => { if (roleById(id)) options.onAssignDepartment?.(id); },
+        onSkillsAgent: id => { if (!roleById(id)) return; options.onNavigate?.('skills'); window.dispatchEvent(new CustomEvent('imperium:skills-agent', { detail: { workspace, departmentId: id } })); }
+      });
+    }
     document.getElementById('dispatch-prompt')?.addEventListener('input', () => { const input = document.getElementById('dispatch-prompt'); if (input && goalInput.value !== input.value) goalInput.value = input.value; });
     return true;
   }
@@ -118,6 +128,7 @@
       card.evidence.textContent = `${logs.length ? tr('evidence', { tools: observed, reports: reported }) : tr('unobserved')}${latest?.detailsTruncated ? ` · ${tr('partial')}` : ''}`; card.evidence.title = tr('evidenceNote');
       const next = nextRoles(dept, latest); card.next.textContent = `${tr(next.key)}: ${next.values.join(' · ') || tr('noNext')}`;
     });
+    nodeCanvas?.update(state, { language, connected: options.connected });
   }
   function showDialog(value) { closeDialog(); dialog = value; value.addEventListener('close', () => { if (dialog === value) closeDialog(); }); host.append(dialog); if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', ''); }
   function field(key, input) { return h('label', { class: 'settings-label org-agent-field' }, h('span', {}, tr(key)), input); }
@@ -175,9 +186,10 @@
     state = incoming || {}; options = { ...options, ...callbacks }; language = options.language || state.settings?.language || 'ko';
     if (!host && !mount()) return;
     const key = state.settings?.workspace || '';
-    if (workspace !== key) { workspace = key; generation++; closeDialog(); skills = null; skillStatus = 'waiting'; skillsStamp = ''; pendingSkills = ''; cards.clear(); list.replaceChildren(); }
+    if (workspace !== key) { workspace = key; generation++; closeDialog(); skills = null; skillStatus = 'waiting'; skillsStamp = ''; pendingSkills = ''; cards.clear(); list.replaceChildren(); goalPanel.hidden = !document.getElementById('dispatch-prompt')?.value?.trim(); }
     heading.textContent = tr('heading'); subtitle.textContent = tr('subtitle'); addButton.textContent = tr('add'); addButton.disabled = !options.connected; refreshButton.textContent = tr('refresh'); refreshButton.disabled = !options.connected;
     goalLabel.textContent = tr('goal'); goalInput.placeholder = tr('placeholder'); goalInput.setAttribute('aria-label', tr('goal')); goalButton.textContent = tr('assignGoal'); goalNote.textContent = tr('goalNote'); roleNote.textContent = tr('roleNote');
+    goalToggle.textContent = language === 'en' ? 'Enter goal' : language === 'ja' ? '目標を入力' : '목표 입력'; goalToggle.setAttribute('aria-expanded', String(!goalPanel.hidden));
     const dispatch = document.getElementById('dispatch-prompt'); if (dispatch && goalInput.value !== dispatch.value) goalInput.value = dispatch.value;
     const ready = options.connected ? (state.providers || []).filter(provider => provider.status === 'ready' && provider.authenticated && (!state.settings?.localOnly || provider.id === 'ollama' || provider.kind === 'local')).length : 0;
     summary.replaceChildren(...[[ready, 'ready'], [(state.departments || []).length, 'agents'], [options.connected ? tasks().filter(task => task.status === 'running').length : '—', 'running']].map(([value, label]) => h('div', { class: 'org-summary-item', 'data-metric': label }, h('strong', { class: 'org-summary-value' }, String(value)), h('span', { class: 'org-summary-label' }, tr(label)))));

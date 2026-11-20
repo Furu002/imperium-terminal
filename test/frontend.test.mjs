@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const [html, script, outputScript, conversationsScript] = await Promise.all([
+const [html, script, outputScript, conversationsScript, organizationScript] = await Promise.all([
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/output-view.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/conversations.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/organization-workbench.js', import.meta.url), 'utf8'),
 ]);
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -36,7 +37,7 @@ function sampleState(overrides = {}) {
   };
 }
 
-async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {}, conversations = false, viewportWidth, beforeApp } = {}) {
+async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {}, conversations = false, organization = false, viewportWidth, beforeApp } = {}) {
   const virtualConsole = new VirtualConsole();
   const runtimeErrors = [];
   virtualConsole.on('jsdomError', error => runtimeErrors.push(error));
@@ -69,6 +70,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails =
     let data;
     const detailMatch = /^\/api\/tasks\/([^/?]+)$/.exec(url);
     if (url === '/api/state' && method === 'GET') data = { ...backend, ...stateSnapshots[backend.settings.workspace], settings: backend.settings };
+    else if (url.startsWith('/api/skills?') && method === 'GET') data = { workspace: backend.settings.workspace, skills: [], bindings: {}, revision: 0 };
     else if (detailMatch && method === 'GET') {
       const id = decodeURIComponent(detailMatch[1]);
       const task = fetchTaskDetail ? await fetchTaskDetail(id, { backend, url }) : taskDetails[id];
@@ -89,7 +91,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails =
     } else throw new Error(`Unexpected mocked request: ${method} ${url}`);
     return { ok: true, status: 200, json: async () => clone(data) };
   };
-  beforeApp?.(window); window.eval(outputScript); if (conversations) window.eval(conversationsScript); window.eval(script);
+  beforeApp?.(window); window.eval(outputScript); if (conversations) window.eval(conversationsScript); if (organization) window.eval(organizationScript); window.eval(script);
   await settle();
   assert.deepEqual(runtimeErrors.map(error => error.message), [], 'the app should initialize without runtime errors');
   t.after(() => { dom.window.close(); });
@@ -411,6 +413,42 @@ test('same-task streamed snapshots keep the panel reader host connected without 
   assert.ok(changes.length > 0, 'metadata and progress may update while the reader stays attached');
   assert.equal(changes.some(record => [...record.removedNodes, ...record.addedNodes].includes(host)), false, 'the output host must never be detached or reinserted');
   assert.match(host.textContent, /Additional streamed content/);
+});
+
+test('operation rows preserve focus during output-only streams and still react to visible task, search and language changes', async t => {
+  const a = completedTask('stable-row-a', 'Initial task title', 'Initial output', { status: 'running', finishedAt: null, modelId: 'initial-model' }), b = completedTask('stable-row-b', 'Second task', 'Second output');
+  let current = sampleState({ tasks: [a, b] }); const { document, streams, window } = await loadUI(t, current);
+  document.querySelector('[data-view="operations"]').click(); const original = document.querySelector('#mission-rows tr'); original.focus();
+  current = { ...current, tasks: [{ ...a, output: 'Longer streamed result', logs: [{ type: 'status', text: 'Current public stage' }] }, b] }; streams[0].state(clone(current)); await settle();
+  assert.equal(document.querySelector('#mission-rows tr'), original); assert.equal(document.activeElement, original); assert.equal(original.isConnected, true);
+  current = { ...current, departments: current.departments.map(role => role.id === 'strategy' ? { ...role, name: 'Renamed department' } : role), tasks: [{ ...a, title: 'Updated task title', reportedModel: 'actual-model', status: 'failed', finishedAt: '2026-11-18T03:01:00Z' }, b] }; streams[0].state(clone(current)); await settle();
+  assert.match(document.querySelector('#mission-rows').textContent, /Updated task title/); assert.match(document.querySelector('#mission-rows').textContent, /actual-model/); assert.match(document.querySelector('#mission-rows').textContent, /Renamed department/); assert.match(document.querySelector('#mission-rows').textContent, /FAILED/);
+  [...document.querySelectorAll('#mission-rows tr')].find(row => row.textContent.includes('Second task')).click(); assert.match(document.querySelector('#mission-rows tr.selected').textContent, /Second task/);
+  document.querySelector('[data-filter="active"]').click(); assert.equal(document.querySelectorAll('#mission-rows tr').length, 0); document.querySelector('[data-filter="all"]').click();
+  const search = document.querySelector('#task-search'); search.value = 'searchable instruction'; search.dispatchEvent(new window.Event('input')); assert.equal(document.querySelectorAll('#mission-rows tr').length, 0);
+  current = { ...current, tasks: [{ ...current.tasks[0], prompt: 'A searchable instruction' }, b] }; streams[0].state(clone(current)); await settle(); assert.equal(document.querySelectorAll('#mission-rows tr').length, 1);
+  const beforeLanguage = document.querySelector('#mission-rows tr'); change(window, document.querySelector('#language-select'), 'ja'); await settle(); assert.notEqual(document.querySelector('#mission-rows tr'), beforeLanguage);
+});
+
+test('running operation rows refresh model percentage and source changes while output-only updates keep their focus', async t => {
+  const task = completedTask('percentage-row', 'Live model estimate', 'Initial result', { status: 'running', finishedAt: null, progress: { source: 'model-estimate', percent: 30 } });
+  let current = sampleState({ tasks: [task] }); const { document, streams } = await loadUI(t, current);
+  const row = () => document.querySelector('#mission-rows tr'), status = () => row().querySelector('.status-tag').textContent;
+  assert.match(status(), /RUNNING · AI 30%/);
+  current = { ...current, tasks: [{ ...task, progress: { source: 'model-estimate', percent: 80 } }] }; streams[0].state(clone(current)); await settle(); assert.match(status(), /RUNNING · AI 80%/);
+  const focused = row(); focused.focus(); current = { ...current, tasks: [{ ...current.tasks[0], output: 'More streamed result', logs: [{ type: 'status', text: 'Public progress note' }] }] }; streams[0].state(clone(current)); await settle();
+  assert.equal(row(), focused); assert.equal(document.activeElement, focused); assert.match(status(), /AI 80%/);
+  current = { ...current, tasks: [{ ...current.tasks[0], progress: { source: 'historical-estimate', percent: 80 } }] }; streams[0].state(clone(current)); await settle(); assert.equal(status(), 'RUNNING');
+  current = { ...current, tasks: [{ ...current.tasks[0], progress: { source: 'model-estimate', percent: 120 } }] }; streams[0].state(clone(current)); await settle(); assert.match(status(), /RUNNING · AI 99%/);
+});
+
+test('the compact organization goal opens dispatch controls before focusing its agent and workspace visibility is explicit', async t => {
+  const workspaceCalls = [], { window, document, calls } = await loadUI(t, sampleState(), 'en', { viewportWidth: 390, organization: true, beforeApp: win => { win.ImperiumWorkspace = { render(state, options) { workspaceCalls.push(options.visible); } }; } });
+  assert.ok(workspaceCalls.length > 0 && workspaceCalls.every(value => value === false));
+  const goal = document.querySelector('#org-goal-input'); goal.value = 'Prepare this goal without dispatch'; goal.dispatchEvent(new window.Event('input', { bubbles: true })); document.querySelector('.org-goal-actions button').click();
+  assert.equal(document.querySelector('.app-shell').dataset.view, 'operations'); assert.equal(document.querySelector('#operation-controls-column').hidden, false); assert.equal(document.activeElement.id, 'dispatch-department'); assert.equal(document.querySelector('#dispatch-prompt').value, goal.value);
+  document.querySelector('[data-view="workflow"]').click(); assert.equal(workspaceCalls.at(-1), true); document.querySelector('[data-view="overview"]').click(); assert.equal(workspaceCalls.at(-1), false);
+  assert.equal(calls.filter(call => call.url === '/api/tasks' && call.method === 'POST').length, 0);
 });
 
 test('compact operation controls preserve user choices within a breakpoint and reopen before dispatch focus', async t => {

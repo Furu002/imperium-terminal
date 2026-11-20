@@ -16,7 +16,7 @@ function initialState() {
     departments: [{ id: 'strategy', code: 'STR', name: 'Strategy', provider: 'codex', role: 'Plan the implementation.' }, { id: 'quality', code: 'QAT', name: 'Quality', provider: 'claude', role: 'Review the implementation.' }], tasks: [],
   };
 }
-async function setup(t, { graphDelay, startOnboarded = true, initialGraph, initialConnections, deleteResponse, deleteDelay } = {}) {
+async function setup(t, { graphDelay, graphPutDelay, startOnboarded = true, initialGraph, initialConnections, deleteResponse, deleteDelay, visible } = {}) {
   const virtualConsole = new VirtualConsole(), errors = [];
   virtualConsole.on('jsdomError', error => errors.push(error.message));
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div class="app-shell" data-view="overview"><div id="node-workspace"></div><div id="accounts"></div></div></body></html>', { url: 'http://127.0.0.1:4310', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
@@ -36,7 +36,7 @@ async function setup(t, { graphDelay, startOnboarded = true, initialGraph, initi
     if (method === 'DELETE' && deleteDelay) await deleteDelay(path, body);
     if (method === 'DELETE' && deleteResponse) { const result = await deleteResponse(path, body); if (result) return result; }
     if (path === '/api/graph' && method === 'GET') { if (graphDelay) await graphDelay(parsed.searchParams.get('workspace')); value = { graph: graphByProject.get(parsed.searchParams.get('workspace')) || { nodes: [], edges: [] } }; }
-    else if (path === '/api/graph' && method === 'PUT') { graphByProject.set(body.workspace, { nodes: body.nodes, edges: body.edges }); value = { graph: { nodes: body.nodes, edges: body.edges } }; }
+    else if (path === '/api/graph' && method === 'PUT') { if (graphPutDelay) await graphPutDelay(body); graphByProject.set(body.workspace, { nodes: body.nodes, edges: body.edges }); value = { graph: { nodes: body.nodes, edges: body.edges } }; }
     else if (path === '/api/memory' && method === 'GET') value = { nodes: memories, edges: [] };
     else if (path === '/api/memory' && method === 'POST') { const node = { ...body, id: `memory-new-${++sequence}`, revision: 1 }; memories.push(node); value = { node }; }
     else if (path.startsWith('/api/memory/') && method === 'PATCH') { const index = memories.findIndex(memory => memory.id === path.split('/').at(-1)); memories[index] = { ...memories[index], ...body, revision: memories[index].revision + 1 }; value = { node: memories[index] }; }
@@ -56,7 +56,7 @@ async function setup(t, { graphDelay, startOnboarded = true, initialGraph, initi
     return { ok: true, status: 200, json: async () => copy(value) };
   };
   window.eval(workspaceScript); window.eval(accountsScript);
-  const options = { language: 'en', connected: true, t: key => key, onAssignDepartment: id => { window.assignedDepartment = id; } };
+  const options = { language: 'en', connected: true, t: key => key, onAssignDepartment: id => { window.assignedDepartment = id; }, ...(visible === undefined ? {} : { visible }) };
   window.ImperiumWorkspace.render(state, options); await settle();
   t.after(() => window.close());
   return { window, document: window.document, state, options, calls, graphByProject, memories, errors };
@@ -64,6 +64,60 @@ async function setup(t, { graphDelay, startOnboarded = true, initialGraph, initi
 function connect(document, source, target) { document.querySelector(`[data-node-id="${source}"] .iw-port-out`).click(); document.querySelector(`[data-input-node="${target}"]`).click(); }
 function select(window, document, id) { document.querySelector(`[data-node-id="${id}"]`).dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }
 async function addFromLibrary(document, type, referenceId) { document.querySelector('[data-iw-action="add-node"]').click(); await settle(); const item = document.querySelector(`[data-library-type="${type}"][data-library-reference="${referenceId}"]`); assert.ok(item, `library should contain ${type}:${referenceId}`); item.click(); }
+
+test('a hidden workspace defers its first mount and graph/memory requests until it is visible', async t => {
+  const initialGraph = { nodes: [{ id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 40, y: 60 }], edges: [] };
+  const { window, document, state, options, calls } = await setup(t, { initialGraph, visible: false });
+  assert.equal(document.querySelector('.iw-stage'), null); assert.equal(calls.length, 0);
+  window.dispatchEvent(new window.Event('imperium:memory-changed')); window.dispatchEvent(new window.Event('resize'));
+  state.tasks = [{ id: 'new-live-task', departmentId: 'strategy', status: 'running', title: 'Latest live assignment' }]; window.ImperiumWorkspace.render(state, options); await settle();
+  assert.equal(document.querySelector('.iw-stage'), null); assert.equal(calls.length, 0);
+  window.ImperiumWorkspace.render(state, { ...options, visible: true }); await settle();
+  assert.ok(document.querySelector('.iw-stage')); assert.equal(document.querySelector('[data-node-id="department:strategy"]').dataset.status, 'running'); assert.match(document.querySelector('[data-node-id="department:strategy"]').textContent, /Latest live assignment/);
+  assert.deepEqual(calls.map(call => call.path).sort(), ['/api/graph', '/api/memory']); assert.equal(calls.filter(call => call.method !== 'GET').length, 0);
+});
+
+test('hidden SSE and resize events do not repaint mounted nodes and showing the workspace applies current graph, role and deferred memory state', async t => {
+  const initialGraph = { nodes: [{ id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 40, y: 60 }], edges: [] };
+  const { window, document, state, options, calls } = await setup(t, { initialGraph });
+  const world = document.querySelector('.iw-world'), original = document.querySelector('[data-node-id="department:strategy"]'), mutations = [];
+  const observer = new window.MutationObserver(records => mutations.push(...records)); observer.observe(world, { childList: true, subtree: true }); t.after(() => observer.disconnect());
+  window.ImperiumWorkspace.render(state, { ...options, visible: false });
+  state.departments[0].name = 'Latest hidden role'; state.tasks = [{ id: 'latest-task', departmentId: 'strategy', status: 'running', title: 'Latest hidden assignment' }]; state.graph = { nodes: [{ ...initialGraph.nodes[0], x: 650 }], edges: [] };
+  for (let index = 0; index < 3; index++) { window.ImperiumWorkspace.render(state, { ...options, visible: false }); window.dispatchEvent(new window.Event('resize')); }
+  window.dispatchEvent(new window.Event('imperium:memory-changed')); await settle();
+  assert.equal(mutations.length, 0); assert.equal(document.querySelector('[data-node-id="department:strategy"]'), original); assert.equal(calls.length, 2);
+  window.ImperiumWorkspace.render(state, { ...options, visible: true }); await settle();
+  const updated = document.querySelector('[data-node-id="department:strategy"]'); assert.notEqual(updated, original); assert.match(updated.textContent, /Latest hidden role/); assert.match(updated.textContent, /Latest hidden assignment/); assert.equal(updated.style.left, '650px');
+  assert.equal(calls.filter(call => call.path === '/api/graph').length, 1); assert.equal(calls.filter(call => call.path === '/api/memory').length, 2); assert.equal(calls.filter(call => call.method !== 'GET').length, 0);
+});
+
+test('hiding the same project preserves a pending graph save and its unsaved node position', async t => {
+  let release; const pending = new Promise(resolve => { release = resolve; });
+  const initialGraph = { nodes: [{ id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 40, y: 60 }], edges: [] };
+  const { window, document, state, options, calls, graphByProject } = await setup(t, { initialGraph, graphPutDelay: () => pending });
+  const card = document.querySelector('[data-node-id="department:strategy"]');
+  card.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100 })); window.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 150, clientY: 130 })); window.dispatchEvent(new window.MouseEvent('pointerup', { clientX: 150, clientY: 130 }));
+  const edited = window.ImperiumWorkspace.getGraph().nodes[0].x; assert.notEqual(edited, 40);
+  window.ImperiumWorkspace.render(state, { ...options, visible: false }); await settle(380);
+  assert.equal(calls.filter(call => call.method === 'PUT').length, 1); window.ImperiumWorkspace.render(state, { ...options, visible: false }); release(); await settle();
+  assert.equal(graphByProject.get(state.settings.workspace).nodes[0].x, edited); assert.equal(window.ImperiumWorkspace.getGraph().nodes[0].x, edited);
+  window.ImperiumWorkspace.render(state, { ...options, visible: true }); await settle(); assert.ok(Math.abs(parseFloat(document.querySelector('[data-node-id="department:strategy"]').style.left) - edited) < 0.001); assert.equal(calls.filter(call => call.method === 'PUT').length, 1);
+});
+
+test('a hidden project switch clears old dialogs and defers the next project load without accepting an old delayed graph', async t => {
+  let release; const pending = new Promise(resolve => { release = resolve; });
+  const originalProject = initialState().settings.workspace;
+  const { window, document, state, options, calls, graphByProject } = await setup(t, { graphDelay: workspace => workspace === originalProject ? pending : undefined });
+  state.settings.workspace = 'C:\\Hidden next project'; state.departments = [{ id: 'strategy', name: 'Only current project role', provider: 'codex', role: 'Current role instructions' }];
+  graphByProject.set(state.settings.workspace, { nodes: [{ id: 'department:strategy', type: 'department', referenceId: 'strategy', x: 10, y: 20 }], edges: [] });
+  window.ImperiumWorkspace.render(state, { ...options, visible: false }); release(); await settle();
+  assert.equal(calls.filter(call => call.workspace === state.settings.workspace).length, 0); assert.deepEqual(window.ImperiumWorkspace.getGraph().nodes.length, 0); assert.equal(document.querySelector('.iw-node'), null);
+  window.ImperiumWorkspace.render(state, { ...options, visible: true }); await settle();
+  assert.match(document.querySelector('.iw-node').textContent, /Only current project role/); assert.equal(calls.filter(call => call.workspace === state.settings.workspace).length, 2); assert.equal(calls.filter(call => call.method !== 'GET').length, 0);
+  document.querySelector('[data-iw-action="add-memory"]').click(); await settle(); assert.ok(document.querySelector('.iw-memory-dialog[open]'));
+  state.settings.workspace = 'C:\\Third hidden project'; window.ImperiumWorkspace.render(state, { ...options, visible: false }); assert.equal(document.querySelector('.iw-memory-dialog'), null); assert.equal(document.querySelector('.iw-node'), null);
+});
 
 test('node workspace starts empty and shows actual status only after the user adds nodes', async t => {
   const { window, document, state, options, calls, errors } = await setup(t);
