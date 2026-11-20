@@ -12,6 +12,9 @@ import { canonicalMemoryWorkspace } from './lib/memory.mjs';
 import { createUISnapshot } from './lib/ui-snapshot.mjs';
 import { createAgentSkills } from './lib/agent-skills.mjs';
 import { createOrganizationLayout } from './lib/organization-layout.mjs';
+import { DEPARTMENT_LIMITS, validateDepartmentInput } from './lib/department-input.mjs';
+import { reparentChildren, validateParentId } from './lib/department-hierarchy.mjs';
+import { IMPORT_LIMITS, LAYOUT_MANUAL_MESSAGE, importFailure, importPositions, parseImportRequest, planImport } from './lib/organization-import.mjs';
 import { validateHarness, harnessInstructions, evaluateHarness } from './lib/task-harness.mjs';
 import { MAX_TEAM_PLAN_OUTPUT } from './lib/team-plan.mjs';
 import { createTeamRuns, interruptTeamRuns, tasksWithAppended } from './lib/team-runs.mjs';
@@ -49,12 +52,12 @@ async function bodyJSON(req, maxBytes = req.url?.startsWith('/api/memory') ? 128
 
 export function createHQServer({
   dataDir = path.join(HERE, '.hq'), workspace = path.join(HERE, 'workspace'),
-  port = 4310, providers = defaultProviders, privateSessionToken = null, terminalManager, modelDiscovery, onSettingsChange, projectParent, quotaReaders, changeReview, agentSkillManager,
+  port = 4310, providers = defaultProviders, privateSessionToken = null, terminalManager, modelDiscovery, onSettingsChange, projectParent, quotaReaders, changeReview, agentSkillManager, organizationLayoutManager,
 } = {}) {
   const store = createStore({ dataDir, workspace: path.resolve(workspace), onStorageChange: () => notify() });
   const { state } = store;
   const agentSkills = agentSkillManager || createAgentSkills({ dataDir, getWorkspace: () => state.settings.workspace, getDepartments: () => state.departments });
-  const organizationLayout = createOrganizationLayout({ dataDir, getWorkspace: () => state.settings.workspace, getDepartments: () => state.departments });
+  const organizationLayout = organizationLayoutManager || createOrganizationLayout({ dataDir, getWorkspace: () => state.settings.workspace, getDepartments: () => state.departments });
   state.server.csrfToken = randomBytes(32).toString('hex');
   state.server.projectParent = projectParent || null;
   const active = new Map();
@@ -67,7 +70,8 @@ export function createHQServer({
   const teams = createTeamRuns({ state, store, queue, notify, stopTask, isTaskActive: task => active.has(task.id), record });
 
   function notify() { dirty = true; }
-  function record(type, text, extra = {}) { store.event(type, text, { workspace: state.settings.workspace, ...extra }); notify(); }
+  // With a snapshot the caller saves it and notifies once, so nothing is persisted or broadcast here.
+  function record(type, text, extra = {}, snapshot) { store.event(type, text, { workspace: state.settings.workspace, ...extra }, snapshot); if (!snapshot) notify(); }
   function assertTaskAdmission() {
     if (closing) throw fail(503, '서버를 종료하고 있습니다.');
     if (desktopUpdate) throw fail(409, '앱 업데이트를 적용하는 동안에는 새 AI 작업을 시작할 수 없습니다.');
@@ -495,18 +499,42 @@ export function createHQServer({
         const previousWorkspace = state.settings.workspace;
         const input = await bodyJSON(req);
         if (previousWorkspace !== state.settings.workspace || input.workspace !== undefined && canonicalMemoryWorkspace(input.workspace) !== canonicalMemoryWorkspace(state.settings.workspace)) throw fail(409, '프로젝트가 변경됐습니다. 다시 시도해 주세요.');
-        if (state.departments.length >= 64) throw fail(409, '프로젝트당 에이전트는 최대 64개까지 등록할 수 있습니다.');
-        for (const [key, max] of [['name', 24], ['role', 1500]]) if (typeof input[key] !== 'string' || !input[key].trim() || input[key].length > max) throw fail(400, '이름과 역할을 올바르게 입력해 주세요.');
-        if (input.title !== undefined && (typeof input.title !== 'string' || input.title.length > 80)) throw fail(400, '직함은 80자 이내로 입력해 주세요.');
-        const connection = input.connectionId ? state.connections.find(c => c.id === input.connectionId) : null;
-        if (input.connectionId && !connection) throw fail(400, '등록된 연결을 찾을 수 없습니다.');
-        const provider = connection?.providerId || input.provider;
-        if (!['codex', 'claude', 'gemini', 'copilot', 'ollama'].includes(provider)) throw fail(400, '지원하는 제공자를 선택해 주세요.');
-        const modelId = input.modelId ?? connection?.modelId ?? '';
-        if (typeof modelId !== 'string' || modelId && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(modelId)) throw fail(400, '모델 ID를 확인해 주세요.');
-        const execution = resolveExecutionOptions(provider, input);
-        const department = { id: randomUUID(), code: 'AI', name: input.name.trim(), title: input.title?.trim() || '', role: input.role.trim(), provider, modelId, ...execution, connectionId: connection?.id || null };
+        if (state.departments.length >= DEPARTMENT_LIMITS.agents) throw fail(409, '프로젝트당 에이전트는 최대 64개까지 등록할 수 있습니다.');
+        const fields = validateDepartmentInput(input, { connections: state.connections });
+        const parentId = validateParentId(state.departments, null, input.parentId);
+        const department = { id: randomUUID(), code: 'AI', ...fields, parentId };
         state.departments.push(department); store.save(); notify(); return json(res, 201, { department });
+      }
+      if (route === '/api/departments/import' && req.method === 'POST') {
+        const previousWorkspace = canonicalMemoryWorkspace(state.settings.workspace);
+        const request = parseImportRequest(await bodyJSON(req, IMPORT_LIMITS.bytes));
+        let requested;
+        try { requested = canonicalMemoryWorkspace(request.workspace); } catch { throw fail(400, '현재 프로젝트 폴더의 절대 경로가 필요합니다.'); }
+        const scope = canonicalMemoryWorkspace(state.settings.workspace);
+        if (previousWorkspace !== scope || requested !== scope) throw fail(409, '프로젝트가 변경됐습니다. 현재 프로젝트에서 다시 가져와 주세요.');
+        const plan = planImport(request, { departments: state.departments, connections: state.connections, graph: state.graphs[scope], memoryNodes: extensions.activeMemoryNodes(), providerIds: state.providers.map(item => item.id) });
+        if (request.dryRun) return json(res, 200, plan.result);
+        if (!plan.result.ok) throw importFailure(plan.result);
+        // Validation and the single write below run without awaiting, so no other request can interleave.
+        const sameWorkspace = value => { try { return canonicalMemoryWorkspace(value) === scope; } catch { return false; } };
+        const departments = [...state.departments, ...plan.departments];
+        const snapshot = { ...state, departments, events: [...state.events], graphs: plan.graph ? { ...state.graphs, [scope]: plan.graph } : state.graphs, projects: (state.projects || []).map(project => sameWorkspace(project.workspace) ? { ...project, departments: structuredClone(departments) } : project) };
+        const { created, skipped, handoffs } = plan.result;
+        record('organization_import', `조직도 템플릿 가져오기: ${created.length}개 생성, ${skipped.length}개 건너뜀`, { template: request.name, created: created.length, skipped: skipped.length, handoffs: handoffs.created.length }, snapshot);
+        store.save(snapshot);
+        ({ departments: state.departments, events: state.events, graphs: state.graphs } = snapshot);
+        for (const project of state.projects || []) if (sameWorkspace(project.workspace)) project.departments = structuredClone(state.departments);
+        let layout = { saved: false, required: false };
+        if (plan.departments.length) {
+          try {
+            const current = await organizationLayout.get({ workspace: request.workspace });
+            const saved = await organizationLayout.put({ workspace: request.workspace, revision: current.revision, positions: importPositions({ positions: current.positions, departments: state.departments, created: plan.layout }), viewport: current.viewport });
+            state.server.organizationLayoutRevision = (state.server.organizationLayoutRevision || 0) + 1;
+            layout = { saved: true, required: true, revision: saved.revision };
+          } catch (error) { layout = { saved: false, required: true, message: LAYOUT_MANUAL_MESSAGE, reason: error.status ? error.message : '조직도 배치를 저장하지 못했습니다.' }; }
+        }
+        notify();
+        return json(res, created.length ? 201 : 200, { ...plan.result, created: created.map((item, index) => ({ ...item, departmentId: plan.departments[index].id })), layout, departments: state.departments });
       }
       const cancelMatch = /^\/api\/tasks\/([\w-]+)\/cancel$/.exec(route);
       if (cancelMatch && req.method === 'POST') {
@@ -527,6 +555,7 @@ export function createHQServer({
         const assignedTask = task => task.departmentId === department.id && (!task.workspace || sameWorkspace(task.workspace));
         if (state.tasks.some(task => assignedTask(task) && (['queued', 'running'].includes(task.status) || active.has(task.id))) || [...active.values()].some(run => run.task && assignedTask(run.task))) throw fail(409, '이 에이전트의 작업 프로세스가 모두 종료된 뒤 삭제해 주세요.');
         for (const task of state.tasks) if (assignedTask(task) && (typeof task.departmentName !== 'string' || !task.departmentName.trim())) task.departmentName = department.name;
+        reparentChildren(state.departments, department.id);
         state.departments = state.departments.filter(item => item.id !== department.id);
         for (const [key, graph] of Object.entries(state.graphs || {})) {
           if (!sameWorkspace(key) || !graph || !Array.isArray(graph.nodes)) continue;
@@ -563,8 +592,10 @@ export function createHQServer({
         }
         const nextProvider = input.provider || department.provider;
         const execution = resolveExecutionOptions(nextProvider, input, nextProvider === department.provider ? department : {});
+        const parentId = Object.hasOwn(input, 'parentId') ? validateParentId(state.departments, department.id, input.parentId) : undefined;
         for (const key of ['name', 'role', 'provider', 'title']) if (input[key] !== undefined) department[key] = input[key].trim();
         Object.assign(department, execution);
+        if (parentId !== undefined) department.parentId = parentId;
         if (input.provider !== undefined || Object.hasOwn(input, 'connectionId')) {
           department.connectionId = input.connectionId || null;
           department.modelId = input.modelId || '';
@@ -705,7 +736,7 @@ export function createHQServer({
       res.writeHead(200, { 'Content-Type': asset[1], 'Cache-Control': 'no-cache' });
       res.end(req.method === 'HEAD' ? undefined : content);
     } catch (error) {
-      if (!res.headersSent) json(res, error.status || 500, { error: error.status ? error.message : '요청 처리 중 문제가 생겼습니다. 서버 콘솔을 확인해 주세요.' });
+      if (!res.headersSent) json(res, error.status || 500, { error: error.status ? error.message : '요청 처리 중 문제가 생겼습니다. 서버 콘솔을 확인해 주세요.', ...(error.status && error.details ? { details: error.details } : {}) });
       else res.end();
       if (!error.status) console.error('[HQ]', error.message);
     }

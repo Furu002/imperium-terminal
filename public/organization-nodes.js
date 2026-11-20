@@ -13,11 +13,28 @@
   const SCOPE = value => typeof value === 'string' ? (/^[a-z]:[\\/]/i.test(value) ? value.replaceAll('\\','/').toLowerCase() : value).replace(/[\\/]+$/,'') : '';
   const copy = value => JSON.parse(JSON.stringify(value));
   const clamp = (value,min,max) => Math.min(max,Math.max(min,value));
+  // Display-only reporting lines (department.parentId). Workflow execution follows handoff edges only.
+  const MAX_DEPTH = 6;
+  function parents(departments){
+    const byId=new Map();for(const item of departments||[])if(item&&typeof item.id==='string'&&!byId.has(item.id))byId.set(item.id,item);
+    const raw=id=>{const parent=byId.get(id)?.parentId;return typeof parent==='string'&&parent!==id&&byId.has(parent)?parent:null;};
+    const cyclic=id=>{const seen=new Set();for(let current=raw(id);current;current=raw(current)){if(current===id)return true;if(seen.has(current))return false;seen.add(current);}return false;};
+    return new Map([...byId.keys()].map(id=>[id,cyclic(id)?null:raw(id)]));
+  }
+  function depth(map,id){let value=0;for(let current=id,seen=new Set();current&&!seen.has(current);current=map.get(current)??null){seen.add(current);value++;}return value;}
+  function height(map,id){const children=new Map();for(const [child,parent]of map)if(parent)children.set(parent,[...(children.get(parent)||[]),child]);const seen=new Set();const walk=node=>{if(seen.has(node))return 0;seen.add(node);return 1+Math.max(0,...(children.get(node)||[]).map(walk));};return walk(id);}
+  /** Agents that may become the parent of id (null for a new agent): not itself, not below it, within MAX_DEPTH. */
+  function parentChoices(departments,id){
+    const map=parents(departments),own=id&&map.has(id)?height(map,id):1;
+    const byId=new Map((departments||[]).filter(item=>item&&typeof item.id==='string').map(item=>[item.id,item]));
+    const below=candidate=>{for(let current=candidate,seen=new Set();typeof current==='string'&&!seen.has(current);current=byId.get(current)?.parentId){if(current===id)return true;seen.add(current);}return false;};
+    return (departments||[]).filter(item=>item&&typeof item.id==='string'&&item.id!==id&&!(id&&below(item.id))&&depth(map,item.id)+own<=MAX_DEPTH);
+  }
   const h = (tag,attrs={},...children) => {const element=document.createElement(tag);for(const [key,value]of Object.entries(attrs)){if(key==='class')element.className=value;else if(key.startsWith('on'))element.addEventListener(key.slice(2),value);else element.setAttribute(key,String(value));}element.append(...children);return element;};
   function create(configuration = {}) {
     const {container,owner,list}=configuration;
     if(!container||!owner||!list)throw Error('Organization container, owner and list are required.');
-    let state={},language='ko',connected=false,workspace='',epoch=0,revision=0,positions={},viewport={pan:{x:0,y:0},zoom:1},loaded=false,loading=false,saving=false,dirty=false,blocked=false,failureKind='',disposed=false,edit=0,timer,frame,pointer,selected='',inspectorOpen=false,inspectorSignature='',edgeSignature='',stamp,autoFit=false,autoFitSize='',suppressClick=0;
+    let state={},language='ko',connected=false,workspace='',epoch=0,revision=0,positions={},viewport={pan:{x:0,y:0},zoom:1},loaded=false,loading=false,saving=false,dirty=false,blocked=false,failureKind='',disposed=false,edit=0,timer,frame,pointer,selected='',inspectorOpen=false,inspectorSignature='',edgeSignature='',stamp,autoFit=false,autoFitSize='',suppressClick=0,fitPending=false;
     const nodes=new Map(),listeners=[];
     const tr=key=>(CONTROLS[language]||CONTROLS.ko)[key]||(LABELS[language]||LABELS.ko)[key]||key;
     const bind=(target,type,handler,options)=>{target.addEventListener(type,handler,options);listeners.push(()=>target.removeEventListener(type,handler,options));};
@@ -60,12 +77,66 @@
     function nodeSize(element){return {width:element.offsetWidth||(element===owner?240:320),height:element.offsetHeight||(element===owner?74:92)};}
     function bounds(ids){const all=[...nodes].filter(([id])=>!ids||ids.includes(id)).map(([id,element])=>({...positions[id],...nodeSize(element)}));if(nodes.size===1&&list.querySelector('.org-empty-branch'))all.push({x:40,y:160,width:320,height:100});if(!all.length)return{x:0,y:0,width:640,height:480};const x=Math.min(...all.map(n=>n.x)),y=Math.min(...all.map(n=>n.y));return{x,y,width:Math.max(...all.map(n=>n.x+n.width))-x,height:Math.max(...all.map(n=>n.y+n.height))-y};}
     function stageSize(){return {width:stage.clientWidth||900,height:stage.clientHeight||560};}
+    function parentKey(id,map=parents(state.departments)){const parent=map.get(id.slice(6));return parent&&nodes.has('agent:'+parent)?'agent:'+parent:null;}
+    /** Reporting tree: roots fill columns left to right; each subtree stacks below its root, indented 40px per level. */
+    function treePositions(agents,width){
+      const map=parents(state.departments),parentOf=id=>{const parent=map.get(id.slice(6));return parent&&nodes.has('agent:'+parent)?'agent:'+parent:null;};
+      const children=new Map(),roots=[],placed=new Set(),columns=[],result={};
+      for(const id of agents){const parent=parentOf(id);if(parent&&agents.includes(parent))children.set(parent,[...(children.get(parent)||[]),id]);else roots.push(id);}
+      const column=root=>{const entries=[];const walk=(id,level)=>{if(placed.has(id))return;placed.add(id);entries.push({id,level});for(const child of children.get(id)||[])walk(child,level+1);};walk(root,0);return entries;};
+      for(const id of roots)columns.push(column(id));for(const id of agents)if(!placed.has(id))columns.push(column(id));
+      const perRow=Math.max(1,Math.min(6,Math.floor((width-32)/352)));
+      let y=160,firstWidth=320;
+      for(let start=0;start<columns.length;start+=perRow){
+        let x=40,tallest=0;
+        for(const entries of columns.slice(start,start+perRow)){
+          let offset=0;
+          for(const entry of entries){result[entry.id]={x:x+entry.level*40,y:y+offset};offset+=Math.max(76,nodeSize(nodes.get(entry.id)).height)+32;}
+          x+=320+Math.max(0,...entries.map(entry=>entry.level))*40+32;tallest=Math.max(tallest,offset);
+        }
+        if(start===0)firstWidth=x-32-40;
+        y+=tallest+28;
+      }
+      return {positions:result,owner:{x:40+(firstWidth-240)/2,y:32}};
+    }
+    /** First spot below parent (indented one level) whose card rectangle overlaps no placed card. */
+    function belowParent(id,parent){
+      const own=nodeSize(nodes.get(id)),start=positions[parent],size=nodeSize(nodes.get(parent)),x=start.x+40;
+      const placed=[...nodes.keys()].filter(key=>key!==id&&positions[key]).map(key=>({...positions[key],...nodeSize(nodes.get(key))}));
+      let y=start.y+size.height+32;
+      for(let attempt=0;attempt<200;attempt++){
+        const blocker=placed.filter(card=>x<card.x+card.width+16&&card.x<x+own.width+16&&y<card.y+card.height+16&&card.y<y+own.height+16);
+        if(!blocker.length)break;
+        y=Math.max(...blocker.map(card=>card.y+card.height))+32;
+      }
+      return {x:clamp(x,-100000,100000),y:clamp(y,-100000,100000)};
+    }
     function assignDefaults(reset=false,width=stageSize().width){
       const agents=[...nodes.keys()].filter(id=>id!=='owner');
+      const map=parents(state.departments);
       const cols=Math.max(1,Math.min(4,Math.floor((width-32)/352),agents.length));
       const maxHeight=Math.max(92,...agents.map(id=>nodeSize(nodes.get(id)).height));
+      const gridSlot=index=>({x:40+(index%cols)*352,y:160+Math.floor(index/cols)*(maxHeight+42)});
+      if(agents.some(id=>parentKey(id,map))){
+        // A whole tree only for a fresh or explicit arrangement; otherwise saved cards stay and only missing cards are added.
+        if(reset||agents.every(id=>!positions[id])){
+          const tree=treePositions(agents,width);
+          positions.owner=reset||!positions.owner?tree.owner:positions.owner;
+          agents.forEach(id=>{positions[id]=tree.positions[id];});
+          return;
+        }
+        if(!positions.owner)positions.owner={x:40+((cols-1)*352+320-240)/2,y:32};
+        let pending=agents.filter(id=>!positions[id]);
+        while(pending.length){
+          const ready=pending.filter(id=>{const parent=parentKey(id,map);return !parent||positions[parent];});
+          for(const id of ready){const parent=parentKey(id,map);positions[id]=parent?belowParent(id,parent):gridSlot(agents.indexOf(id));}
+          pending=pending.filter(id=>!positions[id]);
+          if(!ready.length){pending.forEach(id=>{positions[id]=gridSlot(agents.indexOf(id));});break;}
+        }
+        return;
+      }
       if(reset||!positions.owner)positions.owner={x:40+((cols-1)*352+320-240)/2,y:32};
-      agents.forEach((id,index)=>{if(reset||!positions[id])positions[id]={x:40+(index%cols)*352,y:160+Math.floor(index/cols)*(maxHeight+42)};});
+      agents.forEach((id,index)=>{if(reset||!positions[id])positions[id]=gridSlot(index);});
     }
     function reconcile(){
       const next=new Map([['owner',owner],...[...list.querySelectorAll('.org-agent-card[data-department-id]')].map(element=>['agent:'+element.dataset.departmentId,element])]);
@@ -82,17 +153,17 @@
     }
     function graph(){return state.graph||Object.entries(state.graphs||{}).find(([key])=>SCOPE(key)===SCOPE(workspace))?.[1]||{nodes:[],edges:[]};}
     function handoffs(){const current=graph(),references=new Map((current.nodes||[]).filter(node=>node.type==='department').map(node=>[node.id,node.referenceId]));const roleId=id=>{const role=references.get(id)||(typeof id==='string'&&id.startsWith('department:')?id.slice(11):null);return role&&nodes.has('agent:'+role)?'agent:'+role:null;};return(current.edges||[]).filter(edge=>edge.type==='handoff').map(edge=>({source:roleId(edge.source),target:roleId(edge.target)})).filter(edge=>edge.source&&edge.target&&edge.source!==edge.target);}
-    function membershipTrunk(agents){
-      if(agents.length<2)return null;
+    function membershipTrunk(parent,agents){
+      if(agents.length<2||!positions[parent])return null;
       const column=agents.map(id=>({...positions[id],height:nodeSize(nodes.get(id)).height})).sort((a,b)=>a.y-b.y);
       const [{x:left,y:top}]=column;
       if(column.some((card,index)=>Math.abs(card.x-left)>2 || index>0&&card.y<column[index-1].y+column[index-1].height))return null;
-      const ownerSize=nodeSize(owner),startX=positions.owner.x+ownerSize.width/2,startY=positions.owner.y+ownerSize.height;
+      const parentSize=nodeSize(nodes.get(parent)),startX=positions[parent].x+parentSize.width/2,startY=positions[parent].y+parentSize.height;
       const x=left-22;
       if(top-startY<24||startX-x<16)return null;
       const bend=startY+(top-startY)/2,last=column.at(-1);
       const line=document.createElementNS(edges.namespaceURI,'path');
-      line.setAttribute('class','on-edge-organization on-membership-trunk');
+      line.setAttribute('class','on-edge-organization on-membership-trunk');line.dataset.source=parent;
       line.setAttribute('d',`M ${startX} ${startY} V ${bend-6} Q ${startX} ${bend} ${startX-6} ${bend} H ${x+6} Q ${x} ${bend} ${x} ${bend+6} V ${last.y+last.height/2}`);
       return {x,line};
     }
@@ -107,15 +178,17 @@
     const arrowId='on-arrow-'+Math.random().toString(36).slice(2);
     let mapColors;
     function drawEdges(){
-      const connections=handoffs(),signature=JSON.stringify([[...nodes].map(([id,element])=>[id,positions[id],nodeSize(element)]),connections]);
+      const agents=[...nodes.keys()].filter(id=>id!=='owner'),map=parents(state.departments),lines=agents.map(id=>[id,parentKey(id,map)||'owner']);
+      const connections=handoffs(),signature=JSON.stringify([[...nodes].map(([id,element])=>[id,positions[id],nodeSize(element)]),connections,lines]);
       if(signature===edgeSignature)return;edgeSignature=signature;
       const defs=document.createElementNS(edges.namespaceURI,'defs'),marker=document.createElementNS(edges.namespaceURI,'marker'),arrow=document.createElementNS(edges.namespaceURI,'path');
       marker.id=arrowId;marker.setAttribute('viewBox','0 0 10 10');marker.setAttribute('refX','9');marker.setAttribute('refY','5');marker.setAttribute('markerWidth','6');marker.setAttribute('markerHeight','6');marker.setAttribute('orient','auto-start-reverse');arrow.setAttribute('d','M 0 0 L 10 5 L 0 10 z');arrow.setAttribute('fill','currentColor');marker.append(arrow);defs.append(marker);
-      const agents=[...nodes.keys()].filter(id=>id!=='owner'),trunk=membershipTrunk(agents),lines=[defs];
-      if(trunk)lines.push(trunk.line);
-      for(const id of agents)lines.push(path('owner',id,'membership',trunk));
-      for(const edge of connections)lines.push(path(edge.source,edge.target,'handoff'));
-      edges.replaceChildren(...lines.filter(Boolean));
+      // Reporting lines run parent -> agent; agents without a (valid) parent report to the owner.
+      const drawn=[defs],groups=new Map();
+      for(const [id,parent]of lines)groups.set(parent,[...(groups.get(parent)||[]),id]);
+      for(const [parent,children]of groups){const trunk=membershipTrunk(parent,children);if(trunk)drawn.push(trunk.line);for(const id of children)drawn.push(path(parent,id,'membership',trunk));}
+      for(const edge of connections)drawn.push(path(edge.source,edge.target,'handoff'));
+      edges.replaceChildren(...drawn.filter(Boolean));
     }
     function drawMap() {
       if (typeof window.CanvasRenderingContext2D !== 'function') return;
@@ -201,7 +274,8 @@
     function fitUnmodifiedLayout(){
       if(!autoFit||!loaded||!stage.clientWidth)return;
       const size=stageSize(),fullWidth=inspectorOpen&&window.innerWidth>900 ? Math.max(body.clientWidth,size.width) : size.width;
-      const key=`${size.width}:${size.height}:${fullWidth}:${nodes.size}`;
+      const hierarchyMap=parents(state.departments);
+      const key=`${size.width}:${size.height}:${fullWidth}:${nodes.size}:${JSON.stringify([...nodes.keys()].map(id=>parentKey(id,hierarchyMap)))}`;
       if(key===autoFitSize)return;
       autoFitSize=key;
       assignDefaults(true,fullWidth);
@@ -273,7 +347,7 @@
     function queueSave(){if(timer!=null)return;timer=setTimeout(()=>{timer=null;void save();},350);}
     function markDirty(){autoFit=false;dirty=true;edit++;announce(tr(blocked?(failureKind==='conflict'?'conflict':'error'):'dirty'),blocked);clearTimeout(timer);timer=null;if(loaded&&connected&&!loading&&!saving&&!blocked)queueSave();}
     function validResponse(result,key){return result&&SCOPE(result.workspace)===SCOPE(key)&&Number.isSafeInteger(result.revision)&&result.revision>=0&&result.positions&&typeof result.positions==='object'&&result.viewport&&Number.isFinite(result.viewport.zoom)&&result.viewport.zoom>=.15&&result.viewport.zoom<=3&&Number.isFinite(result.viewport.pan?.x)&&Number.isFinite(result.viewport.pan?.y);}
-    async function load(explicit=false){if(disposed||!workspace||!connected||!state.server?.csrfToken||loading||saving||pointer)return;const key=workspace,generation=epoch,previousFailure=failureKind;loading=true;announce(tr('loading'));schedule();try{const result=await request('/api/organization-layout?workspace='+encodeURIComponent(key));if(!active(key,generation))return;if(!validResponse(result,key))throw Error(tr('error'));revision=result.revision;positions=Object.fromEntries(Object.entries(result.positions).filter(([id,point])=>nodes.has(id)&&Number.isFinite(point?.x)&&Number.isFinite(point?.y)&&Math.abs(point.x)<=100000&&Math.abs(point.y)<=100000).map(([id,point])=>[id,{x:point.x,y:point.y}]));assignDefaults();viewport=copy(result.viewport);loaded=true;dirty=false;blocked=false;failureKind='';autoFit=Object.keys(result.positions).length===0;autoFitSize='';fitUnmodifiedLayout();announce(explicit?tr('reloaded'):'');}catch(error){if(active(key,generation)){blocked=true;failureKind=previousFailure==='conflict'?'conflict':'load';announce(failureKind==='conflict'?tr('conflict')+' '+(error.message||''):error.message||tr('error'),true);}}finally{if(active(key,generation)){loading=false;draw();}}}
+    async function load(explicit=false){if(disposed||!workspace||!connected||!state.server?.csrfToken||loading||saving||pointer)return;const key=workspace,generation=epoch,previousFailure=failureKind;loading=true;announce(tr('loading'));schedule();try{const result=await request('/api/organization-layout?workspace='+encodeURIComponent(key));if(!active(key,generation))return;if(!validResponse(result,key))throw Error(tr('error'));revision=result.revision;positions=Object.fromEntries(Object.entries(result.positions).filter(([id,point])=>nodes.has(id)&&Number.isFinite(point?.x)&&Number.isFinite(point?.y)&&Math.abs(point.x)<=100000&&Math.abs(point.y)<=100000).map(([id,point])=>[id,{x:point.x,y:point.y}]));assignDefaults();viewport=copy(result.viewport);loaded=true;dirty=false;blocked=false;failureKind='';autoFit=Object.keys(result.positions).length===0;autoFitSize='';fitUnmodifiedLayout();if(fitPending){fitPending=false;fit();}announce(explicit?tr('reloaded'):'');}catch(error){if(active(key,generation)){blocked=true;failureKind=previousFailure==='conflict'?'conflict':'load';announce(failureKind==='conflict'?tr('conflict')+' '+(error.message||''):error.message||tr('error'),true);}}finally{if(active(key,generation)){loading=false;draw();}}}
     async function save(){if(disposed||!loaded||loading||saving||!dirty||blocked||!connected||pointer)return;const key=workspace,generation=epoch,snapshot=edit,payload={workspace:key,revision,positions:copy(positions),viewport:copy(viewport)};saving=true;announce(tr('saving'));schedule();try{const result=await request('/api/organization-layout',{method:'PUT',body:payload});if(!active(key,generation))return;if(!validResponse(result,key)||result.revision<=revision)throw Error(tr('error'));revision=result.revision;if(edit===snapshot){dirty=false;announce(tr('saved'));}else{announce(tr('dirty'));queueSave();}}catch(error){if(active(key,generation)){blocked=true;failureKind=error.status===409?'conflict':'save';announce(tr(failureKind==='conflict'?'conflict':'error'),true);}}finally{if(active(key,generation)){saving=false;schedule();}}}
     function endPointer(event){
       if(!pointer||event&&event.pointerId!==pointer.id)return;
@@ -294,12 +368,14 @@
     bind(details,'keydown',event=>{if(event.key==='Escape'&&!document.querySelector('dialog[open]'))closeInspector();});
     bind(stage,'keydown',event=>{if(event.target.closest('button,input,textarea,select,a'))return;if(event.key==='Escape'){closeInspector();return;}const id=event.target.closest('.on-node')?.dataset.nodeId||selected;if(['Enter',' '].includes(event.key)&&id){select(id);event.preventDefault();return;}const change={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];if(change&&id&&loaded&&!loading){const step=event.shiftKey?50:10;positions[id]={x:clamp(positions[id].x+change[0]*step,-100000,100000),y:clamp(positions[id].y+change[1]*step,-100000,100000)};event.preventDefault();schedule();markDirty();}});
     const resize=typeof ResizeObserver==='function'?new ResizeObserver(()=>{if(!pointer)fitUnmodifiedLayout();schedule();}):null;resize?.observe(stage);
-    function update(incoming={},options={}){if(disposed)return;state=incoming;language=options.language||state.settings?.language||'ko';connected=options.connected!==false;const key=state.settings?.workspace||'';if(workspace!==key){endPointer();epoch++;clearTimeout(timer);timer=null;workspace=key;revision=0;positions={};viewport={pan:{x:0,y:0},zoom:1};loaded=loading=saving=dirty=blocked=false;failureKind='';selected='';inspectorOpen=false;view.open=false;announce('');stamp=undefined;autoFit=false;autoFitSize='';}
+    function update(incoming={},options={}){if(disposed)return;state=incoming;language=options.language||state.settings?.language||'ko';connected=options.connected!==false;const key=state.settings?.workspace||'';if(workspace!==key){endPointer();epoch++;clearTimeout(timer);timer=null;workspace=key;revision=0;positions={};viewport={pan:{x:0,y:0},zoom:1};loaded=loading=saving=dirty=blocked=false;failureKind='';selected='';inspectorOpen=false;view.open=false;announce('');stamp=undefined;autoFit=false;autoFitSize='';fitPending=false;}
       reconcile();for(const element of nodes.values())resize?.observe(element);drawInspector();if(!pointer)fitUnmodifiedLayout();schedule();const nextStamp=state.server?.organizationLayoutRevision;
       if(!loaded&&!loading&&!blocked)void load();else if(stamp!==undefined&&nextStamp!==stamp&&loaded&&!dirty&&!saving&&!pointer)void load();stamp=nextStamp;
       if(dirty&&loaded&&connected&&!saving&&!loading&&!blocked)queueSave();
     }
-    draw();return {update,fit,arrange,reload:()=>load(true),getLayout:()=>copy({workspace,revision,positions,viewport,dirty,blocked}),destroy(){if(disposed)return;endPointer();disposed=true;epoch++;clearTimeout(timer);if(frame!==undefined&&frame!==null){if(window.cancelAnimationFrame)cancelAnimationFrame(frame);else clearTimeout(frame);}resize?.disconnect();listeners.forEach(remove=>remove());root.remove();}};
+    /** After a server-side layout change (template import): reload saved positions, then fit them in view without saving the viewport. */
+    function reloadAndFit(){if(disposed)return;fitPending=true;if(loaded&&!loading&&!dirty)void load();}
+    draw();return {update,fit,arrange,reloadAndFit,reload:()=>load(true),getLayout:()=>copy({workspace,revision,positions,viewport,dirty,blocked}),destroy(){if(disposed)return;endPointer();disposed=true;epoch++;clearTimeout(timer);if(frame!==undefined&&frame!==null){if(window.cancelAnimationFrame)cancelAnimationFrame(frame);else clearTimeout(frame);}resize?.disconnect();listeners.forEach(remove=>remove());root.remove();}};
   }
-  window.ImperiumOrganizationNodes=Object.freeze({create});
+  window.ImperiumOrganizationNodes=Object.freeze({create,hierarchy:Object.freeze({MAX_DEPTH,parents,depth,height,parentChoices})});
 })();

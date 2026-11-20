@@ -260,6 +260,8 @@ Object.assign(TRANSLATIONS.ja, {
   'F5 AI 계정': 'F5 AIアカウント', 'F6 터미널': 'F6 ターミナル', 'F7 업데이트': 'F7 アップデート'
 });
 
+Object.assign(TRANSLATIONS.en, { '상위 에이전트': 'Reports to', '소유자 직속': 'Owner (direct report)' });
+Object.assign(TRANSLATIONS.ja, { '상위 에이전트': '上位エージェント', '소유자 직속': 'オーナー直属' });
 Object.assign(TRANSLATIONS.en, { '대화': 'Conversations', '대화 이어가기': 'Continue a conversation', '같은 에이전트와 이전 맥락을 이어서 질문하세요.': 'Continue the conversation with the same agent and context.' });
 Object.assign(TRANSLATIONS.ja, { '대화': '会話', '대화 이어가기': '会話を続ける', '같은 에이전트와 이전 맥락을 이어서 질문하세요.': '同じエージェントと文脈を引き継いで質問します。' });
 // Capture original static text once so repeated language changes do not translate user content.
@@ -320,6 +322,10 @@ function installControls() {
   const titleInput = node('input', { id: 'edit-department-title', class: 'text-input', maxlength: 80 });
   $('#department-form label[for="edit-department-role"]').before(titleLabel, titleInput);
   staticText.push({ item: titleLabel.firstChild, original: '직함', raw: '직함' });
+  const parentLabel = node('label', { class: 'settings-label', for: 'edit-department-parent' }, '상위 에이전트');
+  const parentSelect = node('select', { id: 'edit-department-parent', class: 'text-input' });
+  $('#department-form label[for="edit-department-role"]').before(parentLabel, parentSelect);
+  staticText.push({ item: parentLabel.firstChild, original: '상위 에이전트', raw: '상위 에이전트' });
   const picker = node('label', { class: 'language-picker' }, node('span', { class: 'sr-only', id: 'language-label' }, t('화면 언어')));
   const select = node('select', { id: 'language-select', 'aria-label': t('화면 언어') },
     node('option', { value: 'ko' }, '한국어'), node('option', { value: 'en' }, 'EN'), node('option', { value: 'ja' }, '日本語'));
@@ -372,6 +378,7 @@ async function api(path, options = {}) {
     if (!response.ok) {
       const error = new Error(result.error || t('요청을 처리하지 못했습니다.'));
       error.status = response.status;
+      if (result.details && typeof result.details === 'object') error.details = result.details;
       throw error;
     }
     return result;
@@ -1003,6 +1010,12 @@ function openDepartmentEditor(dept) {
   $('#edit-department-provider').value = dept.connectionId ? `connection:${dept.connectionId}` : dept.provider;
   $('#edit-department-role').value = dept.role;
   $('#edit-department-title').value = dept.title || '';
+  // Display-only reporting line; choices exclude the agent itself, its reports and anything past the depth limit.
+  const choices = window.ImperiumOrganizationNodes?.hierarchy?.parentChoices(state.departments, dept.id) ?? state.departments.filter(item => item.id !== dept.id);
+  const currentParent = window.ImperiumOrganizationNodes?.hierarchy?.parents(state.departments).get(dept.id) ?? (state.departments.some(item => item.id === dept.parentId && item.id !== dept.id) ? dept.parentId : null);
+  $('#edit-department-parent').replaceChildren(node('option', { value: '' }, t('소유자 직속')), ...choices.map(item => node('option', { value: item.id }, departmentName(item))));
+  $('#edit-department-parent').value = currentParent && choices.some(item => item.id === currentParent) ? currentParent : '';
+  $('#edit-department-parent').dataset.initial = $('#edit-department-parent').value;
   if (window.ImperiumExecution) {
     departmentExecution?.destroy();
     departmentExecution = window.ImperiumExecution.create({ api, provider: dept.provider, modelId: dept.modelId || '', reasoningEffort: dept.reasoningEffort || 'default', speed: dept.speed || 'default' });
@@ -1131,7 +1144,8 @@ function bindEvents() {
     const id = $('#edit-department-id').value;
     const button = $('#department-form button[type=submit]'); button.disabled = true; $('#department-error').hidden = true;
     try {
-      const result = await api(`/api/departments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { workspace: $('#department-dialog').dataset.workspace, name: $('#edit-department-name').value.trim(), title: $('#edit-department-title').value.trim(), ...selectedConnection($('#edit-department-provider').value), ...(departmentExecution?.getValue() || {}), role: $('#edit-department-role').value.trim() } });
+      const parent = $('#edit-department-parent'), parentChange = parent && parent.value !== parent.dataset.initial ? { parentId: parent.value || null } : {};
+      const result = await api(`/api/departments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { workspace: $('#department-dialog').dataset.workspace, name: $('#edit-department-name').value.trim(), title: $('#edit-department-title').value.trim(), ...selectedConnection($('#edit-department-provider').value), ...(departmentExecution?.getValue() || {}), role: $('#edit-department-role').value.trim(), ...parentChange } });
       if (result.department) { const index = state.departments.findIndex(dept => dept.id === id); if (index >= 0) state.departments[index] = result.department; }
       render(); $('#department-dialog').close(); toast(t('부서 설정을 저장했습니다.'));
     } catch (error) { showFormError('#department-error', error); }

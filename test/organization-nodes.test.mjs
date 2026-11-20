@@ -266,3 +266,93 @@ test('destroy cancels pending geometry persistence without touching workflow dat
   ui.pointer(ui.document, 'pointermove', 400, 400); ui.pointer(ui.document, 'pointerup', 400, 400); ui.window.dispatchEvent(new ui.window.Event('resize')); await ui.flush();
   assert.equal(ui.writes().length, 0); assert.deepEqual(ui.state.graph, graph); assert.equal(ui.calls.some(call => call.path.startsWith('/api/graph')), false);
 });
+
+test('reporting lines run from each parent; agents without a valid parent connect to the owner', async t => {
+  const departments = [department('lead'), { ...department('member1'), parentId: 'lead' }, { ...department('member2'), parentId: 'lead' }, { ...department('solo'), parentId: 'missing' }];
+  const positions = { owner: { x: 320, y: 20 }, 'agent:lead': { x: 30, y: 160 }, 'agent:member1': { x: 70, y: 290 }, 'agent:member2': { x: 70, y: 420 }, 'agent:solo': { x: 540, y: 160 } };
+  const ui = fixture(t, { state: initial({ departments, graph: { nodes: [], edges: [] } }), api: async (path, config = {}) => config.method === 'PUT' ? { ...config.body, revision: config.body.revision + 1 } : saved(workspace, { positions }) });
+  await settle(); await ui.flush();
+  const lines = () => Object.fromEntries([...ui.container.querySelectorAll('[data-edge-type=membership]')].map(line => [line.dataset.target, line.dataset.source]));
+  assert.deepEqual(lines(), { 'agent:lead': 'owner', 'agent:member1': 'agent:lead', 'agent:member2': 'agent:lead', 'agent:solo': 'owner' });
+  assert.ok(ui.container.querySelector('.on-membership-trunk[data-source="agent:lead"]'), 'stacked reports share one trunk from their parent');
+  assert.equal(ui.container.querySelector('.on-membership-trunk[data-source="owner"]'), null);
+  ui.update({ ...ui.state, departments: departments.map(item => item.id === 'member2' ? { ...item, parentId: null } : item) }); await ui.flush();
+  assert.equal(lines()['agent:member2'], 'owner', 'a parent change redraws the line');
+  ui.update({ ...ui.state, departments: departments.map(item => item.id === 'lead' ? { ...item, parentId: 'member1' } : item) }); await ui.flush();
+  assert.deepEqual(lines(), { 'agent:lead': 'owner', 'agent:member1': 'owner', 'agent:member2': 'agent:lead', 'agent:solo': 'owner' }, 'a stored cycle is drawn from the owner without looping');
+  assert.equal(ui.writes().length, 0, 'drawing lines never saves layout');
+  assert.equal(ui.calls.some(call => /\/api\/(departments|graph|workflows)/.test(call.path)), false);
+});
+
+test('auto-arrange stacks reports below their parent as a tree, indented per level', async t => {
+  const departments = [department('lead'), { ...department('member'), parentId: 'lead' }, { ...department('analyst'), parentId: 'member' }, { ...department('second'), parentId: 'lead' }, department('solo')];
+  const ui = fixture(t, { state: initial({ departments, graph: { nodes: [], edges: [] } }) });
+  await settle(); await ui.flush();
+  ui.engine.arrange(); await ui.flush();
+  const layout = ui.engine.getLayout().positions, at = id => layout[`agent:${id}`];
+  assert.equal(at('member').x, at('lead').x + 40);
+  assert.equal(at('analyst').x, at('lead').x + 80);
+  assert.equal(at('second').x, at('lead').x + 40);
+  assert.ok(at('lead').y < at('member').y && at('member').y < at('analyst').y && at('analyst').y < at('second').y, 'each report is below the previous card in depth-first order');
+  assert.ok(at('member').y - at('lead').y >= 92 + 24, 'there is room for the trunk between a parent and its first report');
+  assert.ok(at('solo').x >= at('analyst').x + 320, 'other top-level agents get their own column');
+  assert.equal(at('solo').y, at('lead').y);
+  assert.ok(layout.owner.y < at('lead').y);
+  assert.ok(ui.container.querySelector('.on-membership-trunk[data-source="agent:lead"]'));
+  assert.ok(ui.container.querySelector('.on-membership-trunk[data-source="agent:member"]') === null, 'a single report is drawn as one line');
+  assert.equal(ui.writes().length, 1);
+});
+
+test('parent choices exclude the agent itself, its reports and choices past six levels', async t => {
+  const ui = fixture(t);
+  const { hierarchy } = ui.window.ImperiumOrganizationNodes;
+  const departments = [...Array.from({ length: 6 }, (_, index) => ({ id: `d${index + 1}`, name: `D${index + 1}`, ...(index ? { parentId: `d${index}` } : {}) })), { id: 'free', name: 'Free' }];
+  assert.deepEqual(hierarchy.parentChoices(departments, null).map(item => item.id), ['d1', 'd2', 'd3', 'd4', 'd5', 'free']);
+  assert.deepEqual(hierarchy.parentChoices(departments, 'd3').map(item => item.id), ['d1', 'd2', 'free']);
+  assert.deepEqual(hierarchy.parentChoices(departments, 'free').map(item => item.id), ['d1', 'd2', 'd3', 'd4', 'd5']);
+  assert.equal(hierarchy.MAX_DEPTH, 6);
+});
+
+test('reloadAndFit reloads a server-changed layout and fits it without saving the viewport', async t => {
+  let revision = 4, positions = saved().positions;
+  const ui = fixture(t, { api: async (path, config = {}) => config.method === 'PUT' ? { ...config.body, revision: config.body.revision + 1 } : saved(workspace, { revision, positions }) });
+  await settle(); await ui.flush();
+  const before = JSON.parse(JSON.stringify(ui.engine.getLayout().viewport));
+  revision = 5; positions = { ...positions, 'agent:backend': { x: 4000, y: 3000 } };
+  ui.engine.reloadAndFit(); await ui.flush();
+  const layout = JSON.parse(JSON.stringify(ui.engine.getLayout()));
+  assert.equal(layout.revision, 5);
+  assert.deepEqual(layout.positions['agent:backend'], { x: 4000, y: 3000 });
+  assert.notDeepEqual(layout.viewport, before);
+  assert.equal(layout.dirty, false);
+  assert.equal(ui.writes().length, 0);
+});
+
+test('a new report is placed below its saved parent without covering saved cards', async t => {
+  const departments = [department('a'), department('b'), department('c'), department('d'), department('e'), department('f')];
+  const positions = { owner: { x: 576, y: 32 }, 'agent:a': { x: 40, y: 160 }, 'agent:b': { x: 392, y: 160 }, 'agent:c': { x: 744, y: 160 }, 'agent:d': { x: 1096, y: 160 }, 'agent:e': { x: 40, y: 294 }, 'agent:f': { x: 392, y: 294 } };
+  const ui = fixture(t, { state: initial({ departments, graph: { nodes: [], edges: [] } }), api: async (path, config = {}) => config.method === 'PUT' ? { ...config.body, revision: config.body.revision + 1 } : saved(workspace, { positions }) });
+  await settle(); await ui.flush();
+  ui.makeRole('g');
+  ui.update({ ...ui.state, departments: [...departments, { ...department('g'), parentId: 'a' }] }); await ui.flush();
+  const layout = JSON.parse(JSON.stringify(ui.engine.getLayout().positions));
+  for (const [key, point] of Object.entries(positions)) assert.deepEqual(layout[key], point, `${key} keeps its saved position`);
+  const g = layout['agent:g'];
+  assert.equal(g.x, 80, 'indented under its parent');
+  assert.ok(g.y > 160 + 92, 'below its parent');
+  for (const [key, point] of Object.entries(layout)) if (key !== 'agent:g' && key !== 'owner') assert.ok(g.x + 320 <= point.x || point.x + 320 <= g.x || g.y + 92 <= point.y || point.y + 92 <= g.y, `agent:g overlaps ${key}`);
+  assert.equal(ui.writes().length, 0, 'a default position is not saved by itself');
+});
+
+test('an untouched default layout re-arranges as a tree as soon as a reporting line appears', async t => {
+  const departments = [department('a'), department('b'), department('c')];
+  const ui = fixture(t, { state: initial({ departments, graph: { nodes: [], edges: [] } }), api: async (path, config = {}) => config.method === 'PUT' ? { ...config.body, revision: config.body.revision + 1 } : saved(workspace, { revision: 0, positions: {}, viewport: { pan: { x: 0, y: 0 }, zoom: 1 } }) });
+  ui.resizeStage(1100, 680); await settle(); await ui.flush();
+  const before = JSON.parse(JSON.stringify(ui.engine.getLayout().positions));
+  assert.equal(before['agent:c'].y, before['agent:a'].y, 'a grid without reporting lines');
+  ui.update({ ...ui.state, departments: departments.map(item => item.id === 'c' ? { ...item, parentId: 'a' } : item) }); await ui.flush();
+  const after = JSON.parse(JSON.stringify(ui.engine.getLayout().positions));
+  assert.equal(after['agent:c'].x, after['agent:a'].x + 40);
+  assert.ok(after['agent:c'].y > after['agent:a'].y);
+  assert.equal(ui.writes().length, 0);
+});
