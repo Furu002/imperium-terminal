@@ -2,20 +2,20 @@
   'use strict';
   const PROVIDERS = { codex: 'ChatGPT / Codex', claude: 'Claude Code', gemini: 'Gemini CLI', copilot: 'GitHub Copilot', ollama: 'Ollama' };
   const TEXT = {
-    heading: ['내 AI 조직', 'My AI organization', '自分のAI組織'], subtitle: ['역할별 책임과 실제 업무, 연결한 스킬을 확인하세요.', 'Inspect responsibilities, actual work and assigned skills.', '役割ごとの責任、実際の業務、割り当てたスキルを確認します。'],
-    agents: ['에이전트', 'Agents', 'エージェント'], running: ['실행 중', 'Running', '実行中'], ready: ['연결된 제공자', 'Connected providers', '接続済みプロバイダー'], add: ['+ 에이전트', '+ Agent', '+ エージェント'],
-    goal: ['무엇을 만들고 싶으세요?', 'What would you like to build?', '何を作りたいですか？'], placeholder: ['목표와 원하는 결과를 적어주세요.', 'Describe your goal and the result you need.', '目標と必要な成果を入力してください。'], assignGoal: ['업무 배정하기', 'Assign work', '業務を割り当てる'], goalNote: ['입력한 목표는 작업 지시와 함께 보존됩니다. 담당 역할과 실행 옵션을 선택한 뒤 전송하세요. 자동 분해나 실행은 시작되지 않습니다.', 'This shares your dispatch draft. Choose an agent and execution options before sending. It does not automatically plan or run work.', '作業指示と下書きを共有します。担当と実行設定を選んで送信してください。自動分解や実行は開始しません。'],
+    heading: ['내 AI 조직', 'My AI organization', '自分のAI組織'],
+    agentCount: ['에이전트 {count}명', '{count} agents', 'エージェント {count}人'], running: ['실행 중', 'Running', '実行中'], add: ['+ 에이전트 추가', '+ Add agent', '+ エージェントを追加'],
+    goal: ['무엇을 만들고 싶으세요?', 'What would you like to build?', '何を作りたいですか？'], placeholder: ['목표와 원하는 결과를 적어주세요.', 'Describe your goal and the result you need.', '目標と必要な成果を入力してください。'], assignGoal: ['업무 배정하기', 'Assign work', '業務を割り当てる'], goalNote: ['업무 화면에서 담당 에이전트를 선택한 뒤 전송하세요.', 'Choose an agent on the work screen before sending.', '業務画面で担当エージェントを選んで送信してください。'],
     owner: ['소유자', 'Owner', 'オーナー'], ownerRole: ['목표 설정 · 최종 결정', 'Goals · Final decisions', '目標設定 · 最終判断'], empty: ['등록된 에이전트가 없습니다.', 'No agents are registered.', '登録済みエージェントはありません。'], emptyNote: ['에이전트를 추가하고 역할과 모델 연결을 지정하세요.', 'Add an agent and choose its responsibility and model connection.', 'エージェントを追加し、役割とモデル接続を設定してください。'],
     edit: ['역할 편집', 'Edit role', '役割を編集'], assign: ['업무 지시', 'Assign work', '業務指示'], skills: ['스킬', 'Skills', 'スキル'], remove: ['에이전트 삭제', 'Remove agent', 'エージェントを削除'],
-    idle: ['지시 대기', 'Idle', '指示待ち'], queued: ['작업 대기', 'Queued', '待機中'], offline: ['오프라인', 'Offline', 'オフライン'], unavailable: ['연결 필요', 'Connection required', '接続が必要'], disabled: ['로컬 모드에서 비활성', 'Disabled in local mode', 'ローカルモードで無効'], noWork: ['현재 배정된 업무 없음', 'No current assignment', '現在の担当業務なし'], current: ['현재 업무', 'Current assignment', '現在の業務'], model: ['요청 모델', 'Requested model', '要求モデル'], defaultModel: ['CLI 기본 모델', 'CLI default model', 'CLI既定モデル'], noRole: ['역할 지침 미설정', 'No role instructions', '役割指示が未設定'],
+    idle: ['대기', 'Idle', '待機'], queued: ['작업 대기', 'Queued', '待機中'], offline: ['오프라인', 'Offline', 'オフライン'], unavailable: ['연결 필요', 'Connection required', '接続が必要'], disabled: ['로컬 모드에서 비활성', 'Disabled in local mode', 'ローカルモードで無効'], noWork: ['현재 배정된 업무 없음', 'No current assignment', '現在の担当業務なし'], current: ['현재 업무', 'Current assignment', '現在の業務'], model: ['요청 모델', 'Requested model', '要求モデル'], executionModel: ['실행 모델', 'Execution model', '実行モデル'], defaultModel: ['CLI 기본 모델', 'CLI default model', 'CLI既定モデル'], noRole: ['역할 지침 미설정', 'No role instructions', '役割指示が未設定'],
     skillLoading: ['스킬 연결 확인 중…', 'Loading assigned skills…', '割り当てスキルを確認中…'], skillError: ['스킬 연결을 확인할 수 없습니다.', 'Assigned skills are unavailable.', '割り当てスキルを確認できません。'], skillNone: ['연결한 스킬 없음', 'No assigned skills', '割り当てスキルなし'], unknownSkill: ['찾을 수 없는 스킬', 'Unavailable skill', '見つからないスキル'], refresh: ['스킬 새로고침', 'Refresh skills', 'スキルを再読み込み'],
     unobserved: ['스킬 사용 미관측', 'Skill use not observed', 'スキル使用は未観測'], evidence: ['최근 기록 · 도구 관측 {tools}건 · 모델 보고 {reports}건', 'Recent record · {tools} tool observations · {reports} model reports', '直近の記録 · ツール観測 {tools}件 · モデル報告 {reports}件'], evidenceNote: ['연결은 실행 증거가 아닙니다. 문서 읽기·호출은 성공을 보장하지 않으며 모델 보고는 미검증입니다.', 'Assignment is not execution evidence. Document reads and calls do not prove success; model reports are unverified.', '割り当ては実行の証拠ではありません。文書の読み取り・呼び出しは成功を保証せず、モデル報告は未検証です。'], partial: ['일부 로그만 표시됨', 'Only partial logs are available', '一部のログのみ表示'],
-    next: ['다음 전달', 'Next handoff', '次の引き継ぎ'], connectedNext: ['연결된 다음 역할', 'Next connected role', '次に接続された役割'], noNext: ['아직 없음', 'None yet', 'まだありません'], roleNote: ['역할은 설정입니다. 실제 실행과 전달은 작업 기록으로 확인합니다.', 'Roles are configuration. Actual execution and handoffs are shown by task records.', '役割は設定です。実際の実行・引き継ぎは作業記録で確認します。'],
+    next: ['다음 전달', 'Next handoff', '次の引き継ぎ'], connectedNext: ['연결된 다음 역할', 'Next connected role', '次に接続された役割'], noNext: ['아직 없음', 'None yet', 'まだありません'],
     create: ['에이전트 등록', 'Register agent', 'エージェントを登録'], name: ['에이전트 이름', 'Agent name', 'エージェント名'], title: ['직함', 'Title', '肩書き'], role: ['역할과 업무 지침', 'Responsibilities and instructions', '役割と業務指示'], provider: ['모델 제공자', 'Model provider', 'モデルプロバイダー'], connection: ['등록된 연결', 'Registered connection', '登録済み接続'], defaultConnection: ['기본 CLI 연결', 'Default CLI connection', '既定のCLI接続'], cancel: ['취소', 'Cancel', 'キャンセル'], close: ['닫기', 'Close', '閉じる'], register: ['등록하기', 'Register', '登録'], saving: ['저장 중…', 'Saving…', '保存中…'], registered: ['에이전트를 등록했습니다.', 'Agent registered.', 'エージェントを登録しました。'], createNote: ['등록은 모델을 실행하거나 캔버스 노드를 자동 생성하지 않습니다.', 'Registration does not run a model or automatically create a canvas node.', '登録してもモデル実行やキャンバスノードの自動追加は行いません。'],
     error: ['요청을 처리하지 못했습니다.', 'The request could not be completed.', 'リクエストを処理できませんでした。'], changed: ['프로젝트가 변경됐습니다. 현재 프로젝트에서 다시 시도하세요.', 'The project changed. Try again in the current project.', 'プロジェクトが変わりました。現在のプロジェクトで再試行してください。'], required: ['이름과 역할을 입력하세요.', 'Enter a name and responsibilities.', '名前と役割を入力してください。'], disconnected: ['서버 연결 후 다시 시도하세요.', 'Try again after the server reconnects.', 'サーバーの再接続後に再試行してください。'],
     removeTitle: ['이 에이전트를 삭제할까요?', 'Remove this agent?', 'このエージェントを削除しますか？'], removeNote: ['에이전트 설정과 해당 캔버스 노드만 삭제합니다. 기존 작업·대화·기억·연결 계정은 보존합니다.', 'Removes the agent configuration and its canvas nodes. Existing tasks, conversations, memory and account connections are retained.', 'エージェント設定と対応するキャンバスノードを削除します。既存の作業・会話・記憶・アカウント接続は保持します。'], removed: ['에이전트를 삭제했습니다. 기존 기록은 보존됩니다.', 'Agent removed. Existing records are retained.', 'エージェントを削除しました。既存の記録は保持されます。'], busy: ['진행 중인 작업이 끝난 뒤 삭제할 수 있습니다.', 'Wait until this agent’s work finishes before removing it.', 'このエージェントの作業が終了してから削除してください。'],
   };
-  let state = {}, options = {}, language = 'ko', host, heading, subtitle, summary, owner, list, goalInput, goalLabel, goalButton, goalNote, addButton, refreshButton, roleNote, dialog, execution;
+  let state = {}, options = {}, language = 'ko', host, heading, summary, owner, list, goalInput, goalLabel, goalButton, goalNote, addButton, refreshButton, dialog, execution;
   let workspace = '', generation = 0, skills = null, skillStatus = 'waiting', skillsStamp = '', pendingSkills = '', skillEvent = 0;
   const cards = new Map();
   let nodeCanvas, goalPanel, goalToggle;
@@ -42,24 +42,28 @@
   function mount() {
     host = document.getElementById('organization-section'); if (!host) return false;
     host.classList.add('org-workbench');
-    heading = h('h2', { class: 'org-title', id: 'organization-title' }); subtitle = h('p', { class: 'org-subtitle' });
-    summary = h('div', { class: 'org-summary', id: 'org-summary' });
+    heading = h('h2', { class: 'org-title', id: 'organization-title' });
+    summary = h('span', { class: 'org-count', id: 'org-summary' });
     addButton = h('button', { class: 'button button-primary org-add-agent', type: 'button', onclick: openCreate });
-    refreshButton = h('button', { class: 'button button-quiet org-skills-refresh', type: 'button', onclick: () => { skillEvent++; refreshSkills(); } });
+    const refresh = () => { skillEvent++; void refreshSkills(); };
+    refreshButton = h('button', { class: 'button button-quiet org-skills-refresh', type: 'button', onclick: refresh });
     goalLabel = h('label', { for: 'org-goal-input' }); goalInput = h('textarea', { id: 'org-goal-input', class: 'org-goal-input', rows: '3', maxlength: '12000' });
     goalInput.addEventListener('input', () => { const input = document.getElementById('dispatch-prompt'); if (input) { input.value = goalInput.value; input.dispatchEvent(new Event('input', { bubbles: true })); } });
     goalButton = h('button', { class: 'button button-primary', type: 'button', onclick: () => { options.onNavigate?.('operations'); document.getElementById('dispatch-department')?.focus(); } });
     goalNote = h('p', { class: 'org-goal-note' });
     owner = h('div', { class: 'org-chart-root', id: 'org-chart-root' });
-    list = h('ul', { class: 'org-model-branches', id: 'org-model-branches' }); roleNote = h('p', { class: 'org-role-note' });
+    list = h('ul', { class: 'org-model-branches', id: 'org-model-branches' });
     goalPanel = h('section', { class: 'org-goal', id: 'org-goal-panel', hidden: '' }, goalLabel, goalInput, h('div', { class: 'org-goal-actions' }, goalNote, goalButton));
     goalToggle = h('button', { type: 'button', class: 'button button-quiet org-goal-toggle', 'aria-controls': 'org-goal-panel', 'aria-expanded': 'false', onclick: () => { goalPanel.hidden = !goalPanel.hidden; goalToggle.setAttribute('aria-expanded', String(!goalPanel.hidden)); if (!goalPanel.hidden) goalInput.focus(); } });
-    host.replaceChildren(h('div', { class: 'org-toolbar' }, h('div', { class: 'org-heading-copy' }, heading, subtitle), summary, h('div', { class: 'org-toolbar-actions' }, goalToggle, refreshButton, addButton)), goalPanel, owner, list, roleNote);
+    host.replaceChildren(h('div', { class: 'org-toolbar' }, h('div', { class: 'org-heading-copy' }, heading, summary), h('div', { class: 'org-toolbar-actions' }, goalToggle, refreshButton, addButton)), goalPanel, owner, list);
     if (window.ImperiumOrganizationNodes) {
-      const canvasHost = h('div', { class: 'org-nodes-host' }); roleNote.before(canvasHost);
+      const canvasHost = h('div', { class: 'org-nodes-host' }); host.append(canvasHost);
+      refreshButton.remove();
       nodeCanvas = window.ImperiumOrganizationNodes.create({ container: canvasHost, owner, list, api: (route, config) => request(route, config), getState: () => options.getState?.() || state,
         onEditConnections: () => options.onNavigate?.('workflow'), onEditAgent: id => { const role = roleById(id); if (role) options.onEditDepartment?.(role); }, onAssignAgent: id => { if (roleById(id)) options.onAssignDepartment?.(id); },
-        onSkillsAgent: id => { if (!roleById(id)) return; options.onNavigate?.('skills'); window.dispatchEvent(new CustomEvent('imperium:skills-agent', { detail: { workspace, departmentId: id } })); }
+        onSkillsAgent: id => { if (!roleById(id)) return; options.onNavigate?.('skills'); window.dispatchEvent(new CustomEvent('imperium:skills-agent', { detail: { workspace, departmentId: id } })); },
+        onRemoveAgent: id => { const role = roleById(id); if (role) openRemove(role); },
+        onRefreshSkills: refresh
       });
     }
     document.getElementById('dispatch-prompt')?.addEventListener('input', () => { const input = document.getElementById('dispatch-prompt'); if (input && goalInput.value !== input.value) goalInput.value = input.value; });
@@ -85,12 +89,16 @@
     image.addEventListener('error', () => image.replaceWith(fallback), { once: true }); return image;
   }
   function createCard(id) {
-    const parts = { element: h('li', { class: 'org-agent-card', 'data-department-id': id }), name: h('h3', { class: 'org-agent-name' }), title: h('p', { class: 'org-agent-title' }), status: h('span', { class: 'org-agent-status' }), mark: h('span', { class: 'org-agent-mark' }), role: h('p', { class: 'org-agent-role' }), model: h('p', { class: 'org-agent-model' }), task: h('p', { class: 'org-agent-task' }), skills: h('div', { class: 'org-card-skills' }), evidence: h('p', { class: 'org-skill-evidence' }), next: h('p', { class: 'org-agent-next' }) };
+    const parts = { element: h('li', { class: 'org-agent-card', 'data-department-id': id }), name: h('h3', { class: 'org-agent-name' }), title: h('p', { class: 'org-agent-title' }), summary: h('p', { class: 'org-agent-summary' }), status: h('span', { class: 'org-agent-status' }), mark: h('span', { class: 'org-agent-mark' }), role: h('p', { class: 'org-agent-role' }), model: h('p', { class: 'org-agent-model' }), task: h('p', { class: 'org-agent-task' }), skills: h('div', { class: 'org-card-skills' }), evidence: h('p', { class: 'org-skill-evidence' }), next: h('p', { class: 'org-agent-next' }) };
     parts.assign = h('button', { class: 'button button-outline', type: 'button', onclick: () => { if (roleById(id)) options.onAssignDepartment?.(id); } });
     parts.edit = h('button', { class: 'button button-quiet', type: 'button', onclick: () => { const dept = roleById(id); if (dept) options.onEditDepartment?.(dept); } });
     parts.skillButton = h('button', { class: 'button button-quiet', type: 'button', onclick: () => { if (!roleById(id)) return; options.onNavigate?.('skills'); window.dispatchEvent(new CustomEvent('imperium:skills-agent', { detail: { workspace, departmentId: id } })); } });
     parts.remove = h('button', { class: 'button button-quiet org-remove-agent', type: 'button', onclick: () => { const dept = roleById(id); if (dept) openRemove(dept); } });
-    parts.element.append(h('div', { class: 'org-agent-heading' }, parts.mark, h('div', {}, parts.name, parts.title), parts.status), parts.role, parts.model, parts.task, parts.skills, parts.evidence, parts.next, h('div', { class: 'org-agent-actions' }, parts.assign, parts.edit, parts.skillButton, parts.remove));
+    parts.element.append(
+      h('div', { class: 'org-agent-heading' }, parts.mark, h('div', { class: 'org-agent-identity' }, parts.name, parts.title, parts.summary), parts.status),
+      parts.role, parts.model, parts.task, parts.skills, parts.evidence, parts.next,
+      h('div', { class: 'org-agent-actions' }, parts.assign, parts.edit, parts.skillButton, parts.remove)
+    );
     return parts;
   }
   function nextRoles(dept, latest) {
@@ -116,9 +124,15 @@
       const status = !options.connected ? 'offline' : localDisabled ? 'disabled' : active?.status || (provider?.status === 'ready' && provider.authenticated ? 'idle' : 'unavailable');
       card.element.dataset.status = status; card.name.textContent = dept.name || dept.id; card.title.textContent = dept.title || ''; card.title.hidden = !dept.title;
       card.status.textContent = tr(status); card.status.dataset.status = status;
-      if (card.provider !== dept.provider) { card.provider = dept.provider; card.mark.replaceChildren(providerIcon(dept.provider)); }
-      card.role.textContent = dept.role || tr('noRole'); card.model.textContent = `${PROVIDERS[dept.provider] || dept.provider || '—'} · ${tr('model')}: ${dept.modelId || tr('defaultModel')}`;
+      const shownProvider = active?.provider || dept.provider;
+      const shownModel = active ? active.reportedModel || active.modelId : dept.modelId;
+      if (card.provider !== shownProvider) { card.provider = shownProvider; card.mark.replaceChildren(providerIcon(shownProvider)); }
+      card.role.textContent = dept.role || tr('noRole');
+      card.model.textContent = `${PROVIDERS[shownProvider] || shownProvider || '—'} · ${tr(active?.reportedModel ? 'executionModel' : 'model')}: ${shownModel || tr('defaultModel')}`;
+      card.summary.textContent = shownModel || PROVIDERS[shownProvider] || shownProvider || tr('defaultModel');
+      card.summary.title = card.model.textContent;
       card.task.textContent = active ? `${tr('current')}: ${active.title || active.id}` : tr('noWork');
+      card.task.dataset.title = active ? active.title || active.id : tr('noWork');
       card.assign.textContent = tr('assign'); card.assign.disabled = !options.connected || Boolean(localDisabled); card.edit.textContent = tr('edit'); card.skillButton.textContent = tr('skills'); card.remove.textContent = tr('remove'); card.remove.disabled = !options.connected || Boolean(active); card.remove.title = active ? tr('busy') : '';
       const binding = skills?.bindings?.[dept.id], ids = Array.isArray(binding) ? [...new Set(binding.filter(id => typeof id === 'string'))].slice(0, 20) : [];
       const skillSignature = JSON.stringify([language, skillStatus, ids, skills?.revision, (skills?.skills || []).map(skill => [skill.id, skill.name])]);
@@ -127,6 +141,7 @@
       const observed = logs.filter(log => log.source !== 'model-reported').length, reported = logs.length - observed;
       card.evidence.textContent = `${logs.length ? tr('evidence', { tools: observed, reports: reported }) : tr('unobserved')}${latest?.detailsTruncated ? ` · ${tr('partial')}` : ''}`; card.evidence.title = tr('evidenceNote');
       const next = nextRoles(dept, latest); card.next.textContent = `${tr(next.key)}: ${next.values.join(' · ') || tr('noNext')}`;
+      card.next.dataset.hasHandoff = String(next.values.length > 0);
     });
     nodeCanvas?.update(state, { language, connected: options.connected });
   }
@@ -187,14 +202,21 @@
     if (!host && !mount()) return;
     const key = state.settings?.workspace || '';
     if (workspace !== key) { workspace = key; generation++; closeDialog(); skills = null; skillStatus = 'waiting'; skillsStamp = ''; pendingSkills = ''; cards.clear(); list.replaceChildren(); goalPanel.hidden = !document.getElementById('dispatch-prompt')?.value?.trim(); }
-    heading.textContent = tr('heading'); subtitle.textContent = tr('subtitle'); addButton.textContent = tr('add'); addButton.disabled = !options.connected; refreshButton.textContent = tr('refresh'); refreshButton.disabled = !options.connected;
-    goalLabel.textContent = tr('goal'); goalInput.placeholder = tr('placeholder'); goalInput.setAttribute('aria-label', tr('goal')); goalButton.textContent = tr('assignGoal'); goalNote.textContent = tr('goalNote'); roleNote.textContent = tr('roleNote');
+    heading.textContent = tr('heading'); addButton.textContent = tr('add'); addButton.disabled = !options.connected; refreshButton.textContent = tr('refresh'); refreshButton.disabled = !options.connected;
+    goalLabel.textContent = tr('goal'); goalInput.placeholder = tr('placeholder'); goalInput.setAttribute('aria-label', tr('goal')); goalButton.textContent = tr('assignGoal'); goalNote.textContent = tr('goalNote');
     goalToggle.textContent = language === 'en' ? 'Enter goal' : language === 'ja' ? '目標を入力' : '목표 입력'; goalToggle.setAttribute('aria-expanded', String(!goalPanel.hidden));
     const dispatch = document.getElementById('dispatch-prompt'); if (dispatch && goalInput.value !== dispatch.value) goalInput.value = dispatch.value;
-    const ready = options.connected ? (state.providers || []).filter(provider => provider.status === 'ready' && provider.authenticated && (!state.settings?.localOnly || provider.id === 'ollama' || provider.kind === 'local')).length : 0;
-    summary.replaceChildren(...[[ready, 'ready'], [(state.departments || []).length, 'agents'], [options.connected ? tasks().filter(task => task.status === 'running').length : '—', 'running']].map(([value, label]) => h('div', { class: 'org-summary-item', 'data-metric': label }, h('strong', { class: 'org-summary-value' }, String(value)), h('span', { class: 'org-summary-label' }, tr(label)))));
+    summary.textContent = tr('agentCount', { count: (state.departments || []).length });
     const identity = state.settings?.identity || {};
-    const ownerKey = JSON.stringify([language, identity.name, identity.title]); if (owner.dataset.identity !== ownerKey) { owner.dataset.identity = ownerKey; owner.replaceChildren(h('div', { class: 'org-commander-node org-commander-card' }, h('span', { class: 'org-commander-badge', 'aria-hidden': 'true' }, 'YOU'), h('div', { class: 'org-commander-content' }, h('strong', { class: 'org-commander-name' }, identity.name || tr('owner')), h('span', { class: 'org-commander-role' }, identity.title || tr('ownerRole'))))); }
+    const ownerKey = JSON.stringify([language, identity.name, identity.title]);
+    if (owner.dataset.identity !== ownerKey) {
+      const name = identity.name || tr('owner');
+      owner.dataset.identity = ownerKey;
+      owner.replaceChildren(h('div', { class: 'org-commander-node org-commander-card' },
+        h('span', { class: 'org-commander-badge', 'aria-hidden': 'true' }, Array.from(name.trim())[0] || '•'),
+        h('div', { class: 'org-commander-content' }, h('strong', { class: 'org-commander-name' }, name),
+          h('span', { class: 'org-commander-role' }, identity.title || tr('ownerRole')))));
+    }
     updateCards(); void refreshSkills();
   }
   window.addEventListener('imperium:skills-changed', event => { if (event.detail?.workspace && scopePath(event.detail.workspace) !== scopePath(workspace)) return; skillEvent++; void refreshSkills(); });

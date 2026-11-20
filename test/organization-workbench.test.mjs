@@ -4,16 +4,18 @@ import test from 'node:test';
 import { JSDOM } from 'jsdom';
 
 const source = readFileSync(new URL('../public/organization-workbench.js', import.meta.url), 'utf8');
+const nodesSource = readFileSync(new URL('../public/organization-nodes.js', import.meta.url), 'utf8');
 const workspace = 'C:\\Projects\\Company';
 const department = (id, extra = {}) => ({ id, name: `Role ${id}`, title: 'Engineer', role: 'Implement tested changes', provider: 'codex', modelId: 'requested-model', ...extra });
 const work = (id, departmentId, extra = {}) => ({ id, workspace, departmentId, departmentName: `Role ${departmentId}`, title: `Work ${id}`, status: 'completed', createdAt: '2026-11-19T05:00:00Z', logs: [], ...extra });
 const initial = extra => ({ settings: { workspace, language: 'en', identity: { name: 'Sato', title: 'Owner' } }, server: { csrfToken: 'csrf', skillsRevision: 1 }, providers: [{ id: 'codex', status: 'ready', authenticated: true }], connections: [{ id: 'account', providerId: 'codex', label: 'My account', modelId: 'account-model' }], departments: [department('fe'), department('be', { provider: 'claude' })], tasks: [], graph: { nodes: [], edges: [] }, ...extra });
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const tick = async () => { await new Promise(resolve => setTimeout(resolve, 0)); };
-function fixture(t, { state = initial(), api = async path => path.startsWith('/api/skills') ? { workspace: new URL(path, 'http://localhost').searchParams.get('workspace'), skills: [], bindings: {}, revision: 1 } : {}, execution = false } = {}) {
+function fixture(t, { state = initial(), api = async path => path.startsWith('/api/skills') ? { workspace: new URL(path, 'http://localhost').searchParams.get('workspace'), skills: [], bindings: {}, revision: 1 } : {}, execution = false, canvas = false } = {}) {
   const dom = new JSDOM('<!doctype html><html lang="en"><body><section id="organization-section"></section><textarea id="dispatch-prompt"></textarea><select id="dispatch-department"><option>Role</option></select></body></html>', { runScripts: 'outside-only', url: 'http://127.0.0.1:4310/' });
   const { window } = dom; const calls = [], navigations = [], assignments = [], edits = [], notices = []; let current = state, changed = 0, destroyed = 0;
   if (execution) window.ImperiumExecution = { create() { return { element: window.document.createElement('div'), getValue: () => ({ modelId: 'chosen-model', reasoningEffort: 'high', speed: 'standard' }), setContext() {}, destroy() { destroyed++; } }; } };
+  if (canvas) window.eval(nodesSource);
   window.eval(source);
   const callbacks = { language: 'en', connected: true, getState: () => current, api: async (path, config = {}) => { calls.push({ path, ...config }); return api(path, config); }, onNavigate: value => navigations.push(value), onAssignDepartment: id => assignments.push(id), onEditDepartment: dept => edits.push(dept.id), toast: value => notices.push(value), onChanged: async () => { changed++; } };
   const render = (next = current, options = {}) => { current = next; window.ImperiumOrganization.render(current, { ...callbacks, ...options }); };
@@ -31,6 +33,41 @@ test('roles are direct cards with actual owner and all configured providers; no 
   assert.equal(ui.calls.every(call => call.path.startsWith('/api/skills') && !call.method), true);
   ui.card('codex').querySelector('.org-agent-actions button').click(); assert.deepEqual(ui.assignments, ['codex']);
   ui.clickText('Edit role', ui.card('codex')); assert.deepEqual(ui.edits, ['codex']);
+});
+
+test('the compact chart opens details on selection and retains the agent actions with current guards', async t => {
+  const running = work('active', 'fe', { provider: 'codex', status: 'running', modelId: 'requested-model', reportedModel: 'runtime-model' });
+  const ui = fixture(t, { canvas: true, state: initial({ tasks: [running] }) });
+  await tick();
+  const card = ui.card('fe');
+  const handle = card.querySelector('.org-agent-heading');
+  const inspector = ui.document.querySelector('.on-inspector');
+  assert.equal(inspector.hidden, true);
+  assert.equal(card.querySelector('.org-agent-summary').textContent, 'runtime-model');
+  assert.equal(ui.document.querySelector('.org-count').textContent, '2 agents');
+  handle.click();
+  assert.equal(inspector.hidden, false);
+  assert.match(inspector.textContent, /Execution model: runtime-model/);
+  assert.match(inspector.textContent, /Work active/);
+  const button = action => inspector.querySelector(`[data-inspector-action="${action}"]`);
+  assert.equal(button('remove').disabled, true);
+  button('assign').click();
+  button('edit').click();
+  button('skills').click();
+  assert.deepEqual(ui.assignments, ['fe']);
+  assert.deepEqual(ui.edits, ['fe']);
+  assert.deepEqual(ui.navigations, ['skills']);
+  ui.render(initial());
+  assert.equal(button('remove').disabled, false);
+  button('close').focus();
+  button('close').click();
+  assert.equal(inspector.hidden, true);
+  assert.equal(ui.document.activeElement, handle);
+  handle.dispatchEvent(new ui.window.KeyboardEvent('keydown', { bubbles: true, key: ' ' }));
+  assert.equal(inspector.hidden, false);
+  button('remove').click();
+  assert.ok(ui.document.querySelector('.org-remove-dialog[open]'));
+  assert.equal(ui.calls.some(call => call.method === 'DELETE'), false);
 });
 
 test('goal and dispatch share one draft and retain focus, selection and text through SSE and language rerenders', t => {

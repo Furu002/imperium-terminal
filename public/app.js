@@ -857,6 +857,24 @@ function updateView(next) {
   renderExtensions();
 }
 
+function mountCompactStatus() {
+  const body = $('#terminal-status-body'), quota = $('#quotas-section');
+  if (!body || !quota || quota.parentElement === body) return;
+
+  body.append(quota);
+  const liveProgress = $('#live-progress-section');
+  if (liveProgress) body.append(liveProgress);
+  body.append(node('div', { class: 'terminal-status-actions' }, $('#connections-button')));
+
+  const projectButton = $('#project-switcher');
+  if (projectButton) projectButton.hidden = true;
+  const toolsMenu = $('.workbench-secondary-nav'), exportButton = $('#export-button');
+  if (toolsMenu && exportButton) {
+    exportButton.classList.add('nav-button');
+    toolsMenu.append(exportButton);
+  }
+}
+
 function renderExtensions() {
   if (state.server.csrfToken && window.ImperiumSkills) {
     if (!skillsMounted && view === 'skills') {
@@ -898,13 +916,14 @@ function renderExtensions() {
     teamConversation?.render(state, { language, connected, visible: view === 'chat' });
   }
   window.ImperiumAccessReview?.render(state, { language, api, onSettingsChanged: async () => receiveState(await api('/api/state')) });
+  window.ImperiumTerminalShell?.render(state, { language, view, connected, onNavigate: updateView, onSettings: openSettings, onPrepareTask: text => { const prompt = $('#dispatch-prompt'); if (prompt.value.trim() && prompt.value.trim() !== text.trim()) return false; if (!prompt.value.trim()) { prompt.value = text; prompt.dispatchEvent(new Event('input')); } showOperationControls(); prompt.focus(); return true; } });
+  window.ImperiumMascots?.render(state, { language });
+  mountCompactStatus();
   window.ImperiumLiveProgress?.render(state, { language, onSelectTask: id => {
     if (!state.tasks.some(task => task.id === id)) return;
     selectedTaskId = id; updateView('operations'); renderMissions(); renderInspector();
     $('#inspector-section').scrollIntoView({ block: 'nearest' });
   } });
-  window.ImperiumTerminalShell?.render(state, { language, view, connected, onNavigate: updateView, onSettings: openSettings, onPrepareTask: text => { const prompt = $('#dispatch-prompt'); if (prompt.value.trim() && prompt.value.trim() !== text.trim()) return false; if (!prompt.value.trim()) { prompt.value = text; prompt.dispatchEvent(new Event('input')); } showOperationControls(); prompt.focus(); return true; } });
-  window.ImperiumMascots?.render(state, { language });
   if (state.server.csrfToken && window.ImperiumQuotas) {
     if (!quotasMounted) { quotasMounted = true; quotaStamp = state.server.quotaUpdatedAt; window.ImperiumQuotas.mount($('#quotas-section'), { getState: () => state, api, compact: true }); }
     window.ImperiumQuotas.render(state);
@@ -1146,7 +1165,11 @@ function bindEvents() {
     if (!feedPaused) { lastFeedSignature = ''; renderFeed(); $('#activity-feed').scrollTop = $('#activity-feed').scrollHeight; }
   });
   $('#copy-output').addEventListener('click', () => { const task = inspectedTask(state.tasks.find(item => item.id === selectedTaskId)); if (task?.output && !task.detailsTruncated) copyText(task.output); });
-  $('#export-button').addEventListener('click', () => $('#export-dialog').showModal());
+  $('#export-button').addEventListener('click', () => {
+    const toolsMenu = $('.workbench-secondary-nav');
+    if (toolsMenu) toolsMenu.open = false;
+    $('#export-dialog').showModal();
+  });
   $('#export-json').addEventListener('click', async () => {
     try {
       const data = await api('/api/export');

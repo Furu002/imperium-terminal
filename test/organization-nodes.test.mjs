@@ -14,9 +14,9 @@ const settle = async () => { await new Promise(resolve => setTimeout(resolve, 20
 function fixture(t, { state = initial(), api } = {}) {
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div id="source"><div id="owner"><div class="org-commander-card">Actual owner</div></div><ul id="roles"></ul></div><div id="canvas"></div></body></html>', { runScripts: 'outside-only', pretendToBeVisual: true, url: 'http://127.0.0.1:4310/' });
   const { window } = dom, document = window.document, container = document.querySelector('#canvas'), owner = document.querySelector('#owner'), list = document.querySelector('#roles'), calls = [], timers = new Map();
-  let current = state, sequence = 0, buttonClicks = 0, connectionEdits = 0, clock = 0;
+  let current = state, sequence = 0, buttonClicks = 0, connectionEdits = 0, clock = 0, resized;
   window.setTimeout = (callback, delay = 0) => { const id = ++sequence; timers.set(id, { callback, delay, due: clock + delay }); return id; }; window.clearTimeout = id => timers.delete(id);
-  window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  window.ResizeObserver = class { constructor(callback) { resized = callback; } observe() {} unobserve() {} disconnect() {} };
   container.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1100, bottom: 680, width: 1100, height: 680 });
   Object.defineProperty(container, 'clientWidth', { value: 1100 }); Object.defineProperty(container, 'clientHeight', { value: 680 });
   function makeRole(id) {
@@ -43,7 +43,13 @@ function fixture(t, { state = initial(), api } = {}) {
     clock = end; await settle();
   };
   const drag = (id, dx = 45, dy = 30) => { const handle = container.querySelector(`.on-node[data-node-id="${id}"] .on-node-drag-handle`) || container.querySelector(`.on-node[data-node-id="${id}"].on-node-drag-handle`); assert.ok(handle, `drag handle for ${id}`); pointer(handle, 'pointerdown', 100, 100); pointer(document, 'pointermove', 100 + dx, 100 + dy); pointer(document, 'pointerup', 100 + dx, 100 + dy); };
-  return { window, document, container, owner, list, calls, timers, engine, update, makeRole, pointer, drag, flush, advance, get state() { return current; }, get buttonClicks() { return buttonClicks; }, get connectionEdits() { return connectionEdits; }, node(id) { return container.querySelector(`.on-node[data-node-id="${id}"]`); }, action(name) { const button = container.querySelector(`[data-on-action="${name}"]`); assert.ok(button, name); button.click(); }, writes() { return calls.filter(call => call.method === 'PUT'); } };
+  const resizeStage = (width, height, bodyWidth = width) => {
+    const stage = container.querySelector('.on-stage');
+    Object.defineProperties(stage, { clientWidth: { value: width, configurable: true }, clientHeight: { value: height, configurable: true } });
+    Object.defineProperty(container.querySelector('.on-body'), 'clientWidth', { value: bodyWidth, configurable: true });
+    resized();
+  };
+  return { window, document, container, owner, list, calls, timers, engine, update, makeRole, pointer, drag, flush, advance, resizeStage, get state() { return current; }, get buttonClicks() { return buttonClicks; }, get connectionEdits() { return connectionEdits; }, node(id) { return container.querySelector(`.on-node[data-node-id="${id}"]`); }, action(name) { const button = container.querySelector(`[data-on-action="${name}"]`); assert.ok(button, name); button.click(); }, writes() { return calls.filter(call => call.method === 'PUT'); } };
 }
 
 test('hydrated organization nodes retain original role DOM, explicit saved positions and workflow graph without initial writes', async t => {
@@ -58,6 +64,40 @@ test('hydrated organization nodes retain original role DOM, explicit saved posit
 test('an empty saved layout yields a display-only default, not automatic canvas seeding or saving', async t => {
   const graph = { nodes: [], edges: [] }, ui = fixture(t, { state: initial({ graph }), api: async path => saved(new URL(path, 'http://localhost').searchParams.get('workspace'), { revision: 0, positions: {}, viewport: { pan: { x: 0, y: 0 }, zoom: 1 } }) }); await settle(); await ui.flush();
   const positions = ui.engine.getLayout().positions; assert.ok(positions.owner); assert.ok(positions['agent:frontend']); assert.ok(positions['agent:backend']); assert.equal(ui.writes().length, 0); assert.deepEqual(graph, { nodes: [], edges: [] });
+});
+
+test('untouched chart defaults reflow to a single narrow column before any manual arrangement', async t => {
+  const ui = fixture(t, { api: async (path, config) => config.method === 'PUT'
+    ? { ...config.body, revision: config.body.revision + 1 }
+    : saved(workspace, { revision: 0, positions: {}, viewport: { pan: { x: 0, y: 0 }, zoom: 1 } }) });
+  await settle();
+  ui.resizeStage(1100, 560);
+  const wide = ui.engine.getLayout().positions;
+  assert.equal(wide['agent:frontend'].y, wide['agent:backend'].y);
+  ui.node('agent:frontend').querySelector('.org-agent-heading').click();
+  ui.resizeStage(620, 560, 1100);
+  assert.deepEqual(ui.engine.getLayout().positions, wide, 'the desktop inspector can fit the same layout');
+  ui.container.querySelector('.on-inspector-close').click();
+  ui.resizeStage(380, 450);
+  const narrow = ui.engine.getLayout().positions;
+  assert.equal(narrow['agent:frontend'].x, narrow['agent:backend'].x);
+  assert.ok(narrow['agent:backend'].y > narrow['agent:frontend'].y);
+  const { zoom, pan } = ui.engine.getLayout().viewport;
+  assert.ok(zoom >= .65);
+  assert.ok(narrow['agent:backend'].y * zoom + pan.y < 450, 'the narrow view includes both agents');
+  await ui.flush();
+  assert.ok(ui.container.querySelector('.on-membership-trunk'));
+  const branches = [...ui.container.querySelectorAll('[data-edge-type=membership]')];
+  assert.equal(branches.length, 2);
+  assert.ok(branches.every(branch => / H /.test(branch.getAttribute('d'))));
+  assert.equal(ui.writes().length, 0);
+  ui.drag('agent:frontend');
+  await ui.flush();
+  const manual = JSON.stringify(ui.engine.getLayout());
+  ui.resizeStage(1100, 560);
+  await ui.flush();
+  assert.equal(JSON.stringify(ui.engine.getLayout()), manual);
+  assert.equal(ui.writes().length, 1);
 });
 
 test('dragging an agent saves only organization coordinates with captured workspace and CAS revision', async t => {

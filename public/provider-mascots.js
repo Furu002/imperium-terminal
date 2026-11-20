@@ -48,7 +48,10 @@
     if (!terminal) return false;
     host = element('section', 'im-model-activity'); host.setAttribute('role', 'region');
     heading = element('span', 'im-model-heading'); list = element('ul', 'im-model-list');
-    host.append(heading, list); terminal.after(host); displayedLanguage = ''; pause(); return true;
+    host.append(heading, list);
+    const status = app.querySelector('#terminal-status-body');
+    if (status) status.append(host); else terminal.after(host);
+    displayedLanguage = ''; pause(); return true;
   }
   function normalizeWorkspace(value) {
     if (typeof value !== 'string' || !value.trim()) return '';

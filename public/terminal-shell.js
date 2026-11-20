@@ -20,16 +20,32 @@
     en: ['Search commands or views', 'No matching commands.'],
     ja: ['コマンドや画面を検索', '一致するコマンドがありません。'],
   };
-  let host, form, input, message, status, projectName, help, helpButton, helpSearch, noMatches;
+  const SHELL_WORDS = {
+    ko: { palette: '명령', status: '현황', project: '프로젝트 전환', empty: '프로젝트' },
+    en: { palette: 'Commands', status: 'Status', project: 'Switch project', empty: 'Project' },
+    ja: { palette: 'コマンド', status: '状況', project: 'プロジェクトを切り替え', empty: 'プロジェクト' },
+  };
+  let host, form, input, message, status, statusDisclosure, statusSummary, statusLabel, statusCount;
+  let projectButton, projectName, projectColor, palette, paletteButton, paletteLabel, help, helpButton, helpSearch, noMatches;
   let callbacks = {}, state = {}, language = 'ko', view = 'overview', history = [], cursor = 0, lastLanguage, messageTimer;
   const tr = key => (TEXT[language] || TEXT.ko)[key];
   const label = row => row[language === 'en' ? 4 : language === 'ja' ? 5 : 3];
   const h = (tag, attrs = {}, ...children) => { const el = document.createElement(tag); for (const [key, value] of Object.entries(attrs)) { if (key === 'class') el.className = value; else if (key.startsWith('on')) el.addEventListener(key.slice(2).toLowerCase(), value); else el.setAttribute(key, String(value)); } el.append(...children); return el; };
   function navigate(next) { callbacks.onNavigate?.(next); }
-  function sizeHelp() {
-    if (help.hidden) return;
-    const available = window.innerHeight - host.getBoundingClientRect().bottom - 8;
-    help.style.setProperty('--terminal-help-space', `${Math.max(0, available)}px`);
+  function togglePalette(open, restoreFocus = true) {
+    if (open && statusDisclosure) statusDisclosure.open = false;
+    const restore = !open && restoreFocus && palette.contains(document.activeElement);
+    palette.hidden = !open;
+    paletteButton.setAttribute('aria-expanded', String(open));
+    if (open) {
+      if (message.parentElement !== palette) form.after(message);
+      input.focus({ preventScroll: true });
+    }
+    else {
+      toggleHelp(false, false);
+      if (message.parentElement !== host) host.append(message);
+      if (restore) paletteButton.focus({ preventScroll: true });
+    }
   }
   function filterHelp() {
     const query = helpSearch.value.trim().toLowerCase().split(/\s+/);
@@ -45,6 +61,7 @@
   function toggleHelp(force, restoreFocus = true) {
     if (!help) return;
     const open = force ?? help.hidden;
+    if (open && palette.hidden) togglePalette(true);
     if (!open && restoreFocus && help.contains(document.activeElement)) helpButton.focus();
     help.hidden = !open;
     helpButton.setAttribute('aria-expanded', String(open));
@@ -52,7 +69,6 @@
       helpSearch.value = '';
       filterHelp();
     }
-    sizeHelp();
     if (open) helpSearch.focus({ preventScroll: true });
   }
   function announce(text) { clearTimeout(messageTimer); message.textContent = text; if (text) messageTimer = setTimeout(() => { message.textContent = ''; }, 8000); }
@@ -62,35 +78,57 @@
     const match = /^\/?([^\s]+)(?:\s+([\s\S]*))?$/.exec(text), command = match[1].toUpperCase(), argument = match[2] || '';
     announce(''); input.value = '';
     if (command === 'HELP' || command === '?') { toggleHelp(true); return; }
-    if (command === 'SETTINGS' || command === 'F8') { toggleHelp(false); callbacks.onSettings?.(); return; }
-    if (command === 'FIND' && argument) { toggleHelp(false); navigate('knowledge'); window.dispatchEvent(new CustomEvent('imperium:knowledge-search', { detail: { query: argument.slice(0, 2000) } })); return; }
-    if (command === 'TASK' && argument) { toggleHelp(false); navigate('operations'); if (callbacks.onPrepareTask?.(argument.slice(0, 12000)) === false) { input.value = text; announce(tr('existing')); } else announce(tr('prepared')); return; }
+    if (command === 'SETTINGS' || command === 'F8') { togglePalette(false); callbacks.onSettings?.(); return; }
+    if (command === 'FIND' && argument) { togglePalette(false); navigate('knowledge'); window.dispatchEvent(new CustomEvent('imperium:knowledge-search', { detail: { query: argument.slice(0, 2000) } })); return; }
+    if (command === 'TASK' && argument) {
+      toggleHelp(false); navigate('operations');
+      if (callbacks.onPrepareTask?.(argument.slice(0, 12000)) === false) {
+        input.value = text; announce(tr('existing'));
+      } else { togglePalette(false); announce(tr('prepared')); }
+      return;
+    }
     const row = VIEWS.find(item => [item[0].toUpperCase(), item[1], item[2]].includes(command));
-    if (row) { toggleHelp(false); navigate(row[0]); return; }
+    if (row) { togglePalette(false); navigate(row[0]); return; }
     announce(tr('unknown')); input.value = text;
   }
   function mount() {
     const app = document.querySelector('.app-shell'), topbar = app?.querySelector('.topbar'); if (!app || !topbar) return false;
-    host = h('section', { class: 'terminal-shell', id: 'function-command', 'aria-label': 'IMPERIUM FUNCTIONS' });
+    const right = topbar.querySelector('.topbar-right') || topbar;
+    app.classList.add('im-compact-shell');
+    projectName = h('span', { class: 'terminal-project-name' });
+    projectColor = h('span', { class: 'terminal-project-color', 'aria-hidden': 'true' });
+    projectButton = h('button', { type: 'button', class: 'terminal-project', onclick: () => navigate('projects') },
+      projectColor, projectName, h('span', { class: 'terminal-project-arrow', 'aria-hidden': 'true' }, '⌄'));
+    if (right === topbar) topbar.append(projectButton); else topbar.insertBefore(projectButton, right);
+    host = h('section', { class: 'terminal-shell', id: 'function-command' });
+    paletteLabel = h('span', { class: 'terminal-command-label' });
+    paletteButton = h('button', { type: 'button', class: 'terminal-command-toggle', 'aria-controls': 'terminal-command-palette', 'aria-expanded': 'false', onclick: () => togglePalette(palette.hidden) },
+      h('span', { class: 'terminal-command-glyph', 'aria-hidden': 'true' }, '⌕'), paletteLabel, h('kbd', { class: 'terminal-command-shortcut', 'aria-hidden': 'true' }, navigator.platform.startsWith('Mac') ? '⌘ K' : 'Ctrl K'));
+    palette = h('div', { class: 'terminal-command-palette', id: 'terminal-command-palette', hidden: '' });
     input = h('input', { type: 'text', maxlength: '12000', autocomplete: 'off', spellcheck: 'false', 'data-terminal-command': '' });
     const go = h('button', { type: 'submit', class: 'terminal-go' });
     helpButton = h('button', { type: 'button', class: 'terminal-help-button', 'aria-expanded': 'false', 'aria-controls': 'terminal-command-help', onclick: () => toggleHelp() }, 'HELP');
-    form = h('form', { class: 'terminal-commandbar' }, h('span', { class: 'terminal-command-prompt', 'aria-hidden': 'true' }, 'CMD ›'), input, go, helpButton, h('kbd', { class: 'terminal-command-shortcut', 'aria-hidden': 'true' }, 'Ctrl K'));
+    form = h('form', { class: 'terminal-commandbar' }, input, go, helpButton);
     form.addEventListener('submit', event => { event.preventDefault(); execute(input.value); });
     input.addEventListener('keydown', event => {
       if (event.isComposing) return;
-      if (event.key === 'Escape') {
-        input.value = '';
-        message.textContent = '';
-        toggleHelp(false);
-      }
       if (['ArrowUp', 'ArrowDown'].includes(event.key) && history.length) {
         event.preventDefault();
         cursor = Math.max(0, Math.min(history.length, cursor + (event.key === 'ArrowUp' ? -1 : 1)));
         input.value = history[cursor] || '';
       }
     });
-    status = h('span', { class: 'terminal-session-status' }); projectName = h('span', { class: 'terminal-project-name' });
+    status = h('p', { class: 'terminal-session-status' });
+    statusLabel = h('span', { class: 'terminal-status-label' });
+    statusCount = h('span', { class: 'terminal-status-count', hidden: '', 'aria-hidden': 'true' });
+    statusSummary = h('summary', { class: 'terminal-status-toggle' }, h('span', { class: 'terminal-status-dot', 'aria-hidden': 'true' }), statusLabel, statusCount);
+    const statusMeta = h('div', { class: 'terminal-status-meta' }, status);
+    for (const value of [right.querySelector('.clock'), app.querySelector('.sidebar-version')]) {
+      if (value) statusMeta.append(value);
+    }
+    const statusBody = h('div', { class: 'terminal-status-body', id: 'terminal-status-body' }, statusMeta);
+    statusDisclosure = h('details', { class: 'terminal-status' }, statusSummary, statusBody);
+    statusDisclosure.addEventListener('toggle', () => { if (statusDisclosure.open) togglePalette(false, false); });
     message = h('span', { class: 'terminal-command-message', role: 'status', 'aria-live': 'polite' });
     help = h('section', { class: 'terminal-command-help', id: 'terminal-command-help', hidden: '', 'aria-label': tr('help') });
     helpSearch = h('input', { class: 'terminal-help-search', type: 'search', autocomplete: 'off', maxlength: '120' });
@@ -103,25 +141,30 @@
       if (event.key === 'ArrowDown') matches[0]?.focus();
       else if (matches.length === 1) matches[0].click();
     });
-    host.append(h('div', { class: 'terminal-command-rail' }, form, h('div', { class: 'terminal-command-context' }, projectName, status)), message, help);
-    topbar.after(host);
-    window.addEventListener('resize', sizeHelp);
+    palette.append(form, help); host.append(paletteButton, palette, message);
+    right.prepend(statusDisclosure, host);
     host.addEventListener('focusout', event => {
-      if (event.relatedTarget && !host.contains(event.relatedTarget)) toggleHelp(false, false);
+      if (event.relatedTarget && !host.contains(event.relatedTarget)) togglePalette(false, false);
     });
     document.addEventListener('click', event => {
-      if (!help.hidden && !host.contains(event.target)) toggleHelp(false);
+      if (!palette.hidden && !host.contains(event.target)) togglePalette(false);
+      if (statusDisclosure.open && !statusDisclosure.contains(event.target)) statusDisclosure.open = false;
     });
     document.addEventListener('keydown', event => {
       if (event.isComposing || document.querySelector('dialog[open]')) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         toggleHelp(false);
-        input.focus();
+        togglePalette(true);
         input.select();
-      } else if (event.key === 'Escape' && !help.hidden && host.contains(document.activeElement)) {
+      } else if (event.key === 'Escape' && !palette.hidden && host.contains(document.activeElement)) {
         event.preventDefault();
-        toggleHelp(false);
+        if (!help.hidden) toggleHelp(false);
+        else togglePalette(false);
+      } else if (event.key === 'Escape' && statusDisclosure.open && statusDisclosure.contains(document.activeElement)) {
+        event.preventDefault();
+        statusDisclosure.open = false;
+        statusSummary.focus({ preventScroll: true });
       }
     });
     return true;
@@ -131,6 +174,10 @@
     if (!host && !mount()) return;
     if (lastLanguage !== language) {
       lastLanguage = language;
+      const copy = SHELL_WORDS[language] || SHELL_WORDS.ko;
+      paletteLabel.textContent = copy.palette;
+      paletteButton.title = `${copy.palette} · ${paletteButton.querySelector('kbd').textContent}`;
+      statusLabel.textContent = copy.status;
       host.setAttribute('aria-label', tr('command'));
       input.setAttribute('aria-label', tr('command'));
       input.placeholder = tr('placeholder');
@@ -144,8 +191,8 @@
       help.replaceChildren(
         h('div', { class: 'terminal-help-heading' }, h('strong', {}, tr('help')), h('button', { type: 'button', onclick: () => toggleHelp(false), 'aria-label': tr('close') }, '×')),
         helpSearch,
-        ...VIEWS.map(row => h('button', { type: 'button', 'data-help-command': '', 'data-command-view': row[0], onclick: () => { toggleHelp(false); navigate(row[0]); } }, h('code', {}, row[1]), [row[2], label(row)].filter(Boolean).join(' · '))),
-        h('button', { type: 'button', 'data-help-command': '', onclick: () => { toggleHelp(false); callbacks.onSettings?.(); } }, h('code', {}, 'SETTINGS'), `F8 · ${tr('settings')}`),
+        ...VIEWS.map(row => h('button', { type: 'button', 'data-help-command': '', 'data-command-view': row[0], onclick: () => { togglePalette(false); navigate(row[0]); } }, h('code', {}, row[1]), [row[2], label(row)].filter(Boolean).join(' · '))),
+        h('button', { type: 'button', 'data-help-command': '', onclick: () => { togglePalette(false); callbacks.onSettings?.(); } }, h('code', {}, 'SETTINGS'), `F8 · ${tr('settings')}`),
         noMatches, h('p', {}, tr('find')), h('p', {}, tr('task')), h('p', { class: 'terminal-help-note' }, tr('notice'))
       );
       filterHelp();
@@ -158,7 +205,18 @@
     const online = options.connected === true;
     status.dataset.state = !online ? 'offline' : state.settings?.localOnly ? 'local' : 'online';
     status.textContent = `${online ? state.settings?.localOnly ? tr('local') : tr('online') : tr('offline')} · ${tr('running')} ${running} · ${tr('queued')} ${queued}`;
-    const workspace = state.settings?.workspace || ''; projectName.textContent = `${tr('project')} / ${workspace.split(/[\\/]/).filter(Boolean).pop() || '—'}`; projectName.title = workspace;
+    statusDisclosure.dataset.state = status.dataset.state;
+    statusSummary.title = status.textContent;
+    statusSummary.setAttribute('aria-label', `${statusLabel.textContent} · ${status.textContent}`);
+    statusCount.hidden = running + queued === 0;
+    statusCount.textContent = running + queued;
+    const workspace = state.settings?.workspace || '';
+    const project = state.projects?.find(item => item.current) || state.projects?.find(item => item.workspace === workspace);
+    const copy = SHELL_WORDS[language] || SHELL_WORDS.ko;
+    projectName.textContent = project?.name || workspace.split(/[\\/]/).filter(Boolean).pop() || copy.empty;
+    projectButton.setAttribute('aria-label', `${copy.project} · ${projectName.textContent}`);
+    projectButton.title = workspace ? `${copy.project}\n${workspace}` : copy.project;
+    projectColor.style.backgroundColor = /^#[\da-f]{6}$/i.test(project?.color || '') ? project.color : '';
   }
   window.ImperiumTerminalShell = { render };
 })();

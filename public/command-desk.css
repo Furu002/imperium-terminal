@@ -1,25 +1,25 @@
 /* IMPERIUM command desk. Route visibility and output window geometry remain
    with the feature modules. The same navigation controls serve all widths. */
 :root {
-  --bg: #050505;
-  --panel: #0d0d0d;
-  --panel-raised: #181818;
-  --line: #3b3b3b;
-  --line-soft: #262626;
-  --text: #f2f2f2;
-  --muted: #b8b8b8;
-  --dim: #a3a3a3;
-  --orange: #ffad32;
-  --cyan: #6bd5ee;
-  --green: #61e89b;
-  --red: #ff7676;
-  --desk-header: #0a0a0a;
-  --desk-active: #2b1d08;
-  --desk-hover: #222222;
-  --desk-control-line: #686868;
-  --desk-stripe: #131313;
-  --desk-accent-line: #81612e;
-  --desk-frame-radius: 3px;
+  --bg: #101113;
+  --panel: #17181b;
+  --panel-raised: #1e2024;
+  --line: #313238;
+  --line-soft: #28292e;
+  --text: #f1f1f3;
+  --muted: #b1b2bb;
+  --dim: #9799a4;
+  --orange: #f6b457;
+  --cyan: #a3bfd4;
+  --green: #7ac8a4;
+  --red: #eb8e8c;
+  --desk-header: #131417;
+  --desk-active: #302617;
+  --desk-hover: #25272c;
+  --desk-control-line: #51535e;
+  --desk-stripe: #1b1c20;
+  --desk-accent-line: #886335;
+  --desk-frame-radius: 7px;
 }
 
 .app-shell,
@@ -259,11 +259,14 @@
 .im-model-avatar:is([data-status=error], [data-status=offline]) .im-model-status { color: var(--red); }
 
 /* Compact frame and monitors use the same surfaces across tool pages. */
-.app-shell > .main-content { padding: 9px 12px; }
+.app-shell > .main-content { padding: 14px clamp(12px, 1.5vw, 24px); }
 .page-heading { margin-bottom: 8px; }
-.page-heading h1 { margin-top: 1px; font-size: 22px; }
-.page-heading .eyebrow { color: var(--orange); font-size: 11px; }
+.page-heading h1 { margin-top: 1px; font-size: 23px; }
 .page-heading p { margin-top: 2px; font-size: 13px; }
+.im-compact-shell .page-heading .eyebrow,
+.im-compact-shell .heading-actions:not(:has(> :not([hidden]))),
+.im-compact-shell[data-view=overview] .page-heading,
+.im-compact-shell[data-view=operations] :is(.metrics-strip, .mission-panel .panel-footer) { display: none; }
 .page-heading .title-cursor,
 .panel-heading .section-number,
 .panel-heading .english-label,
@@ -299,7 +302,7 @@
   padding: 5px 10px;
   background: var(--panel-raised);
 }
-.panel-heading h2 { color: var(--orange); font-size: 15px; }
+.panel-heading h2 { color: var(--text); font-size: 15px; }
 .panel-footer { min-height: 30px; padding: 4px 9px; }
 .iq-compact-summary { min-height: 32px; padding: 4px 9px; }
 .iq-compact-heading { color: var(--orange); }
@@ -307,6 +310,26 @@
 .dialog-heading { background: var(--panel-raised); }
 .settings-dialog select, .settings-dialog .text-input,
 .department-dialog select, .department-dialog .text-input { border-radius: 3px; }
+
+#terminal-status-body > #quotas-section { margin: 0; }
+#terminal-status-body .iq-disclosure, #terminal-status-body .lp-live-progress {
+  background: var(--panel);
+  border-color: var(--line-soft);
+}
+#terminal-status-body :is(.iq-compact-summary, .lp-heading) { padding: 8px 10px; }
+#terminal-status-body :is(.iq-compact-heading, .lp-heading strong) {
+  color: var(--text);
+  font: 600 14px/1.5 var(--font-sans);
+  letter-spacing: 0;
+}
+#terminal-status-body :is(.iq-compact-accounts, .iq-eyebrow, .lp-project) { display: none; }
+#terminal-status-body #quotas-section .iq-expanded-body,
+#terminal-status-body .lp-live-progress { max-height: none; overflow: visible; }
+#terminal-status-body .iq-expanded-body { padding: 10px; }
+#terminal-status-body .iq-provider-grid { grid-template-columns: minmax(0, 1fr); }
+.terminal-status-actions { display: flex; justify-content: flex-end; }
+.terminal-status-actions #connections-button { width: 100%; min-height: 34px; }
+.workbench-secondary-nav #export-button { gap: 8px; }
 
 /* Main desk pairs the table and reader, preserving the compact controls
    disclosure on widths where the two columns no longer fit. */
@@ -343,7 +366,7 @@
 .mission-table th {
   height: 29px;
   padding-block: 4px;
-  color: var(--orange);
+  color: var(--muted);
   background: var(--panel-raised);
   border-color: var(--line);
 }
@@ -357,6 +380,20 @@
 .mission-table tbody tr.selected { background: var(--desk-active); }
 .mission-table :is(.task-short-id, .elapsed-text, .task-model-id, .status-tag) { font-family: var(--font); }
 .mission-table .task-model-id { color: var(--cyan); }
+.im-compact-shell .mission-table :is(.task-model-id, .provider-name) {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.im-compact-shell .mission-table .status-tag {
+  max-width: 100%;
+  letter-spacing: 0;
+  white-space: normal;
+  line-height: 1.25;
+}
+.im-compact-shell .mission-table .status-tag::before { flex: none; }
 .app-shell[data-view=operations] :is(.mission-table, .inspector-meta) .status-tag.running,
 .app-shell[data-view=operations] :is(.mission-table, .inspector-meta) .status-tag.completed { color:var(--green); border-color:#365740; background:#0d1c11; }
 .app-shell[data-view=operations] :is(.mission-table, .inspector-meta) .status-tag.queued { color:var(--orange); border-color:var(--desk-accent-line); background:var(--desk-active); }
@@ -416,7 +453,7 @@
 
 /* Organization and workflow use color on real relationships and states.
    Keep the graph’s geometry, drag handles, edge styles and inspector controls. */
-.app-shell[data-view=overview] > .main-content { padding: 6px 10px; gap: 5px; }
+.app-shell[data-view=overview] > .main-content { padding: 12px clamp(12px, 1.5vw, 24px); gap: 10px; scrollbar-gutter: auto; }
 .app-shell[data-view=overview] .page-heading { min-height: 33px; }
 .app-shell[data-view=overview] .org-toolbar { padding: 5px 9px; }
 .app-shell[data-view=overview] .org-summary-value { font-size: 18px; }
@@ -457,29 +494,6 @@
   .org-nodes-host .on-body { grid-template-rows: minmax(0, 1fr); }
   .org-nodes-host .on-stage { min-height: 0; }
 }
-@media (min-width: 1101px) {
-  .app-shell[data-view=overview] > .main-content {
-    display: grid;
-    grid-template:
-      'actions allowance' auto
-      'live live' auto
-      'offline offline' auto
-      'organization organization' minmax(0, 1fr)
-      / auto minmax(0, 1fr);
-    column-gap: 8px;
-    row-gap: 0;
-  }
-  .app-shell[data-view=overview] .page-heading { grid-area: actions; align-self: start; }
-  .app-shell[data-view=overview] #quotas-section { grid-area: allowance; min-width: 0; }
-  .app-shell[data-view=overview] #quotas-section .iq-quotas-compact { margin: 0; }
-  .app-shell[data-view=overview] #live-progress-section { grid-area: live; }
-  .app-shell[data-view=overview] #offline-banner { grid-area: offline; }
-  .app-shell[data-view=overview] #organization-section.org-workbench {
-    grid-area: organization;
-    margin-block-start: 5px;
-  }
-}
-
 #conversations-section.ic-chat { border-radius: 3px; }
 .ic-conversation.selected { background: var(--desk-active); box-shadow: inset 2px 0 var(--orange); }
 .ic-new, .ic-page, .ic-retry, .ic-composer :is(button, select) { border-radius: 3px; }

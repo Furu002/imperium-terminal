@@ -143,7 +143,7 @@
       } else item.append(h('span', { class: 'iq-compact-status' }, tr(isLocal(provider) ? '로컬 모델' : { login_required: '로그인 필요', error: '조회 오류', offline: '오프라인' }[provider.status] || '조회 불가')));
       accounts.append(item);
     }
-    return h('summary', { class: 'iq-compact-summary' }, h('span', { class: 'iq-compact-heading' }, h('span', { class: 'iq-compact-chevron', 'aria-hidden': 'true' }, '›'), 'ACCOUNT ALLOWANCE'), accounts, h('span', { class: 'iq-compact-toggle-label' }, tr(expanded ? '접기' : '펼치기')));
+    return h('summary', { class: 'iq-compact-summary' }, h('span', { class: 'iq-compact-heading' }, h('span', { class: 'iq-compact-chevron', 'aria-hidden': 'true' }, '›'), tr('계정별 잔여 한도')), accounts, h('span', { class: 'iq-compact-toggle-label' }, tr(expanded ? '접기' : '펼치기')));
   }
   function draw() {
     if (!root) return;

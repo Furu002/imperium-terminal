@@ -88,9 +88,27 @@ test('a blocked task replacement retains the new command and does not claim that
 test('status uses actual non-demo task counts and follows local-only and connection state', t => {
   const f = fixture(t), status = f.document.querySelector('.terminal-session-status');
   assert.match(status.textContent, /CONNECTED · RUN 1 · QUEUE 1/);
+  const summary = f.document.querySelector('.terminal-status-toggle');
+  assert.equal(summary.parentElement.open, false);
+  assert.equal(summary.querySelector('.terminal-status-count').textContent, '2');
   f.state.settings.localOnly = true; f.window.ImperiumTerminalShell.render(f.state, f.callbacks); assert.match(status.textContent, /LOCAL ONLY/);
   f.window.ImperiumTerminalShell.render(f.state, { ...f.callbacks, connected: false }); assert.match(status.textContent, /DISCONNECTED/);
-  assert.equal(status.dataset.state, 'offline'); assert.equal(f.document.querySelector('.terminal-project-name').textContent, 'PROJECT / Alpha');
+  assert.equal(status.dataset.state, 'offline'); assert.equal(f.document.querySelector('.terminal-project-name').textContent, 'Alpha');
+});
+
+test('opening the compact command control focuses input and escape preserves its draft', t => {
+  const f = fixture(t), toggle = f.document.querySelector('.terminal-command-toggle');
+  const palette = f.document.querySelector('#terminal-command-palette');
+  assert.equal(palette.hidden, true);
+  toggle.click();
+  assert.equal(palette.hidden, false);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(f.document.activeElement, f.input);
+  f.input.value = 'unsent command';
+  f.input.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(palette.hidden, true);
+  assert.equal(f.input.value, 'unsent command');
+  assert.equal(f.document.activeElement, toggle);
 });
 
 test('render updates language and current view without replacing the command draft or duplicating controls', t => {

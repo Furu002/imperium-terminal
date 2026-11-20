@@ -54,7 +54,8 @@ test('the actual app preserves an existing operation draft and prepares an empty
 
 test('integrated language and connection renders retain command focus and modal dialogs block the global focus shortcut', async t => {
   const f = await fixture(t);
-  f.input.value = 'unfinished TASK draft'; f.input.focus();
+  f.document.querySelector('.terminal-command-toggle').click();
+  f.input.value = 'unfinished TASK draft';
   const select = f.document.querySelector('#language-select');
   select.value = 'ja'; select.dispatchEvent(new f.window.Event('change', { bubbles: true })); await settle();
   assert.equal(f.document.querySelector('[data-terminal-command]'), f.input);
@@ -68,6 +69,20 @@ test('integrated language and connection renders retain command focus and modal 
   dialog.close();
   f.document.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
   assert.equal(f.document.activeElement, f.input);
+  assert.deepEqual(f.errors, []);
+});
+
+test('the compact app header contains one on-demand status and the project navigation', async t => {
+  const f = await fixture(t);
+  const topbar = f.document.querySelector('.topbar'), status = topbar.querySelector('.terminal-status');
+  assert.ok(topbar.querySelector('#function-command'));
+  assert.equal(status.open, false);
+  const body = status.querySelector('#terminal-status-body');
+  assert.ok(body.contains(f.document.querySelector('#quotas-section')));
+  assert.ok(body.contains(f.document.querySelector('#connections-button')));
+  assert.ok(f.document.querySelector('.workbench-secondary-nav').contains(f.document.querySelector('#export-button')));
+  topbar.querySelector('.terminal-project').click();
+  assert.equal(f.document.querySelector('.app-shell').dataset.view, 'projects');
   assert.deepEqual(f.errors, []);
 });
 
