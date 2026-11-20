@@ -81,3 +81,15 @@ test('Korean and Japanese headers are localized and unreported or demo usage is 
   const values = new Map(); summary.eachRow((row, index) => { if (index > 1) values.set(row.getCell(1).value, row.getCell(2).value); });
   assert.equal(values.get('Reported input tokens'), 120); assert.equal(values.get('Reported output tokens'), 33); assert.equal(values.get('Real tasks'), 2); assert.equal(values.get('Demo tasks'), 1);
 });
+
+test('XLSX departments sheet shows the reporting parent and leaves old records without parentId blank', async () => {
+  const state = fixture();
+  state.departments.push({ id: 'child', code: 'AI', name: 'Child agent', provider: 'claude', role: 'Reports upward.', parentId: 'strategy' }, { id: 'dangling', code: 'AI', name: 'Dangling', provider: 'codex', role: 'Unknown parent.', parentId: 'removed-agent' });
+  for (const [language, header] of [['ko', '상위 에이전트'], ['en', 'Reports to'], ['ja', '上位エージェント']]) {
+    const sheet = (await read(await buildExportWorkbook(state, { memory, language }))).worksheets[3];
+    assert.equal(sheet.getCell('F1').value, header);
+    assert.equal(sheet.getCell('F2').value ?? '', '', 'old records without parentId stay blank');
+    assert.equal(sheet.getCell('F3').value, '=HYPERLINK("https://example.com")', 'the parent name is exported as plain text');
+    assert.equal(sheet.getCell('F4').value ?? '', '');
+  }
+});

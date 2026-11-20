@@ -1,0 +1,34 @@
+{
+  "template": "quant-firm-v1",
+  "agents": [
+    { "name": "투자위원회", "title": "CEO 직속 · 전략 승인·자본 배분", "group": "board", "lead": true, "provider": "claude", "role": "검증을 마친 전략안의 채택·보류·기각 의견과 전략별 자본 배분 비율을 제시한다. 최종 결정은 CEO(사용자)가 한다." },
+    { "name": "CIO 투자부문 총괄", "title": "CEO 직속 · 프런트 오피스", "group": "cio", "lead": true, "provider": "claude", "role": "리서치·포트폴리오·실행 팀의 결과를 종합한다. 팀 간 모순과 근거가 약한 주장을 표시한다." },
+    { "name": "퀀트 리서치", "title": "CIO 산하 · 프런트 오피스", "group": "cio", "provider": "codex", "role": "투자 가설을 세우고 알파 신호를 찾아 통계로 검증한다. 미래 정보 유출, 생존편향, 다중검정 점검 결과를 함께 보고한다." },
+    { "name": "포트폴리오 구성", "title": "CIO 산하 · 프런트 오피스", "group": "cio", "provider": "codex", "role": "신호를 결합하고 최적화해 종목 비중 규칙을 설계한다. 회전율과 거래비용을 반영한다." },
+    { "name": "트레이딩·실행", "title": "CIO 산하 · 프런트 오피스", "group": "cio", "provider": "claude", "role": "주문 알고리즘, 거래비용 분석(TCA), 브로커 API 연결을 설계한다. 모의계좌를 우선한다. 실계좌 주문과 API 키 열람은 하지 않는다." },
+    { "name": "CTO 기술부문 총괄", "title": "CEO 직속 · 기술 부문", "group": "cto", "lead": true, "provider": "claude", "role": "기술 팀 결과를 통합하고 구조 결정과 코드 리뷰 기준을 정리한다." },
+    { "name": "퀀트 개발", "title": "CTO 산하 · 기술 부문", "group": "cto", "provider": "claude", "role": "백테스트·시뮬레이션 엔진과 연구용 라이브러리를 구현한다. 슬리피지와 수수료 기본값을 0으로 두지 않는다." },
+    { "name": "데이터 엔지니어링", "title": "CTO 산하 · 기술 부문", "group": "cto", "provider": "claude", "role": "시세·재무 데이터를 수집·정제한다. 발표 시점 기준 정합성(PIT)과 데이터 품질을 검사한다." },
+    { "name": "인프라·HPC", "title": "CTO 산하 · 기술 부문", "group": "cto", "provider": "codex", "role": "연산·실행 환경과 작업 일정을 구성한다. 개인 규모에서 저지연이 필요한지도 판단한다." },
+    { "name": "보안·SRE", "title": "CTO 산하 · 기술 부문", "group": "cto", "provider": "claude", "role": "시스템 안정성, 접근 통제, API 키 관리 정책(환경변수, 최소 권한, 2단계 인증), 장애 알림을 맡는다. 비밀값은 읽거나 출력하지 않는다." },
+    { "name": "CRO 리스크 총괄", "title": "CEO 직속 · 투자 부문과 별도 보고", "group": "cro", "lead": true, "provider": "claude", "role": "리스크 팀 결과를 종합해 투자 부문에 독립된 의견을 낸다. 전략 코드는 직접 고치지 않는다." },
+    { "name": "시장·포트폴리오 리스크", "title": "CRO 산하 · 리스크 관리", "group": "cro", "provider": "claude", "role": "노출·레버리지·손실 한도, 스트레스 테스트, 즉시 중단 기능(킬스위치)을 설계한다. 리스크 모듈을 전략 코드와 분리하는 기준을 세운다." },
+    { "name": "모델 리스크", "title": "CRO 산하 · 리스크 관리", "group": "cro", "provider": "claude", "role": "모델 검증, 과최적화 점검(워크포워드, 파라미터 민감도), 백테스트 재현성 확인을 맡는다." },
+    { "name": "COO 운영부문 총괄", "title": "CEO 직속 · 백오피스", "group": "coo", "lead": true, "provider": "claude", "role": "운영 팀 결과를 종합한다." },
+    { "name": "트레이드 운영", "title": "COO 산하 · 백오피스", "group": "coo", "provider": "codex", "role": "체결과 잔고를 대조하고 결제와 브로커를 관리한다. 일일 대조 보고서를 만든다." },
+    { "name": "재무·펀드회계", "title": "COO 산하 · 백오피스(CFO)", "group": "coo", "provider": "codex", "role": "계좌 순자산(NAV)과 성과 기록을 관리한다. 해외주식 양도세와 환율 계산에 필요한 기록을 남긴다." },
+    { "name": "법무·컴플라이언스", "title": "CEO 직속 · GC/CCO", "group": "legal", "lead": true, "provider": "claude", "role": "규제를 확인하고, 시세조종성 주문 패턴(스푸핑 등)을 감시하고, 내부 규정을 만든다." }
+  ],
+  "handoffs": [
+    ["데이터 엔지니어링", "퀀트 리서치"],
+    ["퀀트 개발", "퀀트 리서치"],
+    ["퀀트 리서치", "모델 리스크"],
+    ["모델 리스크", "투자위원회"],
+    ["투자위원회", "포트폴리오 구성"],
+    ["포트폴리오 구성", "시장·포트폴리오 리스크"],
+    ["시장·포트폴리오 리스크", "트레이딩·실행"],
+    ["트레이딩·실행", "트레이드 운영"],
+    ["트레이딩·실행", "법무·컴플라이언스"],
+    ["트레이드 운영", "재무·펀드회계"]
+  ]
+}
