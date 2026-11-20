@@ -14,8 +14,8 @@ const settle = async () => { await new Promise(resolve => setTimeout(resolve, 20
 function fixture(t, { state = initial(), api } = {}) {
   const dom = new JSDOM('<!doctype html><html lang="en"><body><div id="source"><div id="owner"><div class="org-commander-card">Actual owner</div></div><ul id="roles"></ul></div><div id="canvas"></div></body></html>', { runScripts: 'outside-only', pretendToBeVisual: true, url: 'http://127.0.0.1:4310/' });
   const { window } = dom, document = window.document, container = document.querySelector('#canvas'), owner = document.querySelector('#owner'), list = document.querySelector('#roles'), calls = [], timers = new Map();
-  let current = state, sequence = 0, buttonClicks = 0, connectionEdits = 0;
-  window.setTimeout = (callback, delay = 0) => { const id = ++sequence; timers.set(id, { callback, delay }); return id; }; window.clearTimeout = id => timers.delete(id);
+  let current = state, sequence = 0, buttonClicks = 0, connectionEdits = 0, clock = 0;
+  window.setTimeout = (callback, delay = 0) => { const id = ++sequence; timers.set(id, { callback, delay, due: clock + delay }); return id; }; window.clearTimeout = id => timers.delete(id);
   window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
   container.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1100, bottom: 680, width: 1100, height: 680 });
   Object.defineProperty(container, 'clientWidth', { value: 1100 }); Object.defineProperty(container, 'clientHeight', { value: 680 });
@@ -34,8 +34,16 @@ function fixture(t, { state = initial(), api } = {}) {
   t.after(() => { engine.destroy(); window.close(); });
   const pointer = (target, type, x, y) => { const event = new window.MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y }); Object.defineProperty(event, 'pointerId', { value: 1 }); target.dispatchEvent(event); };
   const flush = async () => { for (let round = 0; round < 6 && timers.size; round++) { const pending = [...timers.values()]; timers.clear(); for (const timer of pending) timer.callback(); await settle(); } await settle(); };
+  const advance = async milliseconds => {
+    const end = clock + milliseconds;
+    for (let count = 0; count < 100; count++) {
+      const next = [...timers.entries()].filter(([, timer]) => timer.due <= end).sort((a, b) => a[1].due - b[1].due)[0]; if (!next) break;
+      clock = next[1].due; timers.delete(next[0]); next[1].callback(); await settle();
+    }
+    clock = end; await settle();
+  };
   const drag = (id, dx = 45, dy = 30) => { const handle = container.querySelector(`.on-node[data-node-id="${id}"] .on-node-drag-handle`) || container.querySelector(`.on-node[data-node-id="${id}"].on-node-drag-handle`); assert.ok(handle, `drag handle for ${id}`); pointer(handle, 'pointerdown', 100, 100); pointer(document, 'pointermove', 100 + dx, 100 + dy); pointer(document, 'pointerup', 100 + dx, 100 + dy); };
-  return { window, document, container, owner, list, calls, timers, engine, update, makeRole, pointer, drag, flush, get state() { return current; }, get buttonClicks() { return buttonClicks; }, get connectionEdits() { return connectionEdits; }, node(id) { return container.querySelector(`.on-node[data-node-id="${id}"]`); }, action(name) { const button = container.querySelector(`[data-on-action="${name}"]`); assert.ok(button, name); button.click(); }, writes() { return calls.filter(call => call.method === 'PUT'); } };
+  return { window, document, container, owner, list, calls, timers, engine, update, makeRole, pointer, drag, flush, advance, get state() { return current; }, get buttonClicks() { return buttonClicks; }, get connectionEdits() { return connectionEdits; }, node(id) { return container.querySelector(`.on-node[data-node-id="${id}"]`); }, action(name) { const button = container.querySelector(`[data-on-action="${name}"]`); assert.ok(button, name); button.click(); }, writes() { return calls.filter(call => call.method === 'PUT'); } };
 }
 
 test('hydrated organization nodes retain original role DOM, explicit saved positions and workflow graph without initial writes', async t => {
@@ -57,6 +65,32 @@ test('dragging an agent saves only organization coordinates with captured worksp
   assert.equal(ui.writes().length, 1); const write = ui.writes()[0]; assert.equal(write.path.split('?')[0], '/api/organization-layout'); assert.equal(write.body.workspace, workspace); assert.equal(write.body.revision, 4);
   assert.notDeepEqual(write.body.positions['agent:frontend'], before); assert.equal(write.body.positions['agent:backend'].x, saved().positions['agent:backend'].x); assert.equal(ui.engine.getLayout().revision, 5);
   assert.equal(ui.calls.some(call => /api\/(graph|tasks|workflows)/.test(call.path)), false); assert.deepEqual(ui.state.graph, initial().graph);
+});
+
+test('continuous output-only SSE updates cannot postpone an already scheduled organization layout save', async t => {
+  const ui = fixture(t); await settle(); const graph = structuredClone(ui.state.graph); ui.drag('agent:frontend');
+  const moved = JSON.stringify(ui.engine.getLayout().positions);
+  for (let step = 0; step < 10; step++) {
+    ui.update({ ...ui.state, tasks: [{ id: 'streaming-task', workspace, departmentId: 'frontend', status: 'running', output: `Public output ${step}` }] });
+    await ui.advance(100);
+    if (step === 3) assert.equal(ui.writes().length, 1, 'the original 350ms deadline must run despite 100ms SSE updates');
+  }
+  assert.equal(ui.writes().length, 1); assert.equal(ui.engine.getLayout().revision, 5); assert.equal(ui.engine.getLayout().dirty, false); assert.equal(JSON.stringify(ui.engine.getLayout().positions), moved); assert.deepEqual(ui.state.graph, graph);
+});
+
+test('offline edits save once after reconnect despite continued updates and a project switch cancels queued old-project writes', async t => {
+  const ui = fixture(t); await settle(); ui.update(ui.state, { connected: false }); ui.drag('agent:frontend'); await ui.advance(1000);
+  assert.equal(ui.writes().length, 0); assert.equal(ui.engine.getLayout().dirty, true);
+  for (let step = 0; step < 5; step++) { ui.update(ui.state, { connected: true }); await ui.advance(100); }
+  assert.equal(ui.writes().length, 1); assert.equal(ui.writes()[0].body.workspace, workspace); assert.equal(ui.engine.getLayout().dirty, false);
+  ui.drag('agent:frontend'); await ui.advance(200); const other = 'C:\\Scheduled other project'; ui.update(initial({ settings: { workspace: other } })); await settle(); await ui.advance(1000);
+  assert.equal(ui.writes().length, 1); assert.equal(ui.engine.getLayout().workspace, other); assert.equal(ui.engine.getLayout().dirty, false); assert.equal(ui.engine.getLayout().revision, 4);
+});
+
+test('new user geometry edits still debounce from the latest edit rather than the first scheduled deadline', async t => {
+  const ui = fixture(t); await settle(); ui.drag('agent:frontend'); await ui.advance(200); ui.drag('agent:frontend', 90, 60);
+  const latest = JSON.stringify(ui.engine.getLayout().positions); await ui.advance(200); assert.equal(ui.writes().length, 0); await ui.advance(150);
+  assert.equal(ui.writes().length, 1); assert.equal(JSON.stringify(ui.writes()[0].body.positions), latest); assert.equal(ui.engine.getLayout().dirty, false);
 });
 
 test('child buttons keep their original actions and never begin a node drag; unchanged rerenders retain nodes and focus', async t => {
