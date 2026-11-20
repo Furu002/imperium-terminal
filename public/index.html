@@ -33,6 +33,9 @@
   <link rel="stylesheet" href="/task-harness.css">
   <link rel="stylesheet" href="/command-desk.css">
   <link rel="stylesheet" href="/terminal-palette.css">
+  <link rel="stylesheet" href="/terminal-type.css">
+  <link rel="stylesheet" href="/team-mode.css">
+  <link rel="stylesheet" href="/desk-resize.css">
   <script src="/vendor/xterm.js" defer></script>
   <script src="/vendor/xterm-addon-fit.js" defer></script>
   <script src="/workspace.js" defer></script>
@@ -57,11 +60,13 @@
   <script src="/live-progress.js" defer></script>
   <script src="/access-review.js" defer></script>
   <script src="/conversations.js" defer></script>
+  <script src="/team-mode.js" defer></script>
   <script src="/collaboration.js" defer></script>
   <script src="/agent-skills.js" defer></script>
   <script src="/organization-workbench.js" defer></script>
   <script src="/organization-nodes.js" defer></script>
   <script src="/task-harness.js" defer></script>
+  <script src="/desk-resize.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -81,12 +86,12 @@
         <button class="nav-button active" data-view="overview" aria-label="F1 AI 조직도" aria-current="page"><span class="nav-icon">▦</span><span>조직도</span><kbd>F1</kbd></button>
         <button class="nav-button" data-view="skills" aria-label="스킬 라이브러리"><span class="nav-icon">◇</span><span>스킬</span></button>
         <button class="nav-button" data-view="operations" aria-label="F2 작업 관리"><span class="nav-icon">▤</span><span>업무</span><kbd>F2</kbd></button>
+        <button class="nav-button" data-view="chat" aria-label="대화 이어가기"><span class="nav-icon">▣</span><span>대화</span></button>
         <button class="nav-button" data-view="knowledge" aria-label="F11 프로젝트 기억"><span class="nav-icon">⟐</span><span>기억</span><kbd>F11</kbd></button>
         <button class="nav-button" id="nav-settings" aria-label="F8 연결 및 설정"><span class="nav-icon">⚙</span><span>설정</span><kbd>F8</kbd></button>
       </nav>
       <details class="workbench-secondary-nav"><summary>도구</summary>
         <button class="nav-button" data-view="workflow" aria-label="노드 워크플로"><span class="nav-icon">⌘</span><span>워크플로</span></button>
-        <button class="nav-button" data-view="chat" aria-label="대화 이어가기"><span class="nav-icon">▣</span><span>대화</span></button>
         <button class="nav-button" data-view="collaboration" aria-label="협업 보드"><span class="nav-icon">⇄</span><span>협업 보드</span></button>
         <button class="nav-button" data-view="departments" aria-label="F3 부서 관리"><span class="nav-icon">⌘</span><span>부서 관리</span><kbd>F3</kbd></button>
         <button class="nav-button" data-view="logs" aria-label="F4 활동 로그"><span class="nav-icon">›_</span><span>활동 로그</span><kbd>F4</kbd></button>
@@ -96,7 +101,7 @@
         <button class="nav-button" data-view="projects" aria-label="F9 프로젝트"><span class="nav-icon">▱</span><span>프로젝트</span><kbd>F9</kbd></button>
         <button class="nav-button" data-view="analytics" aria-label="F10 사용량과 성능"><span class="nav-icon">▥</span><span>사용량과 성능</span><kbd>F10</kbd></button>
       </details></div>
-      <div class="sidebar-bottom"><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.9.2</b></span></div>
+      <div class="sidebar-bottom"><div class="local-badge"><span class="live-dot"></span>LOCAL<span>PRIVATE WORKSPACE</span></div><span class="sidebar-version">IMPERIUM <b>v1.10.0</b></span></div>
     </aside>
 
     <main class="main-content" id="main-content">

@@ -21,15 +21,25 @@
     node.append(...children); return node;
   };
   const path = (d, className = '') => svg('path', { d, class: className });
-  function avatar(providerId) {
-    const frame = element('span', 'im-avatar-frame'); frame.setAttribute('aria-hidden', 'true');
+  function createMark(providerId, { className = '', size = 20 } = {}) {
     if (Object.hasOwn(NAMES, providerId)) {
-      const picture = element('img', 'im-avatar im-brand-logo'); picture.src = `/model-icons/${providerId}.svg`; picture.alt = ''; picture.width = 26; picture.height = 26; picture.dataset.brand = providerId; frame.append(picture);
-    } else {
-      const picture = svg('svg', { viewBox: '0 0 40 40', width: 26, height: 26, class: 'im-avatar im-generic-logo', 'aria-hidden': 'true', focusable: 'false', 'data-avatar': 'generic-module' });
-      picture.append(path('m20 5 13 8v15l-13 7-13-7V13z'), path('m7 13 13 8 13-8m-13 8v14')); frame.append(picture);
+      const picture = element('img', `im-provider-icon im-brand-logo ${className}`.trim());
+      picture.src = `/model-icons/${providerId}.svg`;
+      picture.alt = '';
+      picture.width = size;
+      picture.height = size;
+      picture.dataset.brand = providerId;
+      return picture;
     }
-    frame.append(element('span', 'im-work-indicator')); return frame;
+    const picture = svg('svg', { viewBox: '0 0 40 40', width: size, height: size, class: `im-provider-icon im-generic-logo ${className}`.trim(), 'aria-hidden': 'true', focusable: 'false', 'data-avatar': 'generic-module' });
+    picture.append(path('m20 5 13 8v15l-13 7-13-7V13z'), path('m7 13 13 8 13-8m-13 8v14'));
+    return picture;
+  }
+  function avatar(providerId) {
+    const frame = element('span', 'im-avatar-frame');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.append(createMark(providerId, { className: 'im-avatar', size: 26 }), element('span', 'im-work-indicator'));
+    return frame;
   }
   function pause() { if (host && host.dataset.paused !== String(document.hidden === true)) host.dataset.paused = String(document.hidden === true); }
   document.addEventListener('visibilitychange', pause);
@@ -88,5 +98,5 @@
     }
     pause();
   }
-  window.ImperiumMascots = Object.freeze({ render });
+  window.ImperiumMascots = Object.freeze({ render, createMark });
 })();

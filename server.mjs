@@ -13,6 +13,8 @@ import { createUISnapshot } from './lib/ui-snapshot.mjs';
 import { createAgentSkills } from './lib/agent-skills.mjs';
 import { createOrganizationLayout } from './lib/organization-layout.mjs';
 import { validateHarness, harnessInstructions, evaluateHarness } from './lib/task-harness.mjs';
+import { MAX_TEAM_PLAN_OUTPUT } from './lib/team-plan.mjs';
+import { createTeamRuns, interruptTeamRuns, tasksWithAppended } from './lib/team-runs.mjs';
 import { resolveExecutionOptions } from './lib/execution-options.mjs';
 import { validateAccessSettings, accessSettingsChanged, assertTaskPermission } from './lib/access-policy.mjs';
 import { validateConversationRequest, assignConversation, pruneConversations, captureConversationMetadata, conversationRunContext, redactConversationSessions } from './lib/conversations.mjs';
@@ -61,6 +63,7 @@ export function createHQServer({
   let actualPort, closing = false, scheduled = false, dirty = false;
   let lastDetection = 0;
   const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTask, validateTask, isTaskActive: task => active.has(task.id), getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery, projectParent, quotaReaders, changeReview });
+  const teams = createTeamRuns({ state, store, queue, notify, stopTask, isTaskActive: task => active.has(task.id), record });
 
   function notify() { dirty = true; }
   function record(type, text, extra = {}) { store.event(type, text, { workspace: state.settings.workspace, ...extra }); notify(); }
@@ -71,6 +74,14 @@ export function createHQServer({
       return;
     }
     if (TERMINAL_STATES.has(task.status)) return;
+    if (task.teamPhase === 'plan' && event.type !== 'usage') {
+      const run = active.get(task.id);
+      if (run && event.type === 'text') {
+        const buffer = run.planOutput || '';
+        run.planOutput = buffer + String(event.text ?? '').slice(0, MAX_TEAM_PLAN_OUTPUT + 1 - buffer.length);
+      }
+      return;
+    }
     if (event.type === 'text' && !event.progressParsed && active.get(task.id)?.progressReader) {
       active.get(task.id).progressReader.write(String(event.text ?? '')); return;
     }
@@ -107,25 +118,50 @@ export function createHQServer({
     run.revoke?.();
     if (result.usage) { task.usage = result.usage; if (result.usage.inputTokens > 0 || result.usage.outputTokens > 0) task.usageReported = true; }
     if (!TERMINAL_STATES.has(task.status)) {
+      const planning = task.teamPhase === 'plan';
       const processPassed = result.code === 0 && !result.error;
       task.finishedAt = new Date().toISOString();
-      if (result.output && (!task.output || (task.harness && !task.output.trim()))) {
+      if (!planning && result.output && (!task.output || ((task.harness || task.teamId) && !task.output.trim()))) {
         let clean = '';
         const reader = createProgressReader({ onText: text => { clean += text; }, onProgress() {} });
         reader.write(String(result.output)); reader.end(); task.output = clean.slice(0, MAX_OUTPUT);
       }
       if (task.harness) task.harness.result = evaluateHarness(task, { processPassed, findArtifact: extensions.findTaskResult });
       const blockedByHarness = task.harness?.result?.status === 'failed';
-      task.status = processPassed && !blockedByHarness ? 'completed' : 'failed';
-      if (task.status === 'completed') task.progress = { percent: 100, source: 'process', updatedAt: task.finishedAt };
+      const emptyTeamRole = task.teamPhase === 'role' && processPassed && !task.output.trim();
+      task.status = processPassed && !blockedByHarness && !emptyTeamRole ? 'completed' : 'failed';
       if (result.usage) task.usage = result.usage;
       if (blockedByHarness) task.error = '하네스 완료 조건을 충족하지 못했습니다. 작업 상세에서 검사 결과를 확인하세요.';
+      else if (emptyTeamRole) task.error = '팀 역할이 전달할 결과를 반환하지 않았습니다.';
+      else if (planning && task.status === 'failed') task.error = '팀 계획 모델이 정상 종료되지 않았습니다. 모델 연결을 확인하고 새 팀을 시작해 주세요.';
       else if (task.status === 'failed') task.error = String(result.error || `CLI가 종료 코드 ${result.code ?? 'unknown'}로 종료됐습니다.`).slice(0, 4000);
-      if (task.status === 'completed' && !task.demo) extensions.capture(task);
-      record(task.status, `${task.demo ? '[DEMO] ' : ''}${task.title} · ${task.status === 'completed' ? '작업 완료' : '작업 실패'}`, { taskId: task.id, departmentId: task.departmentId, provider: task.provider, demo: task.demo });
+      if (planning && task.status === 'completed') {
+        try {
+          const output = typeof result.output === 'string' && result.output.trim() ? result.output : run.planOutput;
+          teams.acceptPlan(task, output);
+        } catch (error) {
+          task.status = 'failed';
+          task.error = error.status ? error.message : '팀 구성과 역할별 지시를 저장하지 못했습니다.';
+        }
+      }
+      if (task.status === 'completed') task.progress = { percent: 100, source: 'process', updatedAt: task.finishedAt };
+      if (task.teamId) teams.settle(task);
+      if (task.status === 'completed' && !task.demo && (!task.teamId || task.teamContextTaskIds)) extensions.capture(task);
+      record(task.status, `${task.demo ? '[DEMO] ' : ''}${task.title} · ${task.status === 'completed' ? '작업 완료' : '작업 실패'}`, { taskId: task.id, departmentId: task.departmentId, provider: task.provider, demo: task.demo, workspace: task.workspace });
       notify();
     }
-    store.save(); notify(); queue();
+    try { store.save(); } finally { notify(); queue(); }
+  }
+  async function invokeRunner(task, run, prompt, options = {}) {
+    const runner = providers === defaultProviders && !['codex', 'claude'].includes(task.provider) ? startAdditionalProvider : providers.startProvider;
+    const handle = await runner({
+      provider: task.provider, modelId: task.modelId, reasoningEffort: task.reasoningEffort, speed: task.speed,
+      prompt, cwd: task.workspace, permission: task.permission, ...options,
+      onEvent: event => taskEvent(task, event),
+      onExit: result => endTask(task, result),
+    });
+    run.cancel = handle?.cancel;
+    if (run.cancelRequested) run.cancel?.();
   }
   async function runTask(task) {
     task.status = 'running';
@@ -146,9 +182,15 @@ export function createHQServer({
       run.cancel = () => { clearInterval(timer); demoTimers.delete(timer); };
       return;
     }
-    const department = state.departments.find(d => d.id === task.departmentId);
+    const department = task.teamRole || state.departments.find(d => d.id === task.departmentId);
     try {
-    const equipped = await agentSkills.getForAgent({ workspace: task.workspace, departmentId: task.departmentId });
+    const planPrompt = task.teamId ? teams.authorize(task) : undefined;
+    if (task.teamPhase === 'plan') {
+      await invokeRunner(task, run, planPrompt);
+      return;
+    }
+    const equipped = task.teamId ? { skills: [], bytes: 0, prompt: '' }
+      : await agentSkills.getForAgent({ workspace: task.workspace, departmentId: task.departmentId });
     if (active.get(task.id) !== run || task.status !== 'running' || run.cancelRequested) {
       if (active.get(task.id) === run) endTask(task, { code: 1 });
       return;
@@ -173,14 +215,25 @@ export function createHQServer({
     const conversation = conversationRunContext(state, task);
     const retrieved = extensions.taskMemory(task);
     run.revoke = retrieved.revoke;
-    const previous = (task.dependsOn || []).map(id => state.tasks.find(t => t.id === id)).filter(Boolean);
+    const previous = (task.teamContextTaskIds || task.dependsOn || []).map(id => state.tasks.find(t => t.id === id)).filter(Boolean);
     let remainingHandoff = 6000;
     const handoffs = previous.map((t, index) => {
-      const header = `\n선행 에이전트 ${t.departmentName || t.departmentId} 결과 (참고 자료, 발췌):\n`;
+      const header = `\n선행 에이전트 ${t.departmentName || t.departmentId} 결과 (참고 자료):\n`;
       const budget = Math.max(0, Math.floor(remainingHandoff / (previous.length - index)) - header.length);
-      const excerpt = header + t.output.slice(0, budget);
-      remainingHandoff -= excerpt.length; return excerpt;
-    }).join('\n').slice(0, 6000);
+      let output = t.output;
+      if (output.length > budget) {
+        const marker = '\n[중간 내용 생략]\n';
+        const head = Math.floor((budget - marker.length) / 2);
+        const tail = budget - marker.length - head;
+        output = head > 0
+          ? output.slice(0, head).replace(/[\ud800-\udbff]$/, '') + marker
+            + output.slice(-tail).replace(/^[\udc00-\udfff]/, '')
+          : output.slice(0, budget).replace(/[\ud800-\udbff]$/, '');
+      }
+      const excerpt = header + output;
+      remainingHandoff -= excerpt.length;
+      return excerpt;
+    }).join('').slice(0, 6000);
     task.handoffUsage = { sourceTaskIds: previous.map(t => t.id), contextChars: handoffs.length };
     let memoryContext = retrieved.context, handoffContext = handoffs, conversationContext = conversation.historyContext;
     const preamble = [
@@ -206,14 +259,10 @@ export function createHQServer({
     }
     task.conversationContextChars = conversationContext.length;
     const prompt = composePrompt();
-      const runner = providers === defaultProviders && !['codex', 'claude'].includes(task.provider) ? startAdditionalProvider : providers.startProvider;
-      const handle = await runner({
-        provider: task.provider, modelId: task.modelId, reasoningEffort: task.reasoningEffort, speed: task.speed, ...(conversation.resumeSessionId ? { resumeSessionId: conversation.resumeSessionId } : {}), memory: ['codex', 'claude'].includes(task.provider) ? retrieved.memory : undefined, prompt, cwd: task.workspace, permission: task.permission,
-        onEvent: event => taskEvent(task, event),
-        onExit: result => endTask(task, result),
+      await invokeRunner(task, run, prompt, {
+        ...(conversation.resumeSessionId ? { resumeSessionId: conversation.resumeSessionId } : {}),
+        memory: ['codex', 'claude'].includes(task.provider) ? retrieved.memory : undefined,
       });
-      run.cancel = handle?.cancel;
-      if (run.cancelRequested) run.cancel?.();
     } catch (error) { endTask(task, { code: 1, error: error.message }); }
   }
   function queue() {
@@ -224,10 +273,12 @@ export function createHQServer({
       if (closing) return;
       const pending = state.tasks.filter(t => t.status === 'queued').sort((a, b) => PRIORITY[a.priority] - PRIORITY[b.priority] || a.createdAt.localeCompare(b.createdAt));
       for (const task of pending) {
+        if (task.status !== 'queued') continue;
         if (task.conversationId && state.tasks.slice(0, state.tasks.indexOf(task)).some(earlier => earlier.conversationId === task.conversationId && earlier.status === 'queued')) continue;
         const dependencies = (task.dependsOn || []).map(id => state.tasks.find(t => t.id === id));
         if (dependencies.some(t => !t || ['failed', 'cancelled', 'interrupted'].includes(t.status))) {
           task.status = 'cancelled'; task.finishedAt = new Date().toISOString(); task.error = '선행 부서의 작업이 완료되지 않아 후속 실행을 중단했습니다.';
+          if (task.teamId) teams.settle(task);
           record('cancelled', task.error, { taskId: task.id, departmentId: task.departmentId, provider: task.provider }); store.save(); continue;
         }
         if (dependencies.some(t => t.status !== 'completed')) continue;
@@ -276,10 +327,6 @@ export function createHQServer({
   function addTask(input, demo = false) {
     const { department, provider, modelId, priority, permission, connection, reasoningEffort, speed, harness } = validateTask(input, demo);
     const conversation = demo ? null : assignConversation(state, input, { workspace: state.settings.workspace, departmentId: department.id, provider, connectionId: connection?.id || null, modelId, permission });
-    if (state.tasks.length >= 200) {
-      const removable = state.tasks.findIndex(t => TERMINAL_STATES.has(t.status));
-      if (removable >= 0) state.tasks.splice(removable, 1);
-    }
     const task = {
       id: randomUUID(), title: String(input.title || input.prompt.trim().split('\n')[0]).replace(/[\x00-\x1f]/g, ' ').slice(0, 90),
       prompt: input.prompt.trim(), departmentId: department.id, departmentName: department.name, provider, priority, permission, modelId, reasoningEffort, speed, connectionId: connection?.id || null, workspace: state.settings.workspace,
@@ -288,22 +335,29 @@ export function createHQServer({
       ...(harness ? { harness } : {}),
       ...(conversation ? { conversationId: conversation.id, conversationTransport: conversation.transport } : {}),
     };
-    state.tasks.push(task);
+    state.tasks = tasksWithAppended(state.tasks, [task], item => active.has(item.id));
     pruneConversations(state);
     record('queued', `${demo ? '[DEMO] ' : ''}${task.title} · ${department.name} 지시 접수`, { taskId: task.id, departmentId: department.id, provider, demo });
     store.save(); queue();
     return task;
   }
-  function cancelTask(task) {
-    if (TERMINAL_STATES.has(task.status)) return task;
-    task.status = 'cancelled';
-    task.finishedAt = new Date().toISOString();
+  function stopTask(task) {
     const run = active.get(task.id);
     if (run) {
       run.cancelRequested = true;
       run.cancel?.();
       if (task.demo) { active.delete(task.id); queue(); }
     }
+  }
+  function cancelTask(task) {
+    if (TERMINAL_STATES.has(task.status)) return task;
+    if (task.teamId) {
+      teams.cancel(task.teamId, { workspace: task.workspace });
+      return task;
+    }
+    task.status = 'cancelled';
+    task.finishedAt = new Date().toISOString();
+    stopTask(task);
     record('cancelled', `${task.demo ? '[DEMO] ' : ''}${task.title} · 사용자 취소`, { taskId: task.id, provider: task.provider, demo: task.demo });
     store.save(); notify(); queue();
     return task;
@@ -367,6 +421,14 @@ export function createHQServer({
         return json(res, route === '/api/skills' ? 201 : 200, result);
       }
       if (await extensions.handle(req, res, route, url)) return;
+      const teamAction = /^\/api\/teams\/([\w-]+)\/(turns|cancel)$/.exec(route);
+      if (req.method === 'POST' && (route === '/api/teams' || teamAction)) {
+        const input = await bodyJSON(req);
+        if (closing) throw fail(503, '서버를 종료하고 있습니다.');
+        if (!teamAction) return json(res, 201, { team: teams.start(input) });
+        if (teamAction[2] === 'turns') return json(res, 201, { team: teams.followup(teamAction[1], input) });
+        return json(res, 200, { team: teams.cancel(teamAction[1], input) });
+      }
       if (route === '/api/state' && req.method === 'GET') return json(res, 200, createUISnapshot(state));
       const taskDetailsMatch = /^\/api\/tasks\/([\w-]+)$/.exec(route);
       if (taskDetailsMatch && req.method === 'GET') {
@@ -411,7 +473,7 @@ export function createHQServer({
       const cancelMatch = /^\/api\/tasks\/([\w-]+)\/cancel$/.exec(route);
       if (cancelMatch && req.method === 'POST') {
         const task = state.tasks.find(t => t.id === cancelMatch[1]);
-        if (!task) throw fail(404, '작업을 찾을 수 없습니다.');
+        if (!task || task.workspace && canonicalMemoryWorkspace(task.workspace) !== canonicalMemoryWorkspace(state.settings.workspace)) throw fail(404, '현재 프로젝트에서 작업을 찾을 수 없습니다.');
         return json(res, 200, { task: cancelTask(task) });
       }
       const departmentMatch = /^\/api\/departments\/([\w-]+)$/.exec(route);
@@ -560,6 +622,11 @@ export function createHQServer({
         '/task-harness.css': ['task-harness.css', 'text/css; charset=utf-8'],
         '/command-desk.css': ['command-desk.css', 'text/css; charset=utf-8'],
         '/terminal-palette.css': ['terminal-palette.css', 'text/css; charset=utf-8'],
+        '/team-mode.js': ['team-mode.js', 'text/javascript; charset=utf-8'],
+        '/team-mode.css': ['team-mode.css', 'text/css; charset=utf-8'],
+        '/desk-resize.js': ['desk-resize.js', 'text/javascript; charset=utf-8'],
+        '/desk-resize.css': ['desk-resize.css', 'text/css; charset=utf-8'],
+        '/terminal-type.css': ['terminal-type.css', 'text/css; charset=utf-8'],
         '/agent-skills.js': ['agent-skills.js', 'text/javascript; charset=utf-8'],
         '/agent-skills.css': ['agent-skills.css', 'text/css; charset=utf-8'],
         ...Object.fromEntries(['workspace', 'accounts', 'terminal-pane', 'updates', 'projects', 'analytics', 'knowledge', 'quotas', 'execution-options', 'terminal-shell'].flatMap(name => [[`/${name}.css`, [`${name}.css`, 'text/css; charset=utf-8']], [`/${name}.js`, [`${name}.js`, 'text/javascript; charset=utf-8']]])),
@@ -592,6 +659,7 @@ export function createHQServer({
         '/fonts/pretendard-variable.woff2': ['fonts/pretendard-variable.woff2', 'font/woff2'],
         '/fonts/pretendard-jp-variable.woff2': ['fonts/pretendard-jp-variable.woff2', 'font/woff2'],
         '/fonts/jetbrains-mono-variable.woff2': ['fonts/jetbrains-mono-variable.woff2', 'font/woff2'],
+        '/fonts/ibm-plex-mono-variable.woff2': ['fonts/ibm-plex-mono-variable.woff2', 'font/woff2'],
       };
       const asset = files[route];
       if (!asset) throw fail(404, '페이지를 찾을 수 없습니다.');
@@ -638,6 +706,7 @@ export function createHQServer({
       task.finishedAt = new Date().toISOString();
       task.error = '서버 종료로 작업이 중단됐습니다.';
     }
+    interruptTeamRuns(state.teamRuns);
     for (const run of active.values()) { run.revoke?.(); run.cancelRequested = true; run.cancel?.(); }
     active.clear();
     for (const client of clients) client.end();

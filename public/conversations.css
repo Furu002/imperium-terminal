@@ -28,3 +28,16 @@
 .ic-send{font-size:13px;min-height:32px}
 @media(max-width:900px){#conversations-section.ic-chat{grid-template-columns:170px minmax(0,1fr)}.ic-composer{padding:6px 9px}.ic-main-heading{padding:5px 10px}.ic-compose-context{max-height:3em;overflow:auto}}
 @media(max-width:620px){.ic-sidebar{max-height:88px}.ic-main{flex:1;min-height:0}.ic-composer-footer>p{font-size:10px}.ic-prompt{height:58px}}
+
+.ic-profile-label, .ic-compose-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ic-profile-label > span, .ic-compose-context > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ic-compose-brand { flex: none; }
+.ic-compose-brand:empty { display: none; }

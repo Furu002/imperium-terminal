@@ -1,0 +1,58 @@
+.desk-pane-divider { display: none; }
+
+@media (min-width: 1001px) {
+  .app-shell[data-view=operations] .workspace-grid[data-desk-split=active] {
+    grid-template-columns: var(--desk-task-pane-width) 16px minmax(0, 1fr);
+    gap: 0;
+  }
+  .app-shell[data-view=operations] .workspace-grid[data-desk-split=active] > .secondary-column {
+    grid-column: 3;
+  }
+  .app-shell[data-view=operations] .workspace-grid[data-desk-split=active] > .desk-pane-divider:not([hidden]) {
+    display: grid;
+    grid-column: 2;
+    grid-row: 1;
+    place-items: center;
+    align-self: stretch;
+    justify-self: stretch;
+    min-height: 0;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .desk-pane-divider::before {
+    content: "";
+    grid-area: 1 / 1;
+    width: 1px;
+    height: 100%;
+    background: var(--line, #39332a);
+  }
+  .desk-pane-divider::after {
+    content: "";
+    grid-area: 1 / 1;
+    width: 6px;
+    height: 26px;
+    border: 1px solid var(--muted, #a8a39a);
+    border-block-width: 0;
+    background: var(--bg, #050505);
+    z-index: 1;
+  }
+  .desk-pane-divider:focus-visible {
+    outline: 2px solid var(--orange, #ffad32);
+    outline-offset: -2px;
+  }
+  .desk-pane-divider:hover::before,
+  .desk-pane-divider:focus-visible::before,
+  [data-desk-resizing] > .desk-pane-divider::before {
+    background: var(--orange, #ffad32);
+  }
+  .desk-pane-divider:hover::after,
+  .desk-pane-divider:focus-visible::after,
+  [data-desk-resizing] > .desk-pane-divider::after {
+    border-color: var(--orange, #ffad32);
+  }
+  .workspace-grid[data-desk-resizing] {
+    cursor: col-resize;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}

@@ -13,6 +13,7 @@
 .im-model-name{font-size:10px;font-weight:600;color:#F2F2F2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .im-model-status{font-size:9px;color:#B0B0B0;white-space:nowrap}
 .im-avatar-frame{display:flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;position:relative}
+.im-provider-icon{display:block;flex:none;object-fit:contain}
 .im-avatar{display:block;flex:none;width:26px;height:26px;object-fit:contain}
 .im-generic-logo{fill:none;stroke:#B0B0B0;stroke-width:1.6;stroke-linejoin:miter}
 .im-work-indicator{position:absolute;right:0;bottom:1px;width:5px;height:5px;border:1px solid #000;background:#777;border-radius:50%}

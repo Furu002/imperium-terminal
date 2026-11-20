@@ -10,6 +10,10 @@ The app runs a local web server, viewed in a desktop window or your browser. It 
 
 ## Terminal workspace and linked knowledge
 
+Open **Chat → Team chat → New team** and send a goal. One planning run assigns two to four roles and maps their dependencies. Workers receive the completion evidence of their predecessors, and the final role synthesizes their results. You can inspect each job, stop the current turn, and ask follow-up questions with the same team. The default is read-only. If you enable file edits for a turn, Codex or Claude jobs write serially in the current project. The work and result panes can be resized with the divider, mouse, or arrow keys. [Orca orchestration reference](https://orca.dev/docs/cli/orchestration)
+
+Commands and numeric labels prefer a locally installed Bloomberg Fixed Unicode face and fall back to bundled IBM Plex Mono. The Korean and Japanese reading faces use Pretendard.
+
 Enable **Completion checks** in the task form to send your acceptance criteria and require a response after a successful process exit. With Codex or Claude, you can also require that the task publish a result with a specific title on the collaboration board. Inspect each check in the task details and review the response against your criteria. On a workflow run, the checks apply to the starting agent and a failed check stops dependent tasks.
 
 Selecting work displays the result in the same-screen panel. **Window** opens a movable, resizable, nonmodal window inside the app. **Full screen** fills the app viewport; double-click its title bar to maximize or restore. **Dock** and **Close** return the reader to its panel. `Esc` restores full screen → window → panel. The background remains usable, and raw/read mode, text size, disclosures and reading position survive transitions while output keeps streaming. Project/conversation changes close their owned windows. On narrow screens, fold the task list and composer to prioritize results.

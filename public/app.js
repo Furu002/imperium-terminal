@@ -196,6 +196,7 @@ let lastMissionSignature = '';
 let stream;
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
 let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false, collaborationMounted = false;
+let teamConversation;
 let skillsMounted = false;
 let quotasMounted = false, quotaStamp;
 let dispatchExecution, departmentExecution, executionContext = '', executionSummary;
@@ -846,8 +847,26 @@ function renderExtensions() {
     if (collaborationMounted) window.ImperiumCollaboration.render(state, { visible: view === 'collaboration' });
   }
   if (window.ImperiumConversations && (view === 'chat' || conversationsMounted)) {
-    if (!conversationsMounted) { conversationsMounted = true; window.ImperiumConversations.mount($('#conversations-section'), { getState: () => state, api, onChanged: async () => receiveState(await api('/api/state')) }); }
+    if (!conversationsMounted) {
+      conversationsMounted = true;
+      const container = $('#conversations-section');
+      const onChanged = async () => receiveState(await api('/api/state'));
+      window.ImperiumConversations.mount(container, { getState: () => state, api, onChanged });
+      teamConversation = window.ImperiumTeam?.mount(container, {
+        api,
+        onChanged,
+        onSelectTask(id) {
+          if (!state.tasks.some(task => task.id === id)) return;
+          selectedTaskId = id;
+          updateView('operations');
+          renderMissions();
+          renderInspector();
+        },
+        onReview: window.ImperiumAccessReview?.openReview,
+      });
+    }
     window.ImperiumConversations.render(state);
+    teamConversation?.render(state, { language, connected, visible: view === 'chat' });
   }
   window.ImperiumAccessReview?.render(state, { language, api, onSettingsChanged: async () => receiveState(await api('/api/state')) });
   window.ImperiumLiveProgress?.render(state, { language, onSelectTask: id => {
@@ -906,7 +925,9 @@ function renderProviders() {
   if (!state.providers.length) { $('#provider-cards').replaceChildren(node('p', { class: 'settings-description' }, t('연결 상태를 확인하고 있습니다.'))); return; }
   $('#provider-cards').replaceChildren(...state.providers.map(provider => {
     const friendly = provider.id === 'ollama' ? '이 컴퓨터의 Ollama 서비스에 설치된 로컬 모델을 사용합니다.' : { ready: '구독 계정으로 연결되었습니다.', missing: 'CLI를 설치한 뒤 구독 계정으로 로그인하세요.', login_required: 'AI 계정에서 로그인 안내를 확인한 뒤 상태를 새로고침하세요.', error: '연결을 확인할 수 없습니다. 상태를 새로고침하세요.' }[provider.status] || '연결을 확인할 수 없습니다. 상태를 새로고침하세요.';
-    const card = node('div', { class: 'provider-card', 'data-provider': provider.id }, node('div', { class: 'provider-card-header' }, node('span', { class: 'provider-card-name' }, node('span', { class: 'provider-letter', 'aria-hidden': 'true' }, [...String(provider.name || provider.id || '?')][0].toUpperCase()), provider.name || providerName(provider.id)), node('span', { class: `provider-card-status ${provider.status}` }, `● ${t(statusLabels[provider.status] || '확인 필요')}`)), node('p', { class: 'provider-card-detail' }, t(friendly)));
+    const mark = window.ImperiumMascots?.createMark?.(provider.id, { className: 'provider-card-brand', size: 22 })
+      || node('span', { class: 'provider-letter', 'aria-hidden': 'true' }, [...String(provider.name || provider.id || '?')][0].toUpperCase());
+    const card = node('div', { class: 'provider-card', 'data-provider': provider.id }, node('div', { class: 'provider-card-header' }, node('span', { class: 'provider-card-name' }, mark, provider.name || providerName(provider.id)), node('span', { class: `provider-card-status ${provider.status}` }, `● ${t(statusLabels[provider.status] || '확인 필요')}`)), node('p', { class: 'provider-card-detail' }, t(friendly)));
     if (provider.version) card.append(node('div', { class: 'provider-version' }, `VERSION ${provider.version}`));
     if (provider.status !== 'ready') card.append(node('button', { class: 'button button-quiet', type: 'button', 'data-provider-setup': provider.id, onclick: () => { $('#settings-dialog').close(); updateView('accounts'); } }, t('AI 계정'), ' ↗'));
     // Provider diagnostics are local tool output, not translated or interpreted as HTML.

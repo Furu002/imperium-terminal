@@ -17,7 +17,7 @@
   const set = (node, value) => { if (node.textContent !== value) node.textContent = value; };
   const drafts = new Map(), selections = new Map(), turns = new Map(), detailCache = new Map(), requests = new Map(), failedDetails = new Set(), notices = new Map();
   let root, options = {}, state = {}, language = 'ko', selected = null, project = '', activeDraftKey = '', generation = 0, lifetime = 0, disposed = true, offset = 0, pending = false;
-  let heading, newButton, conversationList, title, context, timeline, older, latest, counter, form, agentLabel, agents, writeLabel, write, writeText, defaults, composerContext, prompt, send, help, message, listSignature = '', agentSignature = '';
+  let heading, newButton, conversationList, title, context, timeline, older, latest, counter, form, agentLabel, agents, writeLabel, write, writeText, defaults, composerBrand, composerContext, prompt, send, help, message, listSignature = '', agentSignature = '';
   const tr = key => COPY[language][key] || key;
   const key = (id = selected, workspace = project) => `${workspace}\n${id || '@new'}`;
   const draft = () => { const id = key(); if (!drafts.has(id)) drafts.set(id, { text: '', departmentId: '', write: false }); return drafts.get(id); };
@@ -26,6 +26,13 @@
   const tasksFor = id => (Array.isArray(state.tasks) ? state.tasks : []).filter(task => task && !task.demo && task.conversationId === id && scope(task.workspace) === project).sort((a, b) => text(a.createdAt).localeCompare(text(b.createdAt)) || text(a.id).localeCompare(text(b.id)));
   const taskKey = task => `${project}\n${task.id}\n${task.status}\n${task.finishedAt || ''}\n${task.outputChars ?? text(task.output).length}`;
   const providerName = provider => state.providers?.find(item => item.id === provider)?.name || ({ codex: 'ChatGPT / Codex', claude: 'Claude Code', gemini: 'Gemini', copilot: 'GitHub Copilot', ollama: 'Ollama' })[provider] || provider || 'AI';
+  function updateComposerBrand(provider) {
+    const id = text(provider);
+    if (composerBrand.dataset.provider === id) return;
+    const mark = id && window.ImperiumMascots?.createMark?.(id, { size: 17 });
+    composerBrand.dataset.provider = id;
+    composerBrand.replaceChildren(...(mark ? [mark] : []));
+  }
   const department = id => state.departments?.find(item => item.id === id);
   function config() {
     const conversation = current(), d = department(conversation?.departmentId || draft().departmentId), connection = state.connections?.find(item => item.id === (conversation ? conversation.connectionId : d?.connectionId));
@@ -41,7 +48,12 @@
     if (!conversations.length) conversationList.append(h('p', 'ic-list-empty', tr('emptyList')));
     for (const conversation of conversations) {
       const node = button('', 'ic-conversation', () => changedSelection(conversation.id)); node.classList.toggle('selected', selected === conversation.id); node.setAttribute('aria-current', String(selected === conversation.id));
-      node.append(h('strong', '', tasksFor(conversation.id)[0]?.title || department(conversation.departmentId)?.name || conversation.id), h('span', '', `${providerName(conversation.provider)} · ${conversation.modelId || tr('defaultModel')}`)); conversationList.append(node);
+      const profile = h('span', 'ic-profile-label');
+      const mark = window.ImperiumMascots?.createMark?.(conversation.provider, { size: 16 });
+      if (mark) profile.append(mark);
+      profile.append(h('span', '', `${providerName(conversation.provider)} · ${conversation.modelId || tr('defaultModel')}`));
+      node.append(h('strong', '', tasksFor(conversation.id)[0]?.title || department(conversation.departmentId)?.name || conversation.id), profile);
+      conversationList.append(node);
     }
   }
   async function hydrate(task) {
@@ -100,6 +112,7 @@
     const busy = Boolean(selected && tasksFor(selected).some(task => ['running', 'queued'].includes(task.status)));
     set(title, c.conversation ? c.department?.name || tasksFor(selected).at(-1)?.departmentName || c.conversation.departmentId || tr('heading') : tr('new'));
     set(context, c.conversation ? tr(c.conversation.transport === 'native-cli' ? 'native' : c.conversation.transport === 'history-context' ? 'history' : 'unknownTransport') : tr('defaults'));
+    updateComposerBrand(c.provider);
     set(composerContext, `${c.provider ? providerName(c.provider) : tr('noAgent')} · ${tr('requested')}: ${c.modelId || tr('defaultModel')} · ${tr('effort')}: ${c.reasoningEffort} · ${tr('speed')}: ${c.speed}`);
     set(defaults, removedAgent ? tr('removedAgent') : removedConnection ? tr('removedConnection') : blocked ? tr('blocked') : hardReadOnly ? tr('strict') : selected ? tr('same') : tr('defaults')); defaults.classList.toggle('ic-blocked', blocked || removedAgent || removedConnection);
     set(send, tr(pending ? 'sending' : busy ? 'queue' : 'send')); send.disabled = pending || blocked || removedAgent || removedConnection || !project || !c.departmentId || !c.provider || Boolean(selected && !c.conversation);
@@ -143,8 +156,13 @@
     const sidebar = h('aside', 'ic-sidebar'), sidebarHeading = h('header', 'ic-sidebar-heading'); heading = h('h2'); newButton = button('', 'ic-new', () => changedSelection(null)); conversationList = h('div', 'ic-conversation-list'); sidebarHeading.append(heading, newButton); sidebar.append(sidebarHeading, conversationList);
     const main = h('section', 'ic-main'), top = h('header', 'ic-main-heading'); title = h('h2'); context = h('p'); const page = h('div', 'ic-pages'); older = button('', 'ic-page', () => { offset += 20; generation++; render(state); }); latest = button('', 'ic-page', () => { offset = 0; generation++; render(state); }); counter = h('span'); page.append(older, latest, counter); top.append(title, context, page); timeline = h('div', 'ic-timeline');
     form = h('form', 'ic-composer'); form.addEventListener('submit', event => { void submit(event); }); const controls = h('div', 'ic-compose-controls'); agentLabel = h('label'); agentLabel.htmlFor = 'ic-agent'; agents = h('select'); agents.id = 'ic-agent'; agents.addEventListener('change', () => { draft().departmentId = agents.value; draft().write = false; renderComposer(); }); writeLabel = h('label', 'ic-write-label'); write = h('input'); write.type = 'checkbox'; write.addEventListener('change', () => { draft().write = write.checked; renderComposer(); }); writeText = h('span'); writeLabel.append(write, writeText); controls.append(agentLabel, agents, writeLabel);
-    defaults = h('p', 'ic-defaults'); composerContext = h('p', 'ic-compose-context'); prompt = h('textarea', 'ic-prompt'); prompt.rows = 3; prompt.maxLength = 12000; prompt.addEventListener('input', () => { draft().text = prompt.value; }); prompt.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); form.requestSubmit(); } });
-    const footer = h('div', 'ic-composer-footer'); help = h('p'); send = h('button', 'ic-send'); send.type = 'submit'; footer.append(help, send); message = h('p', 'ic-message'); message.setAttribute('role', 'status'); form.append(controls, defaults, composerContext, prompt, footer, message); main.append(top, timeline, form); root.replaceChildren(sidebar, main); render(options.getState?.() || {});
+    defaults = h('p', 'ic-defaults');
+    composerBrand = h('span', 'ic-compose-brand');
+    composerContext = h('span');
+    const composerProfile = h('p', 'ic-compose-context');
+    composerProfile.append(composerBrand, composerContext);
+    prompt = h('textarea', 'ic-prompt'); prompt.rows = 3; prompt.maxLength = 12000; prompt.addEventListener('input', () => { draft().text = prompt.value; }); prompt.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); form.requestSubmit(); } });
+    const footer = h('div', 'ic-composer-footer'); help = h('p'); send = h('button', 'ic-send'); send.type = 'submit'; footer.append(help, send); message = h('p', 'ic-message'); message.setAttribute('role', 'status'); form.append(controls, defaults, composerProfile, prompt, footer, message); main.append(top, timeline, form); root.replaceChildren(sidebar, main); render(options.getState?.() || {});
     return { render, destroy() { disposed = true; generation++; lifetime++; clearTurns(); root?.replaceChildren(); root = null; } };
   }
   window.ImperiumConversations = Object.freeze({ mount, render });

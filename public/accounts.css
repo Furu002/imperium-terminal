@@ -2,3 +2,17 @@
 @media(max-width:980px){.ia-layout{grid-template-columns:1fr;gap:23px}.ia-account-sidebar{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.ia-heading{align-items:flex-start}.ia-heading-actions{justify-content:flex-end}.ia-command>div{width:100%;justify-content:flex-end}}
 @media(max-width:700px){.ia-heading{flex-direction:column;gap:14px;padding-bottom:19px;margin-bottom:19px}.ia-heading h2{font-size:22px}.ia-heading p{font-size:12px}.ia-heading-actions{justify-content:flex-start}.ia-eyebrow{font-size:9px}.ia-account-sidebar{display:flex;flex-direction:column}.ia-register-form,.ia-registered-section{width:100%}.ia-provider-card{padding:15px 13px}.ia-provider-heading{gap:10px}.ia-provider-name{gap:8px}.ia-provider-name h4{font-size:14px}.ia-provider-status{font-size:10px}.ia-provider-description{font-size:12px}.ia-command{padding:9px}.ia-command code{font-size:11px}.ia-command button{font-size:11px;padding:6px 8px}.ia-field-help,.ia-scope-note{font-size:11px}.ia-connection strong{font-size:13px}.ia-connection p{font-size:11px}.ia-register-form{padding:17px 14px}.ia-wizard{max-width:calc(100vw - 24px)}.ia-wizard-heading{padding:19px 17px}.ia-wizard-heading h2{font-size:21px}.ia-wizard-steps{padding:16px 17px;gap:9px}.ia-wizard-steps li{font-size:10px;flex-direction:column;gap:5px;align-items:flex-start}.ia-wizard-body{padding:19px 17px;min-height:300px}.ia-wizard-body h3{font-size:16px}.ia-wizard-body p{font-size:12px}.ia-wizard-navigation{padding:15px 17px}.ia-wizard-body .ia-wizard-note{font-size:11px}.ia-wizard .ia-command>div{width:100%;justify-content:flex-end}}
 .ia-mode-choice{display:flex;align-items:center;gap:10px;padding:12px;background:#11251d;border:1px solid #315143;color:#b2d6bd;font-size:12px}.ia-mode-choice input{width:16px;height:16px;accent-color:#71c4a1}
+
+.ia-provider-selector, .ia-connection-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ia-provider-selector > select, .ia-connection-details { min-width: 0; }
+.ia-connection-identity { align-items: flex-start; }
+.ia-connection-identity > .ia-provider-mark { margin-top: 2px; }
+@media (max-width: 420px) {
+  .ia-connection { flex-wrap: wrap; }
+  .ia-connection > button { margin-inline-start: auto; }
+}

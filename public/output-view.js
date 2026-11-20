@@ -299,7 +299,11 @@
     function buildResponse() {
       const task = current, w = words(language), output = text(task.output);
       const article = h('article', 'inspector-result io-message io-response'), header = h('header', 'io-message-heading');
-      const identity = h('div', 'io-identity'); identity.append(h('span', 'io-avatar io-ai-avatar', 'AI'), h('div', '', undefined));
+      const identity = h('div', 'io-identity');
+      const mark = task.provider && window.ImperiumMascots?.createMark?.(task.provider, { size: 20 });
+      const avatar = h('span', mark ? 'io-avatar io-ai-avatar io-branded-avatar' : 'io-avatar io-ai-avatar');
+      avatar.append(mark || 'AI');
+      identity.append(avatar, h('div'));
       identity.lastChild.append(h('strong', '', provider || 'AI'), h('span', 'io-role', w.answer));
       identity.lastChild.append(h('span', 'io-model-label', task.reportedModel ? `${w.actualModel} · ${task.reportedModel}` : `${w.requestedModel} · ${task.modelId || w.defaultModel} · ${w.unreportedModel}`));
       const actions = h('div', 'io-message-actions');
@@ -378,7 +382,7 @@
         const header = h('summary', 'io-message-heading'); header.append(h('span', 'io-avatar io-user-avatar', 'YOU'), h('strong', '', words(language).request), h('span', 'io-request-preview', text(task.prompt).replace(/\s+/g, ' ').slice(0, 90)));
         request.append(header, h('p', 'io-request-text', text(task.prompt)));
       }
-      if (!response || languageChanged || old.output !== task.output || old.status !== task.status || old.error !== task.error || old.truncated !== task.detailsTruncated || old.provider !== provider || old.modelId !== task.modelId || old.reportedModel !== task.reportedModel) {
+      if (!response || languageChanged || old.output !== task.output || old.status !== task.status || old.error !== task.error || old.truncated !== task.detailsTruncated || old.provider !== provider || old.providerId !== task.provider || old.modelId !== task.modelId || old.reportedModel !== task.reportedModel) {
         if (old?.output !== task.output && !text(task.output).startsWith(text(old?.output))) { readingLimit = FIRST_CHUNK; rawLimit = RAW_CHUNK; }
         response = buildResponse();
       }
@@ -387,7 +391,7 @@
       const records = Array.isArray(task.logs) ? task.logs : [];
       const logsKey = JSON.stringify([records.length, records[0]?.id, records.at(-1)?.id, records.at(-1)?.type, records.at(-1)?.source, text(records.at(-1)?.text).slice(-200)]);
       if (!logs || languageChanged || old.logsKey !== logsKey) { const wasOpen = logs?.open; logs = buildLogs(); logs.open = Boolean(wasOpen); }
-      previous = { language, provider, prompt: task.prompt, output: task.output, status: task.status, error: task.error, truncated: task.detailsTruncated, modelId: task.modelId, reportedModel: task.reportedModel, detailsKey, logsKey };
+      previous = { language, provider, providerId: task.provider, prompt: task.prompt, output: task.output, status: task.status, error: task.error, truncated: task.detailsTruncated, modelId: task.modelId, reportedModel: task.reportedModel, detailsKey, logsKey };
       const desired = [request, response, metadata, logs];
       if (desired.some((node, index) => element.children[index] !== node)) element.replaceChildren(...desired);
       applyFont();

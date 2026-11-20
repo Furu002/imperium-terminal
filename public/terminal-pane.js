@@ -19,6 +19,7 @@
 
   var MAX_INPUT_CHUNK = 32000;
   var COLS_MIN = 20, COLS_MAX = 400, ROWS_MIN = 5, ROWS_MAX = 200;
+  var FONT_FALLBACK = '"JetBrains Mono", "Cascadia Code", Consolas, "D2Coding", "Malgun Gothic", monospace';
 
   var LABELS = {
     en: {
@@ -63,6 +64,24 @@
   function normalizeLanguage(value) {
     var lang = String(value || '').toLowerCase().slice(0, 2);
     return LABELS[lang] ? lang : 'en';
+  }
+  function readTerminalFont() {
+    return window.getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || FONT_FALLBACK;
+  }
+  function syncTerminalFont(mounted) {
+    function update() {
+      if (ctx !== mounted || !mounted.term) return;
+      var fontFamily = readTerminalFont();
+      if (mounted.term.options.fontFamily !== fontFamily) {
+        mounted.term.options.fontFamily = fontFamily;
+        scheduleFit();
+      }
+    }
+    if (document.fonts?.status === 'loading') {
+      // xterm measures the cell using its current font. Switching from the
+      // initial face after the web font loads triggers a fresh measurement.
+      document.fonts.ready.then(update).catch(function () { /* keep fallback */ });
+    } else update();
   }
   function t(key) {
     var lang = ctx ? ctx.language : 'en';
@@ -490,7 +509,7 @@
     }
 
     ctx.term = new TerminalCtor({
-      fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, "D2Coding", "Malgun Gothic", monospace',
+      fontFamily: document.fonts?.status === 'loading' ? FONT_FALLBACK : readTerminalFont(),
       fontSize: 13, lineHeight: 1.2, cursorBlink: true, scrollback: 5000,
       theme: THEME, allowProposedApi: false, convertEol: false, macOptionIsMeta: true,
       minimumContrastRatio: 4.5,
@@ -500,6 +519,7 @@
       ctx.term.loadAddon(ctx.fit);
     }
     ctx.term.open(ctx.ui.host);
+    syncTerminalFont(ctx);
     ctx.disposables.push(ctx.term.onData(queueInput));
     ctx.disposables.push(ctx.term.onBinary(queueInput));
 
@@ -544,7 +564,7 @@
   function render(state) {
     if (!ctx) return;
     var next = normalizeLanguage((state && state.settings && state.settings.language) || ctx.language);
-    if (next !== ctx.language) { ctx.language = next; applyLabels(); }
+    if (next !== ctx.language) { ctx.language = next; applyLabels(); syncTerminalFont(ctx); }
     scheduleFit();
   }
 

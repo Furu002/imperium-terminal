@@ -58,3 +58,8 @@
   .io-window-actions button{min-height:34px;padding:6px 8px;font-size:12px}
   .io-window-placeholder{padding:16px;font-size:14px}
 }
+
+.io-ai-avatar.io-branded-avatar {
+  border-color: var(--line, #444);
+  background: var(--panel-raised, #181818);
+}

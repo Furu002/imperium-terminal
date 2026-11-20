@@ -76,7 +76,7 @@
 .imperium-terminal__meta-label:not(:first-of-type) { margin-left: 10px; }
 .imperium-terminal__meta-value { color: var(--it-text); }
 .imperium-terminal__cwd {
-  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-family: var(--font, "JetBrains Mono", "Cascadia Code", Consolas, monospace);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -107,7 +107,7 @@
 .imperium-terminal__draft-input {
   flex: 1 1 260px;
   min-width: 0;
-  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-family: var(--font, "JetBrains Mono", "Cascadia Code", Consolas, monospace);
   background: var(--it-bg);
 }
 .imperium-terminal__draft-hint { color: var(--it-muted); font-size: 12px; }

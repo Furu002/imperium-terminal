@@ -17,6 +17,15 @@ Original font files and license texts are included in `public/fonts/`.
 - License: SIL Open Font License 1.1; see `public/fonts/JetBrainsMono-OFL.txt`.
 - File: `jetbrains-mono-variable.woff2`.
 
+## IBM Plex Mono Variable
+
+- Project: https://github.com/IBM/plex
+- Source: `@ibm/plex-mono-variable@1.0.0`, revision `bf260093582f04622aacc1e9f9ca604d7ccd0c42`.
+- License: SIL Open Font License 1.1. The upstream WOFF2 notice is in `public/fonts/IBM-Plex-Mono-OFL.txt`.
+- File: `ibm-plex-mono-variable.woff2` is the unmodified Roman variable face from `fonts/complete/woff2/IBM Plex Mono Var-Roman.woff2`.
+
+The terminal checks system fonts for Bloomberg Fixed Unicode before falling back to the bundled IBM Plex Mono face.
+
 Font filenames are normalized for local serving. Font data has not been modified.
 
 ## Runtime libraries

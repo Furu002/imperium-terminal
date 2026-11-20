@@ -153,5 +153,5 @@
     if (!dirty && !pending) { baseline = valueOf(state.settings); draft = { ...baseline }; }
     refreshLabels(); updateForm(); if (dialog && previousLanguage !== language) paintReview();
   }
-  window.ImperiumAccessReview = Object.freeze({ render, destroy() { mountGeneration++; saveGeneration++; closeReview(); root?.remove(); root = null; labels.clear(); pending = false; dirty = false; } });
+  window.ImperiumAccessReview = Object.freeze({ render, openReview() { if (root) openReview(); }, destroy() { mountGeneration++; saveGeneration++; closeReview(); root?.remove(); root = null; labels.clear(); pending = false; dirty = false; } });
 }());

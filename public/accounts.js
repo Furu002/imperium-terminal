@@ -26,6 +26,19 @@
   const sourceLabel = source => tr({ account: '계정에서 확인', alias: 'CLI 별칭', local: '로컬 모델', manual: '직접 입력' }[source] || '직접 입력');
   const providerState = id => state.providers?.find(provider => provider.id === id);
   const statusText = provider => provider?.status === 'disabled' ? ({ ko: '로컬 모드에서 비활성', en: 'Disabled in local mode', ja: 'ローカルモードで無効' }[language()] || 'Disabled') : tr({ ready: '연결됨', login_required: '로그인 필요', missing: '설치 필요', error: '확인 필요' }[provider?.status] || '연결 상태 확인 중');
+  function updateProviderMark(mark, providerId, name = providerId) {
+    const picture = providerId && window.ImperiumMascots?.createMark?.(providerId, { size: 20 });
+    mark.replaceChildren(picture || String(name || '?').slice(0, 1));
+  }
+  function providerMark(providerId, name) {
+    const mark = h('span', { class: 'ia-provider-mark', 'aria-hidden': 'true' });
+    updateProviderMark(mark, providerId, name);
+    return mark;
+  }
+  function providerField(select, name) {
+    const mark = providerMark(select.value, name);
+    return { mark, label: field('제공자', h('span', { class: 'ia-provider-selector' }, mark, select)) };
+  }
   function announce(text, failed = false) { if (message) { message.textContent = text; message.classList.toggle('ia-error', failed); } }
   async function request(path, method = 'GET', body) {
     if (callbacks.api) return callbacks.api(path, method === 'GET' ? {} : { method, body });
@@ -55,14 +68,23 @@
     providersList = h('div', { class: 'ia-providers' }); connectionList = h('div', { class: 'ia-connections' });
     providerSelect = h('select', { 'aria-label': tr('제공자'), required: '' }, ...catalog.map(provider => h('option', { value: provider.id }, provider.name)));
     if (catalog.some(provider => provider.id === previous.provider)) providerSelect.value = previous.provider;
+    const registrationProvider = providerField(providerSelect, catalog.find(provider => provider.id === providerSelect.value)?.name);
     labelInput = h('input', { maxlength: '80', required: '', placeholder: tr('예: 개인 개발 계정'), value: previous.label || '', 'aria-label': tr('표시 이름') });
     modelSelect = h('select', { 'aria-label': tr('모델 선택') }, h('option', { value: '' }, tr('CLI 기본 모델')), h('option', { value: '__manual__' }, tr('모델 ID 직접 입력')));
     manualInput = h('input', { maxlength: '150', placeholder: tr('모델 ID'), value: previous.manual || '', 'aria-label': tr('모델 ID'), hidden: '' });
     modelDetail = h('p', { class: 'ia-field-help' }, tr('자동으로 확인되지 않는 모델은 ID를 직접 입력할 수 있습니다.'));
     registerButton = h('button', { type: 'submit', class: 'ia-primary' }, '+ ', tr('연결 등록'));
-    registerForm = h('form', { class: 'ia-register-form' }, h('h3', {}, tr('새 연결 등록')), field('제공자', providerSelect), field('표시 이름', labelInput), h('div', { class: 'ia-model-heading' }, h('label', {}, tr('모델 선택')), h('button', { type: 'button', onclick: loadModels }, tr('모델 목록 확인'))), modelSelect, manualInput, modelDetail, h('p', { class: 'ia-field-help' }, tr('연결 등록은 구독 로그인이나 모델 접근 권한을 대신하지 않습니다.')), registerButton);
+    registerForm = h('form', { class: 'ia-register-form' }, h('h3', {}, tr('새 연결 등록')), registrationProvider.label, field('표시 이름', labelInput), h('div', { class: 'ia-model-heading' }, h('label', {}, tr('모델 선택')), h('button', { type: 'button', onclick: loadModels }, tr('모델 목록 확인'))), modelSelect, manualInput, modelDetail, h('p', { class: 'ia-field-help' }, tr('연결 등록은 구독 로그인이나 모델 접근 권한을 대신하지 않습니다.')), registerButton);
     modelSelect.addEventListener('change', () => { manualInput.hidden = modelSelect.value !== '__manual__'; manualInput.required = !manualInput.hidden; if (!manualInput.hidden) manualInput.focus(); });
-    providerSelect.addEventListener('change', () => { modelRequest++; modelSelect.replaceChildren(h('option', { value: '' }, tr('CLI 기본 모델')), h('option', { value: '__manual__' }, tr('모델 ID 직접 입력'))); manualInput.hidden = true; manualInput.required = false; modelDetail.textContent = tr('이 연결에서 사용할 모델을 선택하세요.'); });
+    providerSelect.addEventListener('change', () => {
+      const provider = catalog.find(candidate => candidate.id === providerSelect.value);
+      updateProviderMark(registrationProvider.mark, providerSelect.value, provider?.name);
+      modelRequest++;
+      modelSelect.replaceChildren(h('option', { value: '' }, tr('CLI 기본 모델')), h('option', { value: '__manual__' }, tr('모델 ID 직접 입력')));
+      manualInput.hidden = true;
+      manualInput.required = false;
+      modelDetail.textContent = tr('이 연결에서 사용할 모델을 선택하세요.');
+    });
     registerForm.addEventListener('submit', registerConnection);
     container.classList.add('ia-accounts');
     container.replaceChildren(heading, h('div', { class: 'ia-layout' }, h('section', { class: 'ia-provider-section' }, h('h3', { class: 'ia-section-title' }, tr('사용 가능한 제공자')), providersList), h('aside', { class: 'ia-account-sidebar' }, registerForm, h('section', { class: 'ia-registered-section' }, h('h3', {}, tr('등록한 연결')), connectionList))), h('div', { class: 'ia-scope-note' }, h('strong', {}, tr('각 사용자는 자신의 컴퓨터와 OS 사용자 계정에서 로그인합니다.')), h('p', {}, tr('같은 OS 사용자의 연결은 해당 제공자의 CLI 로그인을 공유합니다.')), h('p', {}, tr('명령은 터미널에 입력만 되며 자동 실행되지 않습니다.'))), message);
@@ -72,7 +94,7 @@
     if (!providersList) return;
     providersList.replaceChildren(...catalog.map(provider => {
       const actual = providerState(provider.id), card = h('article', { class: 'ia-provider-card', 'data-provider-id': provider.id, 'data-status': actual?.status || 'unknown' });
-      card.append(h('div', { class: 'ia-provider-heading' }, h('div', { class: 'ia-provider-name' }, h('span', { class: 'ia-provider-mark' }, provider.name.slice(0, 1)), h('h4', {}, provider.name)), h('span', { class: 'ia-provider-status', 'data-status': actual?.status || 'unknown' }, statusText(actual))));
+      card.append(h('div', { class: 'ia-provider-heading' }, h('div', { class: 'ia-provider-name' }, providerMark(provider.id, provider.name), h('h4', {}, provider.name)), h('span', { class: 'ia-provider-status', 'data-status': actual?.status || 'unknown' }, statusText(actual))));
       if (provider.description) card.append(h('p', { class: 'ia-provider-description' }, provider.description));
       if (provider.requiresNode) card.append(h('p', { class: 'ia-runtime-note' }, 'Node.js ', h('span', {}, '· ', tr('환경 준비'))));
       if (provider.installCommand) card.append(commandBox(provider.installCommand, '설치'));
@@ -87,7 +109,17 @@
     connectionList.replaceChildren(...connections.map(connection => {
       const provider = catalog.find(item => item.id === connection.providerId), actual = providerState(connection.providerId);
       const assignments = assignedAgents(connection.id);
-      return h('article', { class: 'ia-connection', 'data-connection-id': connection.id }, h('div', {}, h('strong', {}, connection.label), h('p', {}, `${provider?.name || connection.providerId} · ${connection.modelId || tr('CLI 기본 모델')}`), h('span', { class: 'ia-provider-status', 'data-status': actual?.status || 'unknown' }, statusText(actual)), ...(assignments.length ? [h('p', { class: 'ia-error', 'data-connection-blocked': connection.id }, tr('먼저 에이전트의 연결을 해제하세요.'), ' ', assignments.map(agent => agent.name || agent.id).join(', '))] : [])), h('button', { type: 'button', disabled: assignments.length > 0, 'data-remove-connection': connection.id, title: tr('연결 목록에서만 제거되며 CLI에서 로그아웃하지 않습니다.'), onclick: () => confirmConnectionRemoval(connection) }, tr('모델 연결 제거')));
+      const identity = h('div', { class: 'ia-connection-identity' },
+        providerMark(connection.providerId, provider?.name),
+        h('div', { class: 'ia-connection-details' },
+          h('strong', {}, connection.label),
+          h('p', {}, `${provider?.name || connection.providerId} · ${connection.modelId || tr('CLI 기본 모델')}`),
+          h('span', { class: 'ia-provider-status', 'data-status': actual?.status || 'unknown' }, statusText(actual)),
+          ...(assignments.length ? [h('p', { class: 'ia-error', 'data-connection-blocked': connection.id }, tr('먼저 에이전트의 연결을 해제하세요.'), ' ', assignments.map(agent => agent.name || agent.id).join(', '))] : [])
+        )
+      );
+      return h('article', { class: 'ia-connection', 'data-connection-id': connection.id }, identity,
+        h('button', { type: 'button', disabled: assignments.length > 0, 'data-remove-connection': connection.id, title: tr('연결 목록에서만 제거되며 CLI에서 로그아웃하지 않습니다.'), onclick: () => confirmConnectionRemoval(connection) }, tr('모델 연결 제거')));
     }));
   }
   function assignedAgents(id) { return [...(state.departments || []), ...(state.projects || []).flatMap(value => value.departments || [])].filter(agent => agent.connectionId === id); }
@@ -145,7 +177,7 @@
     const body = h('div', { class: 'ia-wizard-body' });
     const selector = h('select', { 'aria-label': tr('제공자') }, ...catalog.map(item => h('option', { value: item.id }, item.name))); selector.value = provider.id;
     selector.addEventListener('change', () => { wizardProvider = selector.value; renderWizard(); });
-    if (wizardStep < 3) body.append(field('제공자', selector));
+    if (wizardStep < 3) body.append(providerField(selector, provider.name).label);
     if (wizardStep === 0) {
       const modeCopy = { ko: '로컬 전용 AI · Ollama 모델만 사용', en: 'Local-only AI · use Ollama models', ja: 'ローカル専用AI · Ollamaモデルを使用' }[language()];
       const mode = h('input', { type: 'checkbox' }); mode.checked = state.settings?.localOnly === true;
