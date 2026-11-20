@@ -24,7 +24,9 @@ function fixture(output = '=SUM(1,2)\nA real result') {
 const memory = { nodes: [{ id: 'memory-1', title: '@memory', content: '=Keep these facts', kind: 'note', tags: ['project', 'source'], pinned: true, revision: 3, createdAt: when, updatedAt: when, credential: 'PRIVATE_MEMORY_CREDENTIAL' }], edges: [] };
 
 test('XLSX export contains seven styled localized sheets and only whitelisted data', async () => {
-  const buffer = await buildExportWorkbook(fixture(), { memory, language: 'en' });
+  const state = fixture();
+  Object.assign(state.tasks[0], { departmentName: 'Original project agent', reportedModel: 'runtime-model' });
+  const buffer = await buildExportWorkbook(state, { memory, language: 'en' });
   assert.ok(Buffer.isBuffer(buffer)); assert.equal(buffer.subarray(0, 2).toString(), 'PK');
   const workbook = await read(buffer);
   assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['Summary', 'Tasks', 'Task Output', 'Departments', 'Events', 'Memory', 'Connections']);
@@ -33,6 +35,8 @@ test('XLSX export contains seven styled localized sheets and only whitelisted da
     assert.ok(sheet.autoFilter); assert.equal(sheet.getRow(1).getCell(1).font.bold, true); assert.ok(sheet.getColumn(1).width >= 20);
   }
   assert.equal(workbook.getWorksheet('Tasks').getCell('J2').value.toISOString(), when);
+  assert.equal(workbook.getWorksheet('Tasks').getCell('C2').value, 'Original project agent');
+  assert.equal(workbook.getWorksheet('Tasks').getCell('E2').value, 'runtime-model');
   assert.equal(workbook.getWorksheet('Tasks').getCell('R2').value, 'Analyze the requirements and report your findings.');
   assert.equal(workbook.getWorksheet('Tasks').getCell('S1').value, 'Requested reasoning effort');
   assert.equal(workbook.getWorksheet('Tasks').getCell('T1').value, 'Requested processing speed');

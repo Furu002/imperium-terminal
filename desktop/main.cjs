@@ -205,7 +205,12 @@ async function startApplication() {
   });
   const { url } = await terminalServer.start();
   terminalURL = url;
-  updater = createUpdater({ app, sendState: createStateSender(() => mainWindow), offline: terminalServer.store.state.settings.localOnly === true, channel: { owner: 'Furu002', repo: 'imperium-terminal' } });
+  updater = createUpdater({
+    app, sendState: createStateSender(() => mainWindow),
+    offline: terminalServer.store.state.settings.localOnly === true,
+    beginInstall: terminalServer.beginDesktopUpdate,
+    channel: { owner: 'Furu002', repo: 'imperium-terminal' },
+  });
   removeUpdateIpc = registerUpdateIpc({ ipcMain, updater, getMainWindow: () => mainWindow, isTrustedURL: isLocalPage });
   installMenu();
   menuTimer = setInterval(installMenu, 1000);

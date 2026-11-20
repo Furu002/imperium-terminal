@@ -308,6 +308,37 @@ test('Windows cancellation uses one numeric process-tree termination without a s
   assert.equal(exits.length, 1); assert.equal(exits[0].code, 130);
 });
 
+test('slow CLI cancellation waits for close after the escalation timer', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = childProcess(), signals = [], exits = [];
+  child.kill = signal => { signals.push(signal); return true; };
+  const run = createAdditionalProviderRunner({ locate: async () => target, probe: async () => ({ code: 0, stdout: help, stderr: '' }), spawnProcess: () => child, platform: 'linux' });
+  const handle = await run({ provider: 'copilot', prompt: '상태 확인', onExit: result => exits.push(result) });
+  handle.cancel();
+  t.mock.timers.tick(4000);
+  assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
+  assert.deepEqual(exits, []);
+  child.emit('close', null);
+  assert.equal(exits.length, 1);
+  assert.equal(exits[0].code, 130);
+});
+
+test('cancelling Gemini during setup removes prepared context without starting the CLI', async () => {
+  const controller = new AbortController();
+  let cleaned = false;
+  const run = createAdditionalProviderRunner({
+    locate: async () => target,
+    probe: async () => ({ code: 0, stdout: help, stderr: '' }),
+    prepareGemini: async () => {
+      controller.abort();
+      return { ...await mockContext(), cleanup: async () => { cleaned = true; } };
+    },
+    spawnProcess: () => assert.fail('cancelled work must not launch a model'),
+  });
+  await assert.rejects(run({ provider: 'gemini', prompt: '검토', signal: controller.signal }), { name: 'AbortError' });
+  assert.equal(cleaned, true);
+});
+
 test('invalid CLI JSON and spawn failures cannot become successful empty tasks', async () => {
   for (const failure of ['json', 'spawn']) {
     const child = childProcess(); const exits = [];

@@ -275,6 +275,41 @@ test('progress clamps and download errors surface safely', async () => {
   assert.equal(state.progress, null);
 });
 
+test('an installer error event releases the update controls so the user can retry', async () => {
+  let workActive = true;
+  let reserved = false;
+  const { updater, fake, timers, sent } = harness({
+    onCheck: available({ version: '1.2.0' }),
+    extra: { beginInstall() {
+      if (workActive) return null;
+      reserved = true;
+      return () => { reserved = false; };
+    } },
+  });
+  await flush();
+  assert.equal((await updater.download()).ok, true);
+  assert.equal((await updater.install()).reason, 'work_active');
+  assert.equal(updater.getState().status, 'downloaded');
+  assert.equal(timers.timeouts.length, 0);
+  workActive = false;
+  fake.quitAndInstall = () => {
+    assert.equal(reserved, true);
+    fake.emit('error', new Error('Installer file is missing'));
+  };
+  assert.equal((await updater.install()).state.installing, true);
+  assert.equal(reserved, true);
+  timers.timeouts[0].fn();
+
+  const state = sent.at(-1);
+  assert.equal(state.status, 'error');
+  assert.equal(state.installing, false);
+  assert.equal(state.canCheck, true);
+  assert.equal(reserved, false);
+  assert.equal(state.error.message, 'Installer file is missing');
+  assert.equal((await updater.check()).ok, true);
+  assert.equal(updater.getState().canDownload, true);
+});
+
 test('errors are redacted, classified and capped at 300 characters', async () => {
   const secret = 'ghp_' + 'A'.repeat(36);
   const message = `HttpError: 404 Not Found "method: GET url: https://api.github.com/repos/o/r/releases?access_token=${secret}&x=1" `
@@ -532,7 +567,11 @@ test('local-only cancels an active file download and rejects its late completion
 });
 
 test('entering local-only cancels an installation queued before its IPC reply was delivered', async () => {
-  const { updater, fake, timers } = harness({ onCheck: available({ version: '1.2.0' }) });
+  let released = 0;
+  const { updater, fake, timers } = harness({
+    onCheck: available({ version: '1.2.0' }),
+    extra: { beginInstall: () => () => { released++; } },
+  });
   await flush();
   fake.onDownload = u => { u.emit('update-downloaded', { version: '1.2.0' }); };
   await updater.download();
@@ -540,6 +579,27 @@ test('entering local-only cancels an installation queued before its IPC reply wa
   updater.setOffline(true);
   timers.timeouts[0].fn();
   assert.deepEqual(fake.installs, []);
+  assert.equal(released, 1);
+  assert.equal(updater.getState().installing, false);
+  assert.equal(updater.getState().status, 'offline');
+});
+
+test('local-only preserves the admission guard after the installer starts until it fails or the app quits', async () => {
+  let released = 0;
+  const { updater, fake, timers } = harness({
+    onCheck: available({ version: '1.2.0' }),
+    extra: { beginInstall: () => () => { released++; } },
+  });
+  await flush();
+  await updater.download();
+  assert.equal((await updater.install()).ok, true);
+  timers.timeouts[0].fn();
+  assert.equal(fake.installs.length, 1);
+  updater.setOffline(true);
+  assert.equal(released, 0);
+  assert.equal(updater.getState().installing, true);
+  fake.emit('error', new Error('Installer file is missing'));
+  assert.equal(released, 1);
   assert.equal(updater.getState().installing, false);
   assert.equal(updater.getState().status, 'offline');
 });

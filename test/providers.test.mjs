@@ -322,6 +322,31 @@ test('cancellation and repeated process events finish only once', async () => {
   assert.equal(exits[0].code, 130);
 });
 
+test('cancellation escalates a slow CLI and waits for the real close event', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = fakeChild(), signals = [], exits = [];
+  child.kill = signal => { signals.push(signal); return true; };
+  const run = createProviderRunner({ locate: async () => ({ command: '/bin/codex', prefix: [] }), spawnProcess: () => child, platform: 'linux' });
+  const handle = await run({ provider: 'codex', prompt: '상태 확인', onExit: result => exits.push(result) });
+  handle.cancel();
+  t.mock.timers.tick(4000);
+  assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
+  child.emit('error', Object.assign(new Error('Stop pending'), { code: 'EBUSY' }));
+  assert.deepEqual(exits, []);
+  child.emit('close', null);
+  assert.equal(exits.length, 1);
+  assert.equal(exits[0].code, 130);
+});
+
+test('cancellation during CLI discovery prevents a new process from spawning', async () => {
+  const controller = new AbortController();
+  const run = createProviderRunner({
+    locate: async () => { controller.abort(); return { command: '/bin/codex', prefix: [] }; },
+    spawnProcess: () => assert.fail('cancelled work must not launch a model'),
+  });
+  await assert.rejects(run({ provider: 'codex', prompt: '상태 확인', signal: controller.signal }), { name: 'AbortError' });
+});
+
 test('spawn failure becomes one actionable exit without throwing from event handlers', async () => {
   const child = fakeChild();
   const exits = [];

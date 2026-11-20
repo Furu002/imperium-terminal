@@ -139,6 +139,45 @@ test('department definitions are snapshotted and restored per project', async t 
   assert.equal((await manager.select(home)).current, true, 'selecting the current project is a no-op');
 });
 
+test('failed project writes roll back registry, metadata, and active workspace', async t => {
+  const { manager, state, store, workspace, root } = fixture(t);
+  const home = manager.list().currentProjectId;
+  const project = await manager.create({ name: 'Existing' });
+  const external = path.join(root, 'external');
+  mkdirSync(external);
+  state.departments[0].name = 'Current project name';
+  const before = structuredClone(state);
+  const save = store.save;
+  store.save = () => { throw Object.assign(new Error('Storage busy'), { code: 'EBUSY' }); };
+  const busy = error => error.code === 'EBUSY';
+
+  const projectsParent = path.dirname(project.workspace);
+  const existingFolders = readdirSync(projectsParent);
+  await assert.rejects(manager.create({ name: 'Failed' }), busy);
+  assert.deepEqual(readdirSync(projectsParent), existingFolders);
+  assert.throws(() => manager.update(project.id, { name: 'Unsaved', color: '#123456' }), busy);
+  await assert.rejects(manager.select(project.id), busy);
+  await assert.rejects(manager.switchWorkspace(external), busy);
+  assert.deepEqual(state, before);
+  assert.equal(manager.list().currentProjectId, home);
+  assert.equal(state.settings.workspace, workspace);
+
+  store.save = save;
+  assert.equal((await manager.switchWorkspace(external)).current, true);
+  assert.equal((await manager.select(home)).current, true);
+  assert.equal(state.departments[0].name, 'Current project name');
+});
+
+test('a blocked switch leaves an unregistered folder outside the project list', async t => {
+  const { manager, state, root } = fixture(t);
+  const original = manager.list();
+  const external = path.join(root, 'blocked');
+  mkdirSync(external);
+  state.tasks = [{ id: 'pending', status: 'queued' }];
+  await assert.rejects(manager.switchWorkspace(external), hasStatus(409));
+  assert.deepEqual(manager.list(), original);
+});
+
 test('registry survives a persisted restart and legacy state without projects', async t => {
   const { manager, state, store } = fixture(t);
   const other = await manager.create({ name: 'Zeta', color: '#666666' });

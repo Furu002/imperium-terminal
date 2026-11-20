@@ -8,6 +8,16 @@ const otherWorkspace = path.resolve('ui-project-sibling');
 const task = (id, changes = {}) => ({ id, workspace, status: 'completed', title: `업무 ${id}`, prompt: '원래 지시는 줄이지 않습니다.', provider: 'claude', modelId: 'configured-model', departmentId: 'engineering', permission: 'read-only', output: '결과', logs: [], usage: { inputTokens: 50, outputTokens: 20 }, ...changes });
 const state = (tasks = [], changes = {}) => ({ settings: { workspace, localOnly: true, identity: { name: '나', title: '설계자' } }, tasks, departments: [{ id: 'engineering', name: '개발', role: '현재 역할' }], events: [], projects: [], graphs: {}, providers: [{ id: 'claude', status: 'ready' }], connections: [{ id: 'default-claude', providerId: 'claude', label: '개발 AI' }], server: { csrfToken: 'local-ui-token', version: '1.3.0' }, ...changes });
 
+test('UI snapshot revisions increase per server state without changing the source', () => {
+  const firstServer = state();
+  const secondServer = state();
+  assert.equal(createUISnapshot(firstServer).server.snapshotRevision, 1);
+  assert.equal(createUISnapshot(firstServer).server.snapshotRevision, 2);
+  assert.equal(createUISnapshot(secondServer).server.snapshotRevision, 1);
+  assert.equal(createUISnapshot(firstServer).server.snapshotRevision, 3);
+  assert.equal(Object.hasOwn(firstServer.server, 'snapshotRevision'), false);
+});
+
 test('200 long completed results have bounded UI previews while original results, prompts, and logs stay untouched', () => {
   const output = '가'.repeat(150_000);
   const logs = Array.from({ length: 300 }, (_, index) => ({ id: `log-${index}`, text: `긴 기록 ${index}` }));

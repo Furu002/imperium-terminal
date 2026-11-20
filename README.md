@@ -245,7 +245,7 @@ Pretendard·Pretendard JP·JetBrains Mono 글꼴은 `public/fonts/`에 포함되
 
 ## 업데이트와 배포 상태
 
-소스와 업데이트 배포 채널은 [Furu002/imperium-terminal](https://github.com/Furu002/imperium-terminal)입니다. 저장소 공개 전환에는 소유자 재인증이 필요할 수 있습니다. 버전과 같은 `v1.7.0` 형태의 태그를 게시하면 Windows·macOS·Linux 빌드가 모두 성공한 뒤 설치 파일·SHA256SUMS·업데이트 메타데이터를 릴리스에 게시하도록 설정했습니다. **업데이트(F7)**는 시작 시와 5분 간격으로 확인하며 다운로드와 설치는 직접 선택합니다. 로컬 전용 모드에서는 업데이트 통신도 중단합니다.
+소스와 업데이트 배포 채널은 [Furu002/imperium-terminal](https://github.com/Furu002/imperium-terminal)입니다. 저장소 공개 전환에는 소유자 재인증이 필요할 수 있습니다. 버전과 같은 `v1.7.0` 형태의 태그를 게시하면 Windows·macOS·Linux 빌드가 모두 성공한 뒤 설치 파일·SHA256SUMS·업데이트 메타데이터를 릴리스에 게시하도록 설정했습니다. **업데이트(F7)**는 시작 시와 5분 간격으로 확인하며 다운로드와 설치는 직접 선택합니다. AI 작업이 대기 중이거나 실행 중이면 작업을 마친 뒤 설치할 수 있습니다. 로컬 전용 모드에서는 업데이트 통신도 중단합니다.
 
 Windows 설치본은 NSIS 업데이트 경로를 사용하고, Linux AppImage는 AppImage 업데이트 경로를 사용합니다. Linux DEB는 새 패키지를 받아 수동으로 설치합니다. macOS는 서명 인증서가 없는 현재 구성에서 수동 업데이트가 필요할 수 있습니다. 파일 해시 검증은 코드 서명을 대신하지 않으며 **Sato Junichiro** 제작자 메타데이터도 인증서 서명이 아닙니다. 방화벽이나 OS 보안 설정 전체를 끄는 절차는 제공하지 않습니다.
 

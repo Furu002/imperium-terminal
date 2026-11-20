@@ -241,6 +241,7 @@ function createUpdater(options = {}) {
   const {
     app,
     sendState,
+    beginInstall,
     platform = process.platform,
     env = process.env,
     now = () => Date.now(),
@@ -272,6 +273,8 @@ function createUpdater(options = {}) {
   let inFlight = null;
   let downloading = null;
   let installing = false;
+  let installerInvoked = false;
+  let releaseInstall = null;
   let disposed = false;
   let interval = null;
   let lastManualCheckAt = -Infinity;
@@ -343,7 +346,16 @@ function createUpdater(options = {}) {
     emit();
   }
 
+  function resetInstall() {
+    installing = false;
+    installerInvoked = false;
+    releaseInstall?.();
+    releaseInstall = null;
+  }
+
   function applyError(error, fallbackCode) {
+    resetInstall();
+    if (offline) { emit(); return; }
     const code = fallbackCode || errorCode(error);
     update({ status: 'error', progress: null, error: { code, message: safeErrorMessage(error) } });
   }
@@ -417,10 +429,12 @@ function createUpdater(options = {}) {
       'download-progress': (progress) => applyProgress(progress),
       'update-downloaded': (info) => applyDownloaded(info),
       'update-cancelled': () => { if (state.status === 'downloading') update({ status: 'available', progress: null }); },
-      error: (error) => applyError(error),
+      error: (error) => { applyError(error); resumeIfIdle(); },
     };
     for (const name of UPDATER_EVENTS) {
-      const handler = (...args) => { if (!disposed && !offline && generation === epoch) handlers[name](...args); };
+      const handler = (...args) => {
+        if (!disposed && ((!offline && generation === epoch) || (name === 'error' && installerInvoked))) handlers[name](...args);
+      };
       candidate.on(name, handler);
       listeners.push([name, handler]);
     }
@@ -605,17 +619,22 @@ function createUpdater(options = {}) {
     if (!eligible() || !updater) return refusal(baseStatus() || 'unavailable');
     if (installing) return refusal('installing');
     if (state.status !== 'downloaded') return refusal('not_downloaded');
+    if (beginInstall) {
+      const release = beginInstall();
+      if (!release) return refusal('work_active');
+      releaseInstall = release;
+    }
     installing = true;
     const epoch = generation;
     emit();
     // Let the IPC reply reach the renderer before the app starts quitting.
     setTimeoutFn(() => {
-      if (disposed || offline || epoch !== generation) return;
+      if (!installing || disposed || offline || epoch !== generation) return;
+      installerInvoked = true;
       try {
         // isSilent=false shows the NSIS installer UI; isForceRunAfter=true relaunches IMPERIUM.
         updater.quitAndInstall(false, true);
       } catch (error) {
-        installing = false;
         applyError(error);
       }
     }, 0);
@@ -673,7 +692,7 @@ function createUpdater(options = {}) {
     interval = null;
     if (offline) {
       resumeRequested = false;
-      installing = false;
+      if (!installerInvoked) resetInstall();
       update({ status: 'offline', offline: true, notice: 'local-only', progress: null, error: null, nextCheckAt: null, manualCheckAvailableAt: null });
       cancelRequests();
     } else {
@@ -690,6 +709,7 @@ function createUpdater(options = {}) {
     disposed = true;
     generation++;
     resumeRequested = false;
+    resetInstall();
     cancelRequests();
     if (interval) clearIntervalFn(interval);
     interval = null;

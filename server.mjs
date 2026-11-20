@@ -61,12 +61,27 @@ export function createHQServer({
   const clients = new Set();
   const demoTimers = new Set();
   let actualPort, closing = false, scheduled = false, dirty = false;
+  let desktopUpdate = null;
   let lastDetection = 0;
-  const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTask, validateTask, isTaskActive: task => active.has(task.id), getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery, projectParent, quotaReaders, changeReview });
+  const extensions = createWorkspaceAPI({ dataDir, state, store, notify, bodyJSON, json, addTasks, isTaskActive: task => active.has(task.id), getURL: () => `http://127.0.0.1:${actualPort}`, terminalManager, modelDiscovery, projectParent, quotaReaders, changeReview });
   const teams = createTeamRuns({ state, store, queue, notify, stopTask, isTaskActive: task => active.has(task.id), record });
 
   function notify() { dirty = true; }
   function record(type, text, extra = {}) { store.event(type, text, { workspace: state.settings.workspace, ...extra }); notify(); }
+  function assertTaskAdmission() {
+    if (closing) throw fail(503, '서버를 종료하고 있습니다.');
+    if (desktopUpdate) throw fail(409, '앱 업데이트를 적용하는 동안에는 새 AI 작업을 시작할 수 없습니다.');
+  }
+  function beginDesktopUpdate() {
+    if (closing || desktopUpdate || active.size || state.tasks.some(task => ['queued', 'running'].includes(task.status))
+      || state.teamRuns.some(team => team.turns.some(turn => ['planning', 'running'].includes(turn.status)))) return null;
+    const release = () => { if (desktopUpdate === release) desktopUpdate = null; };
+    desktopUpdate = release;
+    return release;
+  }
+  function saveTaskOutcome() {
+    try { store.save(); } catch { store.persist(); }
+  }
   function taskEvent(task, event) {
     if (event.type === 'quota') { extensions.observeQuota(task.provider, event.quota); return; }
     if (event.type === 'session' || event.type === 'execution-model') {
@@ -150,13 +165,13 @@ export function createHQServer({
       record(task.status, `${task.demo ? '[DEMO] ' : ''}${task.title} · ${task.status === 'completed' ? '작업 완료' : '작업 실패'}`, { taskId: task.id, departmentId: task.departmentId, provider: task.provider, demo: task.demo, workspace: task.workspace });
       notify();
     }
-    try { store.save(); } finally { notify(); queue(); }
+    saveTaskOutcome(); notify(); queue();
   }
   async function invokeRunner(task, run, prompt, options = {}) {
     const runner = providers === defaultProviders && !['codex', 'claude'].includes(task.provider) ? startAdditionalProvider : providers.startProvider;
     const handle = await runner({
       provider: task.provider, modelId: task.modelId, reasoningEffort: task.reasoningEffort, speed: task.speed,
-      prompt, cwd: task.workspace, permission: task.permission, ...options,
+      prompt, cwd: task.workspace, permission: task.permission, signal: run.controller.signal, ...options,
       onEvent: event => taskEvent(task, event),
       onExit: result => endTask(task, result),
     });
@@ -166,10 +181,15 @@ export function createHQServer({
   async function runTask(task) {
     task.status = 'running';
     task.startedAt = new Date().toISOString();
-    const run = { task, cancel: null, cancelRequested: false };
+    const run = { task, cancel: null, cancelRequested: false, controller: new AbortController() };
     active.set(task.id, run);
+    try { store.save(); }
+    catch {
+      task.startedAt = null;
+      endTask(task, { code: 1, error: '작업 시작 상태를 저장하지 못해 모델을 실행하지 않았습니다.' });
+      return;
+    }
     record('running', `${task.demo ? '[DEMO] ' : ''}${task.title} · 작업 시작`, { taskId: task.id, departmentId: task.departmentId, provider: task.provider, demo: task.demo });
-    store.save(); notify();
     if (task.demo) {
       let step = 0;
       const lines = ['[DEMO] 부서에 지시를 전달했습니다. 실제 모델은 호출하지 않습니다.\n', '[DEMO] 작업 이벤트가 이 콘솔에 실시간으로 표시됩니다.\n', '[DEMO] 결과 보고 완료. 실제 작업은 아래 지시창에서 실행할 수 있습니다.\n'];
@@ -279,7 +299,7 @@ export function createHQServer({
         if (dependencies.some(t => !t || ['failed', 'cancelled', 'interrupted'].includes(t.status))) {
           task.status = 'cancelled'; task.finishedAt = new Date().toISOString(); task.error = '선행 부서의 작업이 완료되지 않아 후속 실행을 중단했습니다.';
           if (task.teamId) teams.settle(task);
-          record('cancelled', task.error, { taskId: task.id, departmentId: task.departmentId, provider: task.provider }); store.save(); continue;
+          record('cancelled', task.error, { taskId: task.id, departmentId: task.departmentId, provider: task.provider }); saveTaskOutcome(); continue;
         }
         if (dependencies.some(t => t.status !== 'completed')) continue;
         if (active.size >= state.settings.maxConcurrent) break;
@@ -319,32 +339,49 @@ export function createHQServer({
     assertTaskPermission(state.settings, permission);
     if (permission === 'workspace-write' && !['codex', 'claude'].includes(provider)) throw fail(400, '이 연결은 현재 읽기 전용 작업을 지원합니다. 파일 수정은 Codex 또는 Claude를 선택해 주세요.');
     if (!demo && !state.providers.some(p => p.id === provider && p.status === 'ready' && p.authenticated === true)) throw fail(409, `${provider === 'codex' ? 'Codex' : 'Claude Code'} 연결이 필요합니다. 연결 설정에서 설치·로그인 상태를 확인해 주세요.`);
-    if (state.tasks.filter(t => ['queued', 'running'].includes(t.status)).length >= 30) throw fail(409, '대기 작업이 많습니다. 현재 작업이 끝난 뒤 다시 지시해 주세요.');
     const execution = resolveExecutionOptions(provider, input, provider === department.provider ? department : {});
     if (!demo) validateConversationRequest(state, input, { workspace: state.settings.workspace, departmentId: department.id, provider, connectionId: connection?.id || null, modelId, permission });
     return { department, provider, modelId, priority, permission, connection, harness, ...execution };
   }
-  function addTask(input, demo = false) {
-    const { department, provider, modelId, priority, permission, connection, reasoningEffort, speed, harness } = validateTask(input, demo);
-    const conversation = demo ? null : assignConversation(state, input, { workspace: state.settings.workspace, departmentId: department.id, provider, connectionId: connection?.id || null, modelId, permission });
-    const task = {
-      id: randomUUID(), title: String(input.title || input.prompt.trim().split('\n')[0]).replace(/[\x00-\x1f]/g, ' ').slice(0, 90),
-      prompt: input.prompt.trim(), departmentId: department.id, departmentName: department.name, provider, priority, permission, modelId, reasoningEffort, speed, connectionId: connection?.id || null, workspace: state.settings.workspace,
-      status: 'queued', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null,
-      output: '', error: null, logs: [], usage: { inputTokens: 0, outputTokens: 0 }, demo,
-      ...(harness ? { harness } : {}),
-      ...(conversation ? { conversationId: conversation.id, conversationTransport: conversation.transport } : {}),
-    };
-    state.tasks = tasksWithAppended(state.tasks, [task], item => active.has(item.id));
-    pruneConversations(state);
-    record('queued', `${demo ? '[DEMO] ' : ''}${task.title} · ${department.name} 지시 접수`, { taskId: task.id, departmentId: department.id, provider, demo });
-    store.save(); queue();
-    return task;
+  function addTasks(inputs, { demo = false, workflowId, handoffEdges = [] } = {}) {
+    assertTaskAdmission();
+    if (state.tasks.filter(t => ['queued', 'running'].includes(t.status)).length + inputs.length > 30) throw fail(409, '대기 작업이 많습니다. 현재 작업이 끝난 뒤 다시 지시해 주세요.');
+    const assignments = inputs.map(input => validateTask(input, demo));
+    const snapshot = { ...state, conversations: state.conversations.map(item => ({ ...item })), events: [...state.events] };
+    const byDepartment = new Map();
+    const tasks = inputs.map((input, index) => {
+      const { department, provider, modelId, priority, permission, connection, reasoningEffort, speed, harness } = assignments[index];
+      const workspace = state.settings.workspace;
+      const conversation = demo ? null : assignConversation(snapshot, input, { workspace, departmentId: department.id, provider, connectionId: connection?.id || null, modelId, permission });
+      const task = {
+        id: randomUUID(), title: String(input.title || input.prompt.trim().split('\n')[0]).replace(/[\x00-\x1f]/g, ' ').slice(0, 90),
+        prompt: input.prompt.trim(), departmentId: department.id, departmentName: department.name, provider, priority, permission, modelId, reasoningEffort, speed, connectionId: connection?.id || null, workspace,
+        status: 'queued', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null,
+        output: '', error: null, logs: [], usage: { inputTokens: 0, outputTokens: 0 }, demo,
+        ...(harness ? { harness } : {}),
+        ...(conversation ? { conversationId: conversation.id, conversationTransport: conversation.transport } : {}),
+      };
+      if (workflowId) {
+        task.workflowId = workflowId;
+        task.dependsOn = handoffEdges.filter(edge => edge.target === `department:${department.id}`).map(edge => byDepartment.get(edge.source)).filter(Boolean);
+        byDepartment.set(`department:${department.id}`, task.id);
+      }
+      store.event('queued', `${demo ? '[DEMO] ' : ''}${task.title} · ${department.name} 지시 접수`, { taskId: task.id, departmentId: department.id, provider, demo, workspace }, snapshot);
+      return task;
+    });
+    snapshot.tasks = tasksWithAppended(state.tasks, tasks, item => active.has(item.id));
+    pruneConversations(snapshot);
+    // A failed write must leave nothing for a later queue pass to pick up.
+    store.save(snapshot);
+    ({ tasks: state.tasks, conversations: state.conversations, events: state.events } = snapshot);
+    notify(); queue();
+    return tasks;
   }
   function stopTask(task) {
     const run = active.get(task.id);
     if (run) {
       run.cancelRequested = true;
+      run.controller.abort();
       run.cancel?.();
       if (task.demo) { active.delete(task.id); queue(); }
     }
@@ -425,6 +462,7 @@ export function createHQServer({
       if (req.method === 'POST' && (route === '/api/teams' || teamAction)) {
         const input = await bodyJSON(req);
         if (closing) throw fail(503, '서버를 종료하고 있습니다.');
+        if (teamAction?.[2] !== 'cancel') assertTaskAdmission();
         if (!teamAction) return json(res, 201, { team: teams.start(input) });
         if (teamAction[2] === 'turns') return json(res, 201, { team: teams.followup(teamAction[1], input) });
         return json(res, 200, { team: teams.cancel(teamAction[1], input) });
@@ -452,7 +490,7 @@ export function createHQServer({
         req.on('close', () => clients.delete(res));
         return;
       }
-      if (route === '/api/tasks' && req.method === 'POST') return json(res, 201, { task: addTask(await bodyJSON(req)) });
+      if (route === '/api/tasks' && req.method === 'POST') return json(res, 201, { task: addTasks([await bodyJSON(req)])[0] });
       if (route === '/api/departments' && req.method === 'POST') {
         const previousWorkspace = state.settings.workspace;
         const input = await bodyJSON(req);
@@ -595,10 +633,10 @@ export function createHQServer({
       }
       if (route === '/api/demo' && req.method === 'POST') {
         if (state.tasks.some(t => t.demo && ['running', 'queued'].includes(t.status))) throw fail(409, '진행 중인 데모를 먼저 확인해 주세요.');
-        const tasks = [
-          addTask({ prompt: '신규 서비스의 실행 계획과 부서별 역할을 정리해 주세요.', departmentId: 'strategy', provider: 'codex' }, true),
-          addTask({ prompt: '본부 지시에 따라 개발 요구사항을 검토해 주세요.', departmentId: 'engineering', provider: 'claude' }, true),
-        ];
+        const tasks = addTasks([
+          { prompt: '신규 서비스의 실행 계획과 부서별 역할을 정리해 주세요.', departmentId: 'strategy', provider: 'codex' },
+          { prompt: '본부 지시에 따라 개발 요구사항을 검토해 주세요.', departmentId: 'engineering', provider: 'claude' },
+        ], { demo: true });
         return json(res, 201, { tasks });
       }
       if (route === '/api/demo' && req.method === 'DELETE') {
@@ -707,7 +745,7 @@ export function createHQServer({
       task.error = '서버 종료로 작업이 중단됐습니다.';
     }
     interruptTeamRuns(state.teamRuns);
-    for (const run of active.values()) { run.revoke?.(); run.cancelRequested = true; run.cancel?.(); }
+    for (const run of active.values()) { run.revoke?.(); run.cancelRequested = true; run.controller.abort(); run.cancel?.(); }
     active.clear();
     for (const client of clients) client.end();
     clients.clear();
@@ -722,7 +760,7 @@ export function createHQServer({
       });
     }
   }
-  return { server, store, start, close };
+  return { server, store, start, close, beginDesktopUpdate };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -41,6 +41,7 @@ const TRANSLATIONS = {
     '설치': 'INSTALL', '로그인': 'SIGN IN', '상세 정보': 'Details', '연결 상태를 확인하고 있습니다.': 'Checking connection status.', '아직 실행 기록이 없습니다.': 'No execution history yet.', '본부의 첫 지시를 기다리고 있습니다.': 'Standing by for your first command.', '작업을 보내면 모델의 활동이 여기에 표시됩니다.': 'Model activity will appear here after you dispatch work.',
     '지시할 내용을 입력해주세요.': 'Enter a command first.', '담당 부서를 선택해주세요.': 'Choose a department.', '연결된 뒤 다시 시도해주세요.': 'Wait for the server connection, then try again.', '전송 중…': 'Dispatching…', '작업을 지시했습니다.': 'Operation dispatched.', '모델 연결을 먼저 확인해주세요.': 'Check the selected model connection first.',
     '작업을 취소했습니다.': 'Operation cancelled.', '설정을 저장했습니다.': 'Settings saved.', '부서 설정을 저장했습니다.': 'Department saved.', '클립보드에 복사했습니다.': 'Copied to clipboard.', '복사할 수 없습니다. 텍스트를 직접 선택해주세요.': 'Clipboard unavailable. Select and copy the text directly.',
+    '팀 실행 전체 중지': 'Stop the entire team turn', '팀 실행을 중지했습니다.': 'Team turn stopped.', '이미 종료된 작업입니다.': 'The operation has already finished.',
     '기록을 내보냈습니다.': 'Records exported.', '샘플 작업을 시작했습니다. 실제 모델을 호출하지 않습니다.': 'Sample operations started. No model calls are made.', '데모 작업을 지웠습니다.': 'Demo operations cleared.', '상태를 새로고침했습니다.': 'Connection status refreshed.', '요청을 처리하지 못했습니다.': 'The request could not be completed.',
     '파일 수정이 가능한 작업으로 실행합니다.': 'This operation may edit files.', '기본: 읽기 및 분석만': 'Default: read and analyze only', '저장 중…': 'Saving…', '확인 중…': 'Checking…',
     '전략기획실': 'Strategy', '개발본부': 'Engineering', '리서치센터': 'Research', '품질관리실': 'Quality Assurance',
@@ -92,6 +93,7 @@ const TRANSLATIONS = {
     '설치': 'インストール', '로그인': 'ログイン', '상세 정보': '詳細情報', '연결 상태를 확인하고 있습니다.': '接続状態を確認しています。', '아직 실행 기록이 없습니다.': '実行履歴はまだありません。', '본부의 첫 지시를 기다리고 있습니다.': '本部からの最初の指示を待っています。', '작업을 보내면 모델의 활동이 여기에 표시됩니다.': 'タスクを送信すると、モデルの活動がここに表示されます。',
     '지시할 내용을 입력해주세요.': '指示を入力してください。', '담당 부서를 선택해주세요.': '担当部署を選択してください。', '연결된 뒤 다시 시도해주세요.': 'サーバー接続後にもう一度お試しください。', '전송 중…': '送信中…', '작업을 지시했습니다.': 'タスクを送信しました。', '모델 연결을 먼저 확인해주세요.': '先にモデルの接続を確認してください。',
     '작업을 취소했습니다.': 'タスクを中止しました。', '설정을 저장했습니다.': '設定を保存しました。', '부서 설정을 저장했습니다.': '部署の設定を保存しました。', '클립보드에 복사했습니다.': 'クリップボードにコピーしました。', '복사할 수 없습니다. 텍스트를 직접 선택해주세요.': 'コピーできません。テキストを直接選択してください。',
+    '팀 실행 전체 중지': 'チームのターン全体を停止', '팀 실행을 중지했습니다.': 'チームのターンを停止しました。', '이미 종료된 작업입니다.': 'タスクはすでに終了しています。',
     '기록을 내보냈습니다.': '履歴を書き出しました。', '샘플 작업을 시작했습니다. 실제 모델을 호출하지 않습니다.': 'サンプルを開始しました。実際のモデルは呼び出しません。', '데모 작업을 지웠습니다.': 'デモのタスクを消去しました。', '상태를 새로고침했습니다.': '接続状態を更新しました。', '요청을 처리하지 못했습니다.': 'リクエストを処理できませんでした。',
     '파일 수정이 가능한 작업으로 실행합니다.': 'ファイルを編集できるタスクとして実行します。', '저장 중…': '保存中…', '확인 중…': '確認中…',
     '전략기획실': '戦略企画室', '개발본부': '開発本部', '리서치센터': 'リサーチセンター', '품질관리실': '品質管理室',
@@ -194,6 +196,7 @@ let dispatchPending = false;
 let lastFeedSignature = '';
 let lastMissionSignature = '';
 let stream;
+const retiredServerTokens = new Set();
 let accountsMounted = false, terminalMounted = false, updatesMounted = false;
 let projectsMounted = false, analyticsMounted = false, knowledgeMounted = false, conversationsMounted = false, collaborationMounted = false;
 let teamConversation;
@@ -328,7 +331,7 @@ function installControls() {
     hasLocalLanguage = true;
     try { localStorage.setItem('hq.language', language); } catch {}
     applyLanguage();
-    if (connected) api('/api/settings', { method: 'POST', body: { language } }).then(result => { if (result.settings) state.settings = result.settings; }).catch(() => {});
+    if (connected) api('/api/settings', { method: 'POST', body: { language } }).catch(() => {});
   });
   $('#dispatch-prompt').maxLength = 12000;
   $('#prompt-count').textContent = '0 / 12,000';
@@ -404,15 +407,35 @@ function setConnected(value) {
 
 function receiveState(incoming) {
   if (!incoming || !Array.isArray(incoming.tasks) || !Array.isArray(incoming.departments)) return;
+  const currentServer = state.server;
+  const incomingServer = incoming.server;
+  if (incomingServer?.csrfToken) {
+    if (retiredServerTokens.has(incomingServer.csrfToken)) return;
+    if (currentServer.csrfToken === incomingServer.csrfToken) {
+      if (Number.isSafeInteger(currentServer.snapshotRevision) && (!Number.isSafeInteger(incomingServer.snapshotRevision) || incomingServer.snapshotRevision <= currentServer.snapshotRevision)) return;
+    } else if (currentServer.csrfToken) {
+      retiredServerTokens.add(currentServer.csrfToken);
+    }
+  }
   const previousWorkspace = state.settings.workspace;
   let restoredDepartment = null;
   if (previousWorkspace && incoming.settings?.workspace !== previousWorkspace) {
     inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = ''; inspectorOutputWorkspace = '';
     taskDetailRequests.clear();
-    projectDrafts.set(previousWorkspace, { prompt: $('#dispatch-prompt').value, department: $('#dispatch-department').value, provider: $('#dispatch-provider').value, execution: safeExecutionValue(dispatchExecution), harness: dispatchHarness?.getDraft() });
+    projectDrafts.set(previousWorkspace, {
+      prompt: $('#dispatch-prompt').value,
+      department: $('#dispatch-department').value,
+      provider: $('#dispatch-provider').value,
+      priority: $('#dispatch-priority').value,
+      execution: safeExecutionValue(dispatchExecution),
+      harness: dispatchHarness?.getDraft(),
+    });
     const draft = projectDrafts.get(incoming.settings?.workspace);
     restoredDepartment = draft?.department || null;
     $('#dispatch-prompt').value = draft?.prompt || ''; $('#dispatch-provider').value = draft?.provider || '';
+    $('#dispatch-priority').value = draft?.priority || 'normal';
+    $('#write-permission').checked = false;
+    $('#dispatch-error').hidden = true;
     dispatchHarness?.setValue(draft?.harness);
     selectedTaskId = null;
   }
@@ -426,7 +449,7 @@ function receiveState(incoming) {
       $('#language-select').value = language;
       applyLanguage();
     } else if (hasLocalLanguage && state.settings.language !== language) {
-      api('/api/settings', { method: 'POST', body: { language } }).then(result => { if (result.settings) state.settings = result.settings; }).catch(() => {});
+      api('/api/settings', { method: 'POST', body: { language } }).catch(() => {});
     }
   }
   if (selectedTaskId && !state.tasks.some(task => task.id === selectedTaskId)) selectedTaskId = null;
@@ -654,7 +677,7 @@ function progressView(task) {
 
 function renderMissions() {
   const search = $('#task-search').value.trim().toLocaleLowerCase();
-  const signature = JSON.stringify([language, currentFilter, search, selectedTaskId, state.departments.map(dept => [dept.id, dept.name]), state.tasks.map(task => [task.id, task.title, task.departmentId, task.departmentName, task.provider, task.status, task.progress?.source, task.progress?.percent, task.priority, task.demo, task.createdAt, task.startedAt, task.finishedAt, task.modelId, task.reportedModel, ...(search ? [task.prompt] : [])])]);
+  const signature = JSON.stringify([language, currentFilter, search, selectedTaskId, state.departments.map(dept => [dept.id, dept.name]), state.tasks.map(task => [task.id, task.title, task.departmentId, task.departmentName, task.provider, task.status, task.progress?.source, task.progress?.percent, task.priority, task.demo, task.teamId, task.createdAt, task.startedAt, task.finishedAt, task.modelId, task.reportedModel, ...(search ? [task.prompt] : [])])]);
   if (signature === lastMissionSignature) return;
   lastMissionSignature = signature;
   const attention = state.tasks.filter(task => ['failed', 'interrupted'].includes(task.status));
@@ -674,7 +697,13 @@ function renderMissions() {
     if (task.priority === 'high') subline.append(node('span', { class: 'priority-mark' }, '↑ HIGH'));
     if (task.demo) subline.append(node('span', { class: 'demo-tag' }, 'DEMO'));
     const action = node('td');
-    if (ACTIVE.has(task.status)) action.append(node('button', { class: 'cancel-task', type: 'button', 'aria-label': `${t('작업 취소')}: ${task.title}`, title: t('작업 취소'), onclick: event => { event.stopPropagation(); cancelTask(task.id); } }, '×'));
+    if (ACTIVE.has(task.status)) {
+      const label = t(task.teamId ? '팀 실행 전체 중지' : '작업 취소');
+      action.append(node('button', {
+        class: 'cancel-task', type: 'button', 'aria-label': `${label}: ${task.title}`, title: label,
+        onclick: event => { event.stopPropagation(); void cancelTask(task); },
+      }, task.teamId ? '■' : '×'));
+    }
     const row = node('tr', { class: selectedTaskId === task.id ? 'selected' : '', tabindex: '0', 'aria-label': `${task.title} · ${STATUS[task.status] || task.status}`, 'aria-selected': selectedTaskId === task.id ? 'true' : 'false' },
       node('td', {}, node('span', { class: 'task-short-id' }, `#${task.id.slice(-5).toUpperCase()}`)),
       node('td', {}, node('span', { class: 'task-name', title: task.title }, task.title), subline),
@@ -969,9 +998,19 @@ async function copyText(text) {
   catch { toast(t('복사할 수 없습니다. 텍스트를 직접 선택해주세요.'), true); return false; }
 }
 
-async function cancelTask(id) {
-  try { const result = await api(`/api/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: {} }); if (result.task) { const index = state.tasks.findIndex(task => task.id === id); if (index >= 0) state.tasks[index] = result.task; render(); } toast(t('작업을 취소했습니다.')); }
-  catch (error) { toast(`${t('요청을 처리하지 못했습니다.')} ${error.message}`, true); }
+async function cancelTask(task) {
+  const workspace = state.settings.workspace;
+  try {
+    const result = await api(`/api/tasks/${encodeURIComponent(task.id)}/cancel`, { method: 'POST', body: {} });
+    if (workspace !== state.settings.workspace) return;
+    const index = state.tasks.findIndex(item => item.id === task.id);
+    if (index >= 0 && result.task) { state.tasks[index] = result.task; render(); }
+    if (result.task?.status === 'cancelled') toast(t(task.teamId ? '팀 실행을 중지했습니다.' : '작업을 취소했습니다.'));
+    else if (result.task && !ACTIVE.has(result.task.status)) toast(t('이미 종료된 작업입니다.'));
+    else toast(t('요청을 처리하지 못했습니다.'), true);
+  } catch (error) {
+    if (workspace === state.settings.workspace) toast(`${t('요청을 처리하지 못했습니다.')} ${error.message}`, true);
+  }
 }
 
 function showFormError(id, error) {

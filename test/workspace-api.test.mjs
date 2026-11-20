@@ -304,6 +304,102 @@ test('an unsupported downstream permission rejects the whole workflow before any
   assert.equal(f.calls.length, 0, 'no provider may start after the request was rejected');
 });
 
+test('task and workflow queue writes publish nothing when the commit fails', async t => {
+  const f = await fixture(t);
+  await f.successful('/api/graph', { nodes: ['strategy', 'engineering'].map(departmentNode), edges: [handoff('strategy', 'engineering')] }, 'PUT');
+  const first = await f.submit({ prompt: 'Existing conversation' });
+  await eventually(() => f.calls.length === 1);
+  const { store } = f.app;
+  const baseline = structuredClone({ tasks: store.state.tasks, conversations: store.state.conversations, events: store.state.events });
+  const save = store.save;
+  const attempts = [];
+  store.save = (snapshot = store.state) => {
+    attempts.push(snapshot.tasks.slice(1).map(task => ({ id: task.id, workflowId: task.workflowId, dependsOn: task.dependsOn })));
+    throw Object.assign(new Error('Controlled disk failure'), { code: 'EACCES' });
+  };
+  try {
+    const direct = await f.request('/api/tasks', { departmentId: 'strategy', prompt: 'Uncommitted follow-up', conversationId: first.conversationId });
+    assert.equal(direct.status, 500);
+    await direct.json();
+    const workflow = await f.request('/api/workflows/run', { departmentId: 'strategy', prompt: 'Uncommitted workflow' });
+    assert.equal(workflow.status, 500);
+    await workflow.json();
+  } finally { store.save = save; }
+  assert.deepEqual({ tasks: store.state.tasks, conversations: store.state.conversations, events: store.state.events }, baseline);
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[0].length, 1);
+  assert.equal(attempts[1].length, 2);
+  const [upstream, downstream] = attempts[1];
+  assert.ok(upstream.workflowId);
+  assert.equal(downstream.workflowId, upstream.workflowId);
+  assert.deepEqual(downstream.dependsOn, [upstream.id]);
+  f.calls[0].complete();
+  await eventually(async () => (await f.state()).tasks.find(task => task.id === first.id)?.status === 'completed');
+  await delay(30);
+  assert.equal(f.calls.length, 1);
+});
+
+test('failure to save a task start releases the scheduler slot without launching the model', async t => {
+  const f = await fixture(t);
+  const { store } = f.app;
+  const save = store.save;
+  let failedWrites = 0;
+  store.save = (snapshot = store.state) => {
+    if (snapshot === store.state) {
+      failedWrites += 1;
+      throw Object.assign(new Error('Controlled disk failure'), { code: 'EACCES' });
+    }
+    return save(snapshot);
+  };
+  let task;
+  try {
+    task = await f.submit({ prompt: 'Launch must be durable' });
+    await eventually(async () => (await f.state()).tasks.find(item => item.id === task.id)?.status === 'failed');
+  } finally { store.save = save; }
+  assert.equal(failedWrites, 2, 'both the start and outcome writes must tolerate storage failure');
+  assert.equal(f.calls.length, 0);
+  const failed = (await f.get(`/api/tasks/${task.id}`)).task;
+  assert.equal(failed.startedAt, null);
+  assert.match(failed.error, /저장하지 못해/);
+  await f.submit({ prompt: 'A later task can run' });
+  await eventually(() => f.calls.length === 1);
+  f.calls[0].complete();
+});
+
+test('desktop updates wait for model exit and block every task dispatch until release', async t => {
+  const f = await fixture(t, { deferCancel: true });
+  const task = await f.submit({ prompt: 'Keep the current task available' });
+  await eventually(() => f.calls.length === 1);
+  assert.equal(f.app.beginDesktopUpdate(), null);
+  await f.successful(`/api/tasks/${task.id}/cancel`, {});
+  assert.equal(f.calls[0].signal.aborted, true);
+  assert.equal(f.app.beginDesktopUpdate(), null, 'cancelled model still holds its slot until exit');
+  f.calls[0].complete();
+
+  const release = f.app.beginDesktopUpdate();
+  assert.equal(typeof release, 'function');
+  assert.equal(f.app.beginDesktopUpdate(), null);
+  for (const [route, input] of [
+    ['/api/tasks', { departmentId: 'strategy', prompt: 'New task' }],
+    ['/api/workflows/run', { departmentId: 'strategy', prompt: 'New workflow' }],
+    ['/api/teams', { workspace: f.workspace, prompt: 'New team' }],
+    ['/api/teams/unavailable/turns', { workspace: f.workspace, prompt: 'Existing team follow-up' }],
+    ['/api/demo', {}],
+  ]) {
+    const response = await f.request(route, input);
+    assert.equal(response.status, 409, route);
+    assert.match(JSON.stringify(await response.json()), /업데이트/);
+  }
+  release();
+  const nextRelease = f.app.beginDesktopUpdate();
+  release();
+  assert.equal(f.app.beginDesktopUpdate(), null, 'an old release cannot unlock a newer updater call');
+  nextRelease();
+  await f.submit({ prompt: 'Dispatch reopens after update rejection' });
+  await eventually(() => f.calls.length === 2);
+  f.calls[1].complete();
+});
+
 test('selected memory enters the actual prompt while task capabilities remain private and are revoked', async t => {
   const f = await fixture(t);
   const selected = await f.note({ title: '선택된 설계', content: 'SELECTED_MEMORY_CONTEXT' });
