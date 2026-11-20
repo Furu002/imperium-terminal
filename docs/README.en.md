@@ -10,6 +10,8 @@ The app runs a local web server, viewed in a desktop window or your browser. It 
 
 ## Terminal workspace and linked knowledge
 
+Enable **Completion checks** in the task form to send your acceptance criteria and require a response after a successful process exit. With Codex or Claude, you can also require that the task publish a result with a specific title on the collaboration board. Inspect each check in the task details and review the response against your criteria. On a workflow run, the checks apply to the starting agent and a failed check stops dependent tasks.
+
 Selecting work displays the result in the same-screen panel. **Window** opens a movable, resizable, nonmodal window inside the app. **Full screen** fills the app viewport; double-click its title bar to maximize or restore. **Dock** and **Close** return the reader to its panel. `Esc` restores full screen → window → panel. The background remains usable, and raw/read mode, text size, disclosures and reading position survive transitions while output keeps streaming. Project/conversation changes close their owned windows. On narrow screens, fold the task list and composer to prioritize results.
 
 The first screen is a role-based organization chart showing responsibilities, models, assignments, equipped skills and handoffs. Primary navigation is Organization, Skills, Work, Memory and Settings. The Tools menu retains the empty node workflow, conversations, collaboration, terminal, projects, usage and updates. `Ctrl/Cmd+K` opens the folded command line. Bundled Pretendard fonts work offline; results use at least 18px text.

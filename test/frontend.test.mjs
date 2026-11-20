@@ -3,12 +3,13 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const [html, script, outputScript, conversationsScript, organizationScript] = await Promise.all([
+const [html, script, outputScript, conversationsScript, organizationScript, taskHarnessScript] = await Promise.all([
   readFile(new URL('../public/index.html', import.meta.url), 'utf8'),
   readFile(new URL('../public/app.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/output-view.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/conversations.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/organization-workbench.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/task-harness.js', import.meta.url), 'utf8'),
 ]);
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -37,7 +38,7 @@ function sampleState(overrides = {}) {
   };
 }
 
-async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {}, conversations = false, organization = false, viewportWidth, beforeApp } = {}) {
+async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails = {}, fetchTaskDetail, stateSnapshots = {}, conversations = false, organization = false, viewportWidth, beforeApp, beforeTaskResponse } = {}) {
   const virtualConsole = new VirtualConsole();
   const runtimeErrors = [];
   virtualConsole.on('jsdomError', error => runtimeErrors.push(error));
@@ -87,6 +88,7 @@ async function loadUI(t, initial = sampleState(), savedLanguage, { taskDetails =
         output: '', error: null, logs: [], usage: { inputTokens: 0, outputTokens: 0 }, demo: false,
       };
       backend.tasks.unshift(task);
+      await beforeTaskResponse?.(task);
       data = { task };
     } else throw new Error(`Unexpected mocked request: ${method} ${url}`);
     return { ok: true, status: 200, json: async () => clone(data) };
@@ -170,6 +172,98 @@ test('project switching isolates composer drafts and restores each project draft
   streams[0].state(clone(initial)); await settle(); assert.equal(prompt.value, 'Only project A draft'); assert.equal(document.querySelector('#dispatch-provider').value, 'codex');
   streams[0].state(clone(projectB)); await settle(); assert.equal(prompt.value, 'Only project B draft'); assert.equal(document.querySelector('#dispatch-provider').value, 'claude');
   assert.equal(calls.filter(call => call.url === '/api/tasks').length, 0, 'switching projects must not dispatch or persist a draft as a task');
+});
+
+test('the completion-check form dispatches criteria and shows server evidence without clearing newer edits', async t => {
+  const reply = deferred();
+  const { window, document, calls, streams, backend, runtimeErrors } = await loadUI(t, sampleState(), undefined, {
+    beforeApp: window => window.eval(taskHarnessScript),
+    beforeTaskResponse: () => reply.promise,
+  });
+  const form = document.querySelector('#dispatch-form');
+  const prompt = form.querySelector('#dispatch-prompt');
+  const editor = form.querySelector('.ith-editor');
+  const enabled = editor.querySelector('[type=checkbox]');
+  const criteria = editor.querySelector('textarea');
+  const title = editor.querySelector('[type=text]');
+  editor.open = true;
+  enabled.click();
+  prompt.value = 'Review the API contract';
+  criteria.value = 'List changed interfaces and test evidence';
+  title.value = 'Review result';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  const submission = calls.find(call => call.url === '/api/tasks' && call.method === 'POST').body;
+  assert.equal(submission.prompt, 'Review the API contract');
+  assert.deepEqual(submission.harness, { criteria: 'List changed interfaces and test evidence', artifactTitle: 'Review result' });
+
+  prompt.value = 'Prepare an integration plan';
+  criteria.value = 'Include rollout steps';
+  reply.resolve();
+  await settle();
+  assert.equal(prompt.value, 'Prepare an integration plan');
+  assert.equal(criteria.value, 'Include rollout steps');
+  assert.equal(enabled.checked, true);
+  assert.equal(document.querySelector('.ith-report').dataset.harnessStatus, 'pending');
+
+  const task = backend.tasks[0];
+  task.status = 'failed';
+  task.output = 'The review is ready.';
+  task.finishedAt = new Date().toISOString();
+  task.harness.result = { status: 'failed', checkedAt: task.finishedAt, checks: [{ id: 'output', passed: true }, { id: 'artifact', passed: false }] };
+  streams[0].state(backend);
+  await settle();
+  const report = document.querySelector('.ith-report');
+  assert.equal(report.dataset.harnessStatus, 'failed');
+  assert.equal(report.open, true);
+  assert.match(report.textContent, /Review result/);
+  assert.match(report.textContent, /List changed interfaces and test evidence/);
+  assert.deepEqual([...report.querySelectorAll('[data-check-status]')].map(item => item.dataset.checkStatus), ['pass', 'fail']);
+  assert.deepEqual(runtimeErrors, []);
+});
+
+test('a delayed completion-check dispatch clears the consumed draft only in its original project', async t => {
+  const reply = deferred(), projectA = sampleState();
+  const projectB = sampleState({ settings: { ...projectA.settings, workspace: 'C:\\Project B' } });
+  const { window, document, backend, streams, runtimeErrors } = await loadUI(t, projectA, undefined, {
+    beforeApp: window => window.eval(taskHarnessScript),
+    beforeTaskResponse: () => reply.promise,
+  });
+  const form = document.querySelector('#dispatch-form');
+  const prompt = form.querySelector('#dispatch-prompt');
+  const editor = form.querySelector('.ith-editor');
+  const enabled = editor.querySelector('[type=checkbox]');
+  const criteria = editor.querySelector('textarea');
+  prompt.value = 'Send once from project A';
+  enabled.click();
+  criteria.value = 'Check the project A result';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  // Opening the disclosure does not change the submitted fields.
+  editor.open = true;
+  streams[0].state(projectB);
+  await settle();
+  assert.equal(prompt.value, '');
+  assert.equal(enabled.checked, false);
+  prompt.value = 'Keep project B work';
+  enabled.click();
+  criteria.value = 'Keep project B checks';
+  reply.resolve();
+  await settle();
+  assert.equal(prompt.value, 'Keep project B work');
+  assert.equal(criteria.value, 'Keep project B checks');
+  assert.equal(document.querySelector('.ith-report'), null, 'a response from project A must not appear in project B');
+  streams[0].state(backend);
+  await settle();
+  assert.equal(prompt.value, '');
+  assert.equal(criteria.value, '');
+  assert.equal(enabled.checked, false);
+  streams[0].state(projectB);
+  await settle();
+  assert.equal(prompt.value, 'Keep project B work');
+  assert.equal(criteria.value, 'Keep project B checks');
+  assert.equal(enabled.checked, true);
+  assert.deepEqual(runtimeErrors, []);
 });
 
 test('settings workspace changes clear the previous project draft and select the new project task', async t => {

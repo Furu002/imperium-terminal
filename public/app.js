@@ -224,6 +224,18 @@ function syncDispatchExecution(force = false) {
 }
 const taskDetailCache = new Map(), taskDetailRequests = new Map(), projectDrafts = new Map();
 let inspectorOutputView, inspectorOutputIdentity = '', inspectorOutputWorkspace = '', operationControlsOpen = true;
+let dispatchHarness, inspectorHarness, inspectorHarnessSignature = '', inspectorHarnessKey = '';
+function dispatchHarnessFields(draft) {
+  return JSON.stringify([draft?.enabled, draft?.criteria, draft?.artifactTitle]);
+}
+function syncDispatchHarness() {
+  if (!dispatchHarness && window.ImperiumTaskHarness) {
+    dispatchHarness = window.ImperiumTaskHarness.createEditor({ language });
+    const form = $('#dispatch-form');
+    form.insertBefore(dispatchHarness.element, form.querySelector('.dispatch-footer'));
+  }
+  dispatchHarness?.update({ language });
+}
 const taskDetailKey = task => `${task.id}:${task.status}:${task.finishedAt || ''}:${task.outputChars || task.output?.length || 0}`;
 function inspectedTask(task) {
   if (task && ACTIVE.has(task.status)) return { ...task, detailsTruncated: false };
@@ -396,10 +408,11 @@ function receiveState(incoming) {
   if (previousWorkspace && incoming.settings?.workspace !== previousWorkspace) {
     inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = ''; inspectorOutputWorkspace = '';
     taskDetailRequests.clear();
-    projectDrafts.set(previousWorkspace, { prompt: $('#dispatch-prompt').value, department: $('#dispatch-department').value, provider: $('#dispatch-provider').value, execution: safeExecutionValue(dispatchExecution) });
+    projectDrafts.set(previousWorkspace, { prompt: $('#dispatch-prompt').value, department: $('#dispatch-department').value, provider: $('#dispatch-provider').value, execution: safeExecutionValue(dispatchExecution), harness: dispatchHarness?.getDraft() });
     const draft = projectDrafts.get(incoming.settings?.workspace);
     restoredDepartment = draft?.department || null;
     $('#dispatch-prompt').value = draft?.prompt || ''; $('#dispatch-provider').value = draft?.provider || '';
+    dispatchHarness?.setValue(draft?.harness);
     selectedTaskId = null;
   }
   const memoryChanged = incoming.memoryUpdatedAt && incoming.memoryUpdatedAt !== state.memoryUpdatedAt;
@@ -458,6 +471,7 @@ function render() {
   renderMissions();
   renderFeed();
   renderInspector();
+  syncDispatchHarness();
   $('#clear-demo-button').hidden = !state.tasks.some(task => task.demo);
   $('#workspace-path').textContent = state.settings.workspace || 'WORKSPACE —';
   $('#workspace-path').title = state.settings.workspace || t('작업 폴더');
@@ -716,6 +730,7 @@ function renderInspector() {
   let task = inspectedTask(state.tasks.find(item => item.id === selectedTaskId));
   $('#copy-output').disabled = !task?.output || task.detailsTruncated;
   if (!task) {
+    inspectorHarness = null; inspectorHarnessSignature = ''; inspectorHarnessKey = '';
     inspectorOutputView?.destroy(); inspectorOutputView = null; inspectorOutputIdentity = ''; inspectorOutputWorkspace = '';
     container.replaceChildren(node('div', { class: 'inspector-empty' }, node('div', { class: 'inspector-empty-visual', 'aria-hidden': 'true' }, node('span'), node('span'), node('span')), node('strong', {}, t('작업을 선택하세요')), node('p', {}, t('작업 현황에서 항목을 선택하면'), node('br'), t('진행 과정과 결과를 확인할 수 있습니다.'))));
     return;
@@ -738,6 +753,16 @@ function renderInspector() {
   if (task.demo) tags.append(node('span', { class: 'demo-tag' }, 'DEMO'));
   const meta = node('div', { class: 'inspector-meta' }, node('div', { class: 'inspector-meta-top' }, node('span', {}, `#${task.id.slice(-8).toUpperCase()}`), statusTag(task)), node('h3', {}, task.title), tags);
   const parts = [meta]; let restoreOutputMode = 'panel';
+  const harnessKey = JSON.stringify([state.settings.workspace, task.id]);
+  const harnessSignature = JSON.stringify([harnessKey, language, task.status, task.harness]);
+  if (harnessSignature !== inspectorHarnessSignature) {
+    const wasOpen = harnessKey === inspectorHarnessKey ? inspectorHarness?.open : undefined;
+    inspectorHarness = window.ImperiumTaskHarness?.createReport({ task, language });
+    if (inspectorHarness) inspectorHarness.open = Boolean(wasOpen || task.harness?.result?.status === 'failed');
+    inspectorHarnessKey = harnessKey;
+    inspectorHarnessSignature = harnessSignature;
+  }
+  if (inspectorHarness) parts.push(inspectorHarness);
   if (window.ImperiumOutput) {
     const identity = JSON.stringify([state.settings.workspace, task.id]);
     if (!inspectorOutputView || inspectorOutputIdentity !== identity) {
@@ -764,7 +789,7 @@ function renderInspector() {
     parts.push(node('div', { class: 'inspector-memory' }, `${words[0]} ${m.selectedIds?.length || 0} · ${num(m.contextChars)} ${words[1]} / ${num(m.totalMemoryChars)} · ${words[2]} ${m.retrievals || 0}`));
   }
   if (task.usage && (task.usage.inputTokens || task.usage.outputTokens)) parts.push(node('div', { class: 'inspector-usage' }, node('span', {}, t('입력 {count} 토큰', { count: num(task.usage.inputTokens) })), node('span', {}, t('출력 {count} 토큰', { count: num(task.usage.outputTokens) }))));
-  if (task.status === 'failed') parts.push(node('div', { class: 'inspector-links' }, node('button', { class: 'text-button', type: 'button', onclick: openSettings }, t('연결 상태 확인'), ' ↗')));
+  if (task.status === 'failed' && task.harness?.result?.status !== 'failed') parts.push(node('div', { class: 'inspector-links' }, node('button', { class: 'text-button', type: 'button', onclick: openSettings }, t('연결 상태 확인'), ' ↗')));
   for (const child of [...container.children]) if (!parts.includes(child)) child.remove();
   parts.forEach((part, index) => { if (container.children[index] !== part) container.insertBefore(part, container.children[index] || null); });
   if (restoreOutputMode === 'window') inspectorOutputView?.openWindow?.();
@@ -778,7 +803,7 @@ function updateView(next) {
   $('.app-shell').dataset.view = view;
   setOperationControls(operationControlsOpen);
   const toolNavigation = $('.workbench-secondary-nav');
-  if (toolNavigation) toolNavigation.open = Boolean(toolNavigation.querySelector(`[data-view="${view}"]`));
+  if (toolNavigation) toolNavigation.open = false;
   $$('.nav-button[data-view]').forEach(button => { const active = button.dataset.view === view; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const content = {
     overview: ['AGENTS / SKILLS / OWNERSHIP', '조직도', '역할별 에이전트의 스킬과 담당 업무를 확인하세요.'],
@@ -942,6 +967,10 @@ function updateClock() {
 }
 
 function bindEvents() {
+  const toolsMenu = $('.workbench-secondary-nav');
+  document.addEventListener('click', event => {
+    if (toolsMenu?.open && !toolsMenu.contains(event.target)) toolsMenu.open = false;
+  });
   $$('.nav-button[data-view]').forEach(button => button.addEventListener('click', () => updateView(button.dataset.view)));
   $('.brand').addEventListener('click', event => { event.preventDefault(); updateView('overview'); });
   for (const id of ['#settings-top', '#nav-settings']) $(id).addEventListener('click', openSettings);
@@ -965,7 +994,9 @@ function bindEvents() {
   $('#dispatch-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (dispatchPending) return;
-    const prompt = $('#dispatch-prompt').value.trim();
+    const promptField = $('#dispatch-prompt');
+    const draftPrompt = promptField.value;
+    const prompt = draftPrompt.trim();
     if (!prompt) { toast(t('지시할 내용을 입력해주세요.'), true); showOperationControls(); $('#dispatch-prompt').focus(); return; }
     if (!connected) { toast(t('연결된 뒤 다시 시도해주세요.'), true); return; }
     const departmentId = $('#dispatch-department').value;
@@ -978,13 +1009,26 @@ function bindEvents() {
     $('#dispatch-submit').disabled = true;
     $('#dispatch-submit').textContent = t('전송 중…');
     $('#dispatch-error').hidden = true;
+    const workspace = state.settings.workspace;
+    const draft = dispatchHarnessFields(dispatchHarness?.getDraft());
     try {
-      const result = await api('/api/tasks', { method: 'POST', body: { prompt, departmentId, workspace: state.settings.workspace, ...choice, ...(dispatchExecution?.getValue() || {}), priority: $('#dispatch-priority').value, permission: $('#write-permission').checked ? 'workspace-write' : 'read-only' } });
+      const harness = dispatchHarness?.getValue();
+      const result = await api('/api/tasks', { method: 'POST', body: { prompt, departmentId, workspace, ...choice, ...(dispatchExecution?.getValue() || {}), ...(harness ? { harness } : {}), priority: $('#dispatch-priority').value, permission: $('#write-permission').checked ? 'workspace-write' : 'read-only' } });
+      if (workspace !== state.settings.workspace) {
+        const saved = projectDrafts.get(workspace);
+        if (saved?.prompt === draftPrompt && dispatchHarnessFields(saved.harness) === draft) {
+          projectDrafts.set(workspace, { ...saved, prompt: '', harness: undefined });
+        }
+        return;
+      }
       if (result.task) { selectedTaskId = result.task.id; if (!state.tasks.some(task => task.id === result.task.id)) state.tasks.unshift(result.task); }
-      $('#dispatch-prompt').value = '';
+      if (promptField.value === draftPrompt && dispatchHarnessFields(dispatchHarness?.getDraft()) === draft) {
+        promptField.value = '';
+        dispatchHarness?.setValue(undefined);
+      }
       render();
       toast(t('작업을 지시했습니다.'));
-    } catch (error) { showFormError('#dispatch-error', error); if (error.status === 409) openSettings(); }
+    } catch (error) { if (workspace === state.settings.workspace) { showFormError('#dispatch-error', error); if (error.status === 409) openSettings(); } }
     finally { dispatchPending = false; $('#dispatch-submit').disabled = !connected; $('#dispatch-submit').replaceChildren(t('지시 보내기'), node('span', { 'aria-hidden': 'true' }, '↗')); }
   });
 
@@ -1066,6 +1110,12 @@ function bindEvents() {
   window.addEventListener('imperium:terminal-command', () => updateView('terminal'));
   document.addEventListener('keydown', event => {
     const dialogOpen = $$('dialog').some(dialog => dialog.open);
+    if (event.key === 'Escape' && !event.defaultPrevented && !dialogOpen && toolsMenu?.open) {
+      toolsMenu.open = false;
+      toolsMenu.querySelector('summary')?.focus();
+      event.preventDefault();
+      return;
+    }
     if (event.key === 'F8') { event.preventDefault(); if (!dialogOpen) openSettings(); return; }
     const shortcuts = { F1: 'overview', F2: 'operations', F3: 'departments', F4: 'logs', F5: 'accounts', F6: 'terminal', F7: 'updates', F9: 'projects', F10: 'analytics', F11: 'knowledge' };
     if (shortcuts[event.key]) { event.preventDefault(); if (!dialogOpen) updateView(shortcuts[event.key]); return; }

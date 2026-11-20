@@ -1,0 +1,509 @@
+/* IMPERIUM command desk. Route visibility and output window geometry remain
+   with the feature modules. The same navigation controls serve all widths. */
+:root {
+  --bg: #090d13;
+  --panel: #0f151f;
+  --panel-raised: #151e2a;
+  --line: #303d4e;
+  --line-soft: #202b38;
+  --text: #edf3f9;
+  --muted: #b2bfce;
+  --dim: #96a6b8;
+  --orange: #ffb260;
+  --cyan: #79d9f1;
+  --green: #84dcaf;
+  --red: #ffaca9;
+  --desk-header: #0c121b;
+  --desk-active: #26211c;
+  --desk-hover: #192635;
+  --desk-control-line: #495b70;
+  --desk-frame-radius: 3px;
+}
+
+.app-shell,
+.app-shell.im-has-model-activity {
+  grid-template:
+    'header' auto
+    'command' auto
+    'navigation' auto
+    'activity' auto
+    'work' minmax(0, 1fr)
+    'status' 24px
+    / minmax(0, 1fr);
+}
+.app-shell > .topbar,
+.app-shell[data-view=operations] > .topbar {
+  min-height: 44px;
+  padding: 4px 12px;
+  gap: 12px;
+  background: var(--desk-header);
+}
+.brand { gap: 8px; }
+.brand-mark { width: 27px; height: 27px; }
+.brand-copy { flex-direction: row; align-items: baseline; gap: 10px; }
+.brand-copy strong { font-size: 17px; letter-spacing: .085em; }
+.brand-copy > span {
+  color: var(--dim);
+  font: 11px/1.4 var(--font);
+  letter-spacing: .02em;
+}
+.topbar-center { gap: 7px; }
+.subscription-label { padding: 1px 5px; border-radius: 2px; }
+.profile-button { min-height: 33px; }
+.avatar { width: 27px; height: 27px; border-radius: 3px; }
+.app-shell > .statusbar { min-height: 24px; height: 24px; background: var(--desk-header); }
+.statusbar > div:last-child > .orange-text,
+.statusbar > div:last-child > .statusbar-separator { display: none; }
+.statusbar #workspace-path { color: var(--muted); }
+
+#function-command.terminal-shell {
+  z-index: 8;
+  max-height: min(38dvh, 320px);
+  background: #111b27;
+}
+#function-command > summary,
+.app-shell[data-view=operations] #function-command > summary {
+  min-height: 33px;
+  padding: 3px 12px;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+#function-command .terminal-command-caption { color: var(--orange); font-family: var(--font); }
+#function-command .terminal-command-caption kbd { margin-left: 7px; color: var(--muted); }
+#function-command .terminal-project-name { max-width: min(54vw, 640px); }
+#function-command .terminal-session-status { color: var(--green); }
+#function-command .terminal-session-status[data-state=offline] { color: var(--red); }
+#function-command .terminal-session-status[data-state=local] { color: var(--cyan); }
+.terminal-functionbar, .terminal-tabs { gap: 4px; padding: 5px 8px; }
+.terminal-functionbar > button, .terminal-tabs button, .terminal-commandbar button { border-radius: 2px; }
+.terminal-commandbar input { border-radius: 2px; }
+
+/* Primary routes stay visible. Tools is the same native disclosure with a
+   bounded overlay, so opening the catalog does not squeeze the desk. */
+.app-shell > .sidebar,
+.app-shell[data-view=operations] > .sidebar {
+  position: relative;
+  z-index: 7;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  height: auto;
+  max-height: none;
+  min-height: 39px !important;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--desk-header);
+  overflow: visible;
+}
+.sidebar-top {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+.sidebar-label { display: none; }
+.workbench-primary-nav {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-width: 0;
+  gap: 0;
+}
+.sidebar .workbench-primary-nav .nav-button {
+  display: flex;
+  justify-content: center;
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 38px;
+  padding: 5px 12px;
+  gap: 7px;
+  border-radius: 0;
+  border: 1px solid transparent;
+  border-block-width: 0;
+  font-size: 14px;
+  text-align: left;
+}
+.sidebar .workbench-primary-nav .nav-icon {
+  flex-basis: auto;
+  width: auto;
+  font-size: 16px;
+}
+.sidebar .workbench-primary-nav .nav-button kbd { margin-left: 2px; }
+.sidebar .nav-button:hover { color: var(--text); background: var(--desk-hover); }
+.sidebar .workbench-primary-nav .nav-button.active {
+  color: var(--orange);
+  background: var(--desk-active);
+  border-color: var(--line-soft);
+  box-shadow: inset 0 -2px var(--orange);
+}
+.workbench-secondary-nav {
+  flex: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.workbench-secondary-nav > summary {
+  height: 100%;
+  min-height: 38px;
+  padding: 7px 11px;
+  border-inline: 1px solid var(--line-soft);
+  color: var(--muted);
+  font: 600 14px/1.6 var(--font-sans);
+  white-space: nowrap;
+}
+.workbench-secondary-nav[open] > summary,
+.workbench-secondary-nav:has([aria-current=page]) > summary {
+  color: var(--orange);
+  background: var(--desk-active);
+  box-shadow: inset 0 -2px var(--orange);
+}
+.workbench-secondary-nav[open]::details-content {
+  position: absolute;
+  z-index: 3;
+  inset-inline-end: 10px;
+  inset-block-start: calc(100% + 4px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(480px, calc(100vw - 20px));
+  max-height: min(260px, 43dvh);
+  padding: 4px;
+  gap: 2px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--desk-control-line);
+  border-radius: var(--desk-frame-radius);
+  background: var(--panel);
+  box-shadow: 0 8px 22px #0008;
+}
+.sidebar .workbench-secondary-nav > .nav-button {
+  display: flex;
+  width: 100%;
+  min-height: 37px;
+  padding: 5px 9px;
+  margin: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.sidebar .workbench-secondary-nav > .nav-button:hover,
+.sidebar .workbench-secondary-nav > .nav-button:focus-visible { background: var(--desk-hover); outline-offset: -2px; }
+.sidebar .workbench-secondary-nav > .nav-button.active {
+  color: var(--orange);
+  background: var(--desk-active);
+  box-shadow: inset 2px 0 var(--orange);
+}
+.sidebar-bottom {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding-right: 2px;
+}
+.sidebar-bottom .local-badge,
+.sidebar-bottom .sidebar-version { margin: 0; font: 11px/1.5 var(--font); }
+.sidebar-bottom .local-badge > span:last-child { display: none; }
+@media (min-width: 1200px) {
+  .workbench-secondary-nav { position: relative; }
+  .workbench-secondary-nav[open]::details-content {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+  }
+}
+
+.app-shell > .im-model-activity,
+.app-shell[data-view=operations] > .im-model-activity {
+  min-height: 36px;
+  gap: 10px;
+  padding: 0 10px;
+  background: #0a111a;
+}
+.im-model-heading { color: var(--cyan); }
+.im-model-list { height: auto; }
+.im-model-avatar,
+.app-shell[data-view=operations] .im-model-avatar {
+  min-width: 0;
+  height: 35px;
+  padding: 0 11px 0 7px;
+  gap: 7px;
+}
+.im-avatar-frame { width: 25px; height: 25px; }
+.im-avatar { width: 22px; height: 22px; }
+.im-model-copy { gap: 1px; }
+.im-model-avatar[data-status=running] .im-model-status { color: var(--green); }
+.im-model-avatar:is([data-status=queued], [data-status=auth]) .im-model-status { color: var(--orange); }
+.im-model-avatar:is([data-status=error], [data-status=offline]) .im-model-status { color: var(--red); }
+
+/* Compact frame and monitors use the same surfaces across tool pages. */
+.app-shell > .main-content { padding: 9px 12px; }
+.page-heading { margin-bottom: 8px; }
+.page-heading h1 { margin-top: 1px; font-size: 22px; }
+.page-heading .eyebrow { color: var(--cyan); font-size: 11px; }
+.page-heading p { margin-top: 2px; font-size: 13px; }
+.page-heading .title-cursor,
+.panel-heading .section-number,
+.panel-heading .english-label,
+.metric-graphic { display: none; }
+.heading-actions { gap: 6px; }
+.button,
+.heading-actions .button,
+.icon-button {
+  min-height: 33px;
+  border-color: var(--desk-control-line);
+  border-radius: var(--desk-frame-radius);
+}
+.button-primary { border-color: var(--orange); }
+.button-quiet:hover,
+.button-outline:hover { background: var(--desk-hover); color: var(--text); }
+:is(.panel, .organization-panel, .connection-summary, .metrics-strip, .iq-disclosure,
+  .iq-quotas-compact, .iq-card, .lp-live-progress, .iw-workspace, .ik-explorer,
+  .ik-network-panel, .ik-inspector, .ia-panel, .ia-metrics, .ib-panel, .isk-panel,
+  .ia-provider-card, .ia-register-form, .ia-registered-section, .ip-tile, .ip-create,
+  .ip-edit, .isk-skill, .imp-updates) {
+  border-color: var(--line);
+  border-radius: var(--desk-frame-radius);
+  box-shadow: none;
+}
+.panel-heading,
+.app-shell[data-view=operations] .panel-heading {
+  min-height: 37px;
+  padding: 5px 10px;
+  background: var(--panel-raised);
+}
+.panel-heading h2 { font-size: 15px; }
+.panel-footer { min-height: 30px; padding: 4px 9px; }
+.iq-compact-summary { min-height: 32px; padding: 4px 9px; }
+.iq-compact-heading { color: var(--cyan); }
+.lp-heading { min-height: 34px; padding: 5px 8px; }
+.dialog-heading { background: var(--panel-raised); }
+.settings-dialog select, .settings-dialog .text-input,
+.department-dialog select, .department-dialog .text-input { border-radius: 3px; }
+
+/* Main desk pairs the table and reader, preserving the compact controls
+   disclosure on widths where the two columns no longer fit. */
+.app-shell[data-view=operations] > .main-content { gap: 7px; }
+.app-shell[data-view=operations] .page-heading h1 { font-size: 21px; }
+.app-shell[data-view=operations] .page-heading .eyebrow { display: none; }
+.app-shell[data-view=operations] .metrics-strip .metric {
+  min-height: 38px;
+  padding-block: 4px;
+}
+.app-shell[data-view=operations] .metric strong {
+  font: 600 20px/1.25 var(--font);
+}
+.app-shell[data-view=operations] .metric-label { font-weight: 600; }
+.app-shell[data-view=operations] .primary-column { gap: 7px; }
+.app-shell[data-view=operations] .mission-toolbar { padding: 5px; gap: 4px; }
+.app-shell[data-view=operations] .filter-tabs { gap: 0; }
+.app-shell[data-view=operations] .filter-tab {
+  min-height: 32px;
+  border: 1px solid var(--line-soft);
+  border-radius: 0;
+  color: var(--muted);
+  background: var(--panel);
+}
+.app-shell[data-view=operations] .filter-tab.active {
+  color: var(--orange);
+  border-color: #825a35;
+  background: var(--desk-active);
+  box-shadow: inset 0 -1px var(--orange);
+}
+.app-shell[data-view=operations] .filter-tab:hover { color: var(--text); background: var(--desk-hover); }
+.search-wrap { border-radius: 2px; }
+.app-shell[data-view=operations] .mission-table :is(th, td) { padding-inline: 7px; }
+.mission-table th {
+  height: 29px;
+  padding-block: 4px;
+  color: var(--cyan);
+  background: #111b28;
+  border-color: var(--line);
+}
+.mission-table td {
+  height: 35px;
+  padding-block: 4px;
+  border-color: var(--line-soft);
+}
+.mission-table tbody tr:nth-child(even) { background: #111b26; }
+.mission-table tbody tr:not(.selected):hover { background: var(--desk-hover); }
+.mission-table tbody tr.selected { background: var(--desk-active); }
+.mission-table :is(.task-id, .task-time) { font-family: var(--font); }
+.mission-table .task-model { color: var(--cyan); }
+.mission-table .task-name { font-size: 14px; }
+.mission-table .task-department { color: var(--muted); }
+.empty-terminal { display: none; }
+.app-shell[data-view=operations] .dispatch-context { padding: 8px 10px; gap: 6px; }
+.app-shell[data-view=operations] .dispatch-context select { min-height: 35px; border-radius: 3px; }
+.app-shell[data-view=operations] .dispatch-footer { padding: 8px 10px; }
+.app-shell[data-view=operations] .inspector-meta { background: var(--panel); }
+.app-shell[data-view=operations] .io-conversation .io-response { padding-block-start: 12px; }
+.app-shell[data-view=operations] .io-conversation .io-response > .io-message-heading { margin-block-end: 7px; }
+.app-shell[data-view=operations] .io-conversation .io-output-toolbar {
+  padding-block: 5px;
+  background: var(--bg);
+  border-color: var(--line);
+}
+.io-message .io-markdown { max-width: min(100%, 85ch); }
+.io-dialog[data-mode] :is(.io-dialog-heading, .io-window-actions) { border-color: var(--line); }
+.io-dialog[data-mode=window] { border-radius: 4px; }
+.io-dialog[data-mode=fullscreen] { border-radius: 0; }
+
+@media (min-width: 1001px) {
+  .app-shell[data-view=operations] .page-heading > div:first-child {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0 10px;
+  }
+  .app-shell[data-view=operations] .workspace-grid {
+    grid-template-columns: minmax(390px, 1fr) minmax(0, 1.8fr);
+    gap: 8px;
+  }
+  .app-shell[data-view=operations] .dispatch-context {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app-shell[data-view=operations] .mission-table th:nth-child(3) { width: 96px; }
+  .app-shell[data-view=operations] .mission-table th:nth-child(5) { width: 64px; }
+}
+@container operation-controls (min-width: 420px) and (max-width: 480px) {
+  .mission-table :is(th, td):nth-child(3) { display: table-cell; }
+}
+
+/* Organization and workflow use color on real relationships and states.
+   Keep the graph’s geometry, drag handles, edge styles and inspector controls. */
+.app-shell[data-view=overview] > .main-content { padding: 6px 10px; gap: 5px; }
+.app-shell[data-view=overview] .page-heading { min-height: 33px; }
+.app-shell[data-view=overview] .org-toolbar { padding: 5px 9px; }
+.app-shell[data-view=overview] .org-summary-value { font-size: 18px; }
+.on-canvas { border-radius: var(--desk-frame-radius); }
+.org-nodes-host .on-canvas { margin-inline: 8px; }
+.on-toolbar { border-radius: 2px 2px 0 0; }
+.org-nodes-host .on-toolbar { gap: 4px; }
+.on-toolbar button,
+.on-inspector button,
+.iw-workspace button:not(.iw-port) {
+  background: var(--panel);
+  border-color: var(--desk-control-line);
+  border-radius: 3px;
+}
+.on-toolbar button:hover:not(:disabled),
+.on-inspector button:hover:not(:disabled),
+.iw-workspace button:not(.iw-port):hover:not(:disabled) { background: var(--desk-hover); }
+.on-toolbar .on-connections { color: var(--cyan); }
+.on-stage, .iw-stage {
+  background-color: #0a111b;
+  background-image: radial-gradient(#7893ab62 .8px, transparent .8px);
+}
+.on-node-list > .org-agent-card.on-node {
+  border-color: #506175;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px #0004;
+}
+.on-node .org-agent-heading { padding-bottom: 5px; border-bottom: 1px solid var(--line-soft); }
+.on-node .org-agent-name { color: var(--text); }
+.on-node .org-agent-actions button { border-radius: 3px; }
+.on-node .org-agent-task { border-top: 0; }
+.on-world > .org-chart-root.on-node > .org-commander-node {
+  border-color: #967043;
+  border-radius: 4px;
+  background: #211b16;
+}
+.on-minimap { border-radius: 3px; }
+.on-hint { color: var(--muted); background: #0a111bea; border-color: var(--line); }
+.iw-toolbar, .iw-footer { min-height: 36px; padding: 5px 8px; }
+.iw-node { border-radius: 3px; }
+.iw-inspector-heading { min-height: 35px; padding: 6px 10px; }
+@media (min-width: 901px) {
+  .org-nodes-host .on-body { grid-template-rows: minmax(0, 1fr); }
+  .org-nodes-host .on-stage { min-height: 0; }
+}
+@media (min-width: 1101px) {
+  .app-shell[data-view=overview] > .main-content {
+    display: grid;
+    grid-template:
+      'actions allowance' auto
+      'live live' auto
+      'offline offline' auto
+      'organization organization' minmax(0, 1fr)
+      / auto minmax(0, 1fr);
+    column-gap: 8px;
+    row-gap: 0;
+  }
+  .app-shell[data-view=overview] .page-heading { grid-area: actions; align-self: start; }
+  .app-shell[data-view=overview] #quotas-section { grid-area: allowance; min-width: 0; }
+  .app-shell[data-view=overview] #quotas-section .iq-quotas-compact { margin: 0; }
+  .app-shell[data-view=overview] #live-progress-section { grid-area: live; }
+  .app-shell[data-view=overview] #offline-banner { grid-area: offline; }
+  .app-shell[data-view=overview] #organization-section.org-workbench {
+    grid-area: organization;
+    margin-block-start: 5px;
+  }
+}
+
+#conversations-section.ic-chat { border-radius: 3px; }
+.ic-conversation.selected { background: var(--desk-active); box-shadow: inset 2px 0 var(--orange); }
+.ic-new, .ic-page, .ic-retry, .ic-composer :is(button, select) { border-radius: 3px; }
+.ik-heading, .ik-graph-controls, .ik-inspector-heading, .ik-panel-label { background: var(--panel-raised); }
+.ik-knowledge :is(.ik-panel-label, .ik-graph-counts) { color: var(--cyan); }
+.ia-comparison-table th, .ia-chart-table th { background: var(--panel-raised); color: var(--cyan); }
+.ia-comparison-table td, .ia-chart-table td { border-color: var(--line-soft); }
+.ia-comparison-table tbody tr:nth-child(even) { background: #111b26; }
+.ia-panel-heading, .ib-panel h3 { padding-block: 7px; }
+.ia-analytics .ia-grid { gap: 8px; }
+.ib-grid, .ip-layout, .isk-layout { gap: 9px; }
+.isk-equip-row.equipped { background: var(--desk-active); }
+.app-shell[data-view=terminal] .imperium-terminal { border-radius: 3px; }
+.imperium-terminal__toolbar { background: var(--panel-raised); }
+
+@media (max-width: 900px) {
+  .sidebar-bottom .local-badge { display: none; }
+  .sidebar .workbench-primary-nav .nav-button { padding-inline: 9px; }
+  .brand-copy > span { display: none; }
+}
+@media (max-width: 620px) {
+  .app-shell > .topbar, .app-shell[data-view=operations] > .topbar {
+    padding: 4px 8px;
+    gap: 6px;
+  }
+  #function-command > summary, .app-shell[data-view=operations] #function-command > summary {
+    padding-inline: 8px;
+    gap: 5px;
+  }
+  #function-command .terminal-project-name { max-width: 37vw; }
+  #function-command .terminal-session-status { max-width: 27vw; overflow: hidden; text-overflow: ellipsis; }
+  .app-shell > .sidebar,
+  .app-shell[data-view=operations] > .sidebar {
+    padding: 0 4px;
+    gap: 0;
+  }
+  .sidebar-top { gap: 0; }
+  .workbench-primary-nav { flex: 1; }
+  .sidebar .workbench-primary-nav .nav-button {
+    flex: 1 1 0;
+    padding: 4px;
+    gap: 3px;
+    font-size: 13px;
+  }
+  .sidebar .workbench-primary-nav .nav-icon { display: none; }
+  .sidebar .workbench-primary-nav kbd { display: none; }
+  .workbench-secondary-nav > summary { padding-inline: 7px; font-size: 13px; }
+  .sidebar-bottom { display: none; }
+  .app-shell > .im-model-activity,
+  .app-shell[data-view=operations] > .im-model-activity {
+    padding-inline: 6px;
+    gap: 4px;
+  }
+  .im-model-avatar, .app-shell[data-view=operations] .im-model-avatar { padding-inline: 4px 6px; gap: 4px; }
+  .app-shell > .main-content, .app-shell[data-view=overview] > .main-content { padding: 6px 7px; }
+  .app-shell[data-view=overview] .org-summary { gap: 8px; }
+  .app-shell[data-view=overview] .org-summary-item + .org-summary-item { padding-left: 8px; }
+  .org-nodes-host .on-canvas { margin-inline: 5px; }
+}

@@ -1,0 +1,67 @@
+.ith-editor, .ith-report {
+  min-width: 0;
+  border: 1px solid var(--line, #303947);
+  border-radius: 5px;
+  background: var(--panel, #10151d);
+  color: var(--text, #edf0f5);
+  font: 500 13px/1.55 var(--font-sans, sans-serif);
+}
+.ith-editor > summary, .ith-report > summary {
+  min-height: 36px;
+  padding: 8px 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ith-editor > summary::marker, .ith-report > summary::marker { color: var(--orange, #ff9f00); }
+.ith-editor[open] > summary, .ith-report[open] > summary { border-bottom: 1px solid var(--line, #303947); }
+.ith-enabled, .ith-verdict {
+  margin-inline-start: 8px;
+  color: var(--muted, #adb7c5);
+  font-size: 12px;
+}
+.ith-enabled { color: var(--cyan, #5dc8eb); }
+.ith-form, .ith-report-body { display: grid; min-width: 0; gap: 8px; padding: 10px; }
+.ith-form .ith-enable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--text, #edf0f5);
+}
+.ith-form .ith-enable input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--orange, #ff9f00); }
+.ith-fields { display: grid; min-width: 0; gap: 8px; margin: 0; padding: 0; border: 0; }
+.ith-fields label { display: grid; min-width: 0; gap: 4px; }
+.ith-editor [hidden] { display: none !important; }
+.ith-editor .ith-fields :is(textarea,input) {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #303947);
+  border-radius: 4px;
+  background: var(--bg, #080b10);
+  color: var(--text, #edf0f5);
+  font: 400 14px/1.55 var(--font-sans, sans-serif);
+}
+.ith-editor .ith-fields textarea { min-height: 62px; resize: vertical; }
+.ith-note, .ith-owner-title, .ith-owner-criteria { margin: 0; }
+.ith-note { color: var(--muted, #adb7c5); font-size: 12px; overflow-wrap: anywhere; }
+.ith-report {
+  flex: none;
+  margin: 4px 8px;
+}
+.ith-report-body {
+  max-height: min(30dvh, 240px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ith-checks { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ith-checks > li { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.ith-check-desc { min-width: 0; overflow-wrap: anywhere; }
+.ith-expected, .ith-evidence { display: block; color: var(--muted, #adb7c5); font-size: 12px; }
+.ith-check-status { flex: none; color: var(--muted, #adb7c5); font-size: 12px; }
+.ith-report[data-harness-status=passed] .ith-verdict, .ith-check-status[data-check-status=pass] { color: var(--green, #79d5b0); }
+.ith-report[data-harness-status=failed] .ith-verdict, .ith-check-status[data-check-status=fail] { color: var(--red, #ff9999); }
+.ith-owner-title { font-size: 13px; }
+.ith-owner-criteria { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 400; }
